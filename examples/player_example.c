@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.5 2002/09/25 03:07:46 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.6 2002/09/25 03:22:31 xiphmont Exp $
 
  ********************************************************************/
 
@@ -275,6 +275,10 @@ static void sigint_handler (int signal) {
 }
 
 static void open_video(void){
+  if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
+    fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
+    exit(1);
+  }
   
   screen = SDL_SetVideoMode(ti.width, ti.height, 0, SDL_SWSURFACE);
   if ( screen == NULL ) {
@@ -343,11 +347,6 @@ int main(void){
   
   int i,j;
   ogg_packet op;
-
-  if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
-    fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
-    exit(1);
-  }
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
   /* Beware the evil ifdef. We avoid these where we can, but this one we 
