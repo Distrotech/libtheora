@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.12 2003/05/30 20:40:16 mauricio Exp $
+  last mod: $Id: encoder_example.c,v 1.13 2003/06/03 20:38:13 mauricio Exp $
 
  ********************************************************************/
 
@@ -39,9 +39,9 @@
 static double rint(double x)
 {
     if (x < 0.0)
-        (double)(int)(x - 0.5);
+        return (double)(int)(x - 0.5);
     else
-        (double)(int)(x + 0.5);
+        return (double)(int)(x + 0.5);
 }
 #endif
 
@@ -68,8 +68,11 @@ int audio_r=-1;
 
 int video_x=0;
 int video_y=0;
-int video_x_adj=0;
-int video_y_adj=0;
+/*added canvas and offset dimensions, support for arbitrary resolutions*/
+int video_x_canvas=0;
+int video_y_canvas=0;
+int video_x_offset=0;
+int video_y_offset=0;
 int video_hzn=0;
 int video_hzd=0;
 int video_an=0;
@@ -332,14 +335,26 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
   /* You'll go to Hell for using static variables */
   static int          state=-1;
   static signed char *yuvframe[2];
+  static signed char *yuvcanvas[2];
   yuv_buffer          yuv;
   ogg_packet          op;
-  int i;
+  int i, e;
 
   if(state==-1){
-    /* initialize the double frame buffer */
+	/* initialize the double canvas buffer */
+    yuvcanvas[0]=malloc(video_x_canvas*video_y_canvas*3/2);
+    yuvcanvas[1]=malloc(video_x_canvas*video_y_canvas*3/2);
+
+	/* initialize the frame buffer, just a convenient way to parse YUVMPEG2*/
     yuvframe[0]=malloc(video_x*video_y*3/2);
     yuvframe[1]=malloc(video_x*video_y*3/2);
+
+	/*memset YUV canvas values, as canvas may be larger than actual video data*/
+	/*fill Y plane with 0x10 and UV planes with 0X80, for black data*/
+	memset(yuvcanvas[0],0x10,video_x_canvas*video_y_canvas);
+	memset(yuvcanvas[0]+video_x_canvas*video_y_canvas,0x80,video_x_canvas*video_y_canvas/2);
+	memset(yuvcanvas[1],0x10,video_x_canvas*video_y_canvas);
+	memset(yuvcanvas[1]+video_x_canvas*video_y_canvas,0x80,video_x_canvas*video_y_canvas/2);
 
     state=0;
   }
@@ -372,9 +387,32 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 	  exit(1);
 	}
 
+	/*suck YUVMPEG4 frame from file to a buffer*/
 	ret=fread(yuvframe[i],1,video_x*video_y*3/2,video);
-	if(ret!=video_x*video_y*3/2)break;
-	
+	  if(ret!=video_x*video_y*3/2) break;
+
+	/* copy YUV data aligning it to canvas size (multiple of 16) */
+	/* get and align Y plane first*/
+	for (e=0;e<video_y;e++){
+	  memcpy((yuvcanvas[i]+e*video_x_canvas)
+		  +video_x_canvas*video_y_offset + video_x_offset,
+		  yuvframe[i] +e*video_x
+		  ,video_x);
+	}
+	/* now get U plane*/
+	for (e=0;e<video_y/2;e++){
+	  memcpy((yuvcanvas[i]+(video_x_canvas*video_y_canvas)+e*video_x_canvas/2)
+		  +(video_x_canvas/2)*(video_y_offset/2) + video_x_offset/2,
+		  yuvframe[i]+(video_x*video_y)+e*video_x/2
+		  ,video_x/2);
+	}
+	/* finally get V plane*/
+	for (e=0;e<video_y/2;e++){
+	  memcpy((yuvcanvas[i]+(video_x_canvas*video_y_canvas*5/4)+e*video_x_canvas/2)
+		  +(video_x_canvas/2)*(video_y_offset/2) + video_x_offset/2,
+		  yuvframe[i]+(video_x*video_y*5/4)+e*video_x/2,video_x/2);
+	}
+
 	state++;
       }
 
@@ -384,28 +422,21 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 	exit(1);
       }
       
-      /* Theora is a one-frame-in,one-frame-out system; subit a frame
+      /* Theora is a one-frame-in,one-frame-out system; submit a frame
          for compression and pull out the packet */
       
-      /* center crop the input to a /16 size */
-      {
-	int x_adj= (video_x-video_x_adj)/2;
-	int y_adj= (video_y-video_y_adj)/2;
-
-	yuv.y_width=video_x_adj;
-	yuv.y_height=video_y_adj;
-	yuv.y_stride=video_x;
+	  {
+	yuv.y_width=video_x_canvas;
+	yuv.y_height=video_y_canvas;
+	yuv.y_stride=video_x_canvas;
 	
-	yuv.uv_width=video_x_adj/2;
-	yuv.uv_height=video_y_adj/2;
-	yuv.uv_stride=video_x/2;
+	yuv.uv_width=video_x_canvas/2;
+	yuv.uv_height=video_y_canvas/2;
+	yuv.uv_stride=video_x_canvas/2;
 	
-	yuv.y= yuvframe[0]+ 
-	  video_x*y_adj + x_adj;
-	yuv.u= yuvframe[0]+ video_x*video_y +
-	  (video_x/2)*(y_adj/2) + x_adj/2;
-	yuv.v= yuvframe[0]+ video_x*video_y*5/4 +
-	  (video_x/2)*(y_adj/2) + x_adj/2;
+	yuv.y= yuvcanvas[0];
+	yuv.u= yuvcanvas[0]+ video_x_canvas*video_y_canvas;
+	yuv.v= yuvcanvas[0]+ video_x_canvas*video_y_canvas*5/4 ;
       }
       
       theora_encode_YUVin(td,&yuv);
@@ -419,9 +450,9 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
       ogg_stream_packetin(to,&op);
       
       {
-	signed char *temp=yuvframe[0];
-	yuvframe[0]=yuvframe[1];
-	yuvframe[1]=temp;
+	signed char *temp=yuvcanvas[0];
+	yuvcanvas[0]=yuvcanvas[1];
+	yuvcanvas[1]=temp;
 	state--;
       }
       
@@ -537,12 +568,19 @@ int main(int argc,char *argv[]){
     fprintf(stderr,"No video files submitted for compression?\n");
     exit(1);
   }
-  /* Theora has a divisible-by-sixteen restriction for encoding */
-  video_x_adj=(video_x>>4)<<4;
-  video_y_adj=(video_y>>4)<<4;
+  /* Theora has a divisible-by-sixteen restriction for encoding in the canvas */
+  /* get a larger canvas if input not divisible by 16, and calculate offsets*/
+  video_x_canvas=((video_x + 15) >>4)<<4;
+  video_y_canvas=((video_y + 15) >>4)<<4;
+  video_x_offset = (video_x_canvas-video_x)/2;
+  video_y_offset = (video_y_canvas-video_y)/2;
   
-  ti.width=video_x_adj;
-  ti.height=video_y_adj;
+  ti.width=video_x_canvas;
+  ti.height=video_y_canvas;
+  ti.pixel_width=video_x;
+  ti.pixel_height=video_y;
+  ti.x_offset=video_x_offset;
+  ti.y_offset=video_y_offset;
   ti.fps_numerator=video_hzn;
   ti.fps_denominator=video_hzd;
   ti.aspect_numerator=video_an;
