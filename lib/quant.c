@@ -11,11 +11,10 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.11 2004/03/05 17:44:28 giles Exp $
+  last mod: $Id: quant.c,v 1.12 2004/03/07 01:26:31 giles Exp $
 
  ********************************************************************/
 
-#include <stdio.h>
 #include <string.h>
 #include "encoder_internal.h"
 #include "quant_lookup.h"
@@ -293,7 +292,6 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
       /* explicitly coded */
       qi=0;
       index=oggpackB_read(opb, _ilog(N-1)); /* first index */
-      fprintf(stderr, " inter V index %d\n", index);
       while(qi<63) {
         range=oggpackB_read(opb, _ilog(63-qi)); /* range */
         if(range<=0) return OC_BADHEADER;
