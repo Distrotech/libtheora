@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.23 2003/06/10 01:31:32 tterribe Exp $
+  last mod: $Id: player_example.c,v 1.24 2003/06/12 10:39:38 giles Exp $
 
  ********************************************************************/
 
@@ -43,7 +43,7 @@
 #include <signal.h>
 #include "theora/theora.h"
 #include "vorbis/codec.h"
-#include <SDL/SDL.h>
+#include <SDL.h>
 
 /* yes, this makes us OSS-specific for now. None of SDL, libao, libao2
    give us any way to determine hardware timing, and since the

@@ -34,16 +34,13 @@
 #include "theora/theora.h"
 #include "vorbis/codec.h"
 
-
 #ifdef WIN32
 #include <windows.h>
 #include <io.h>
-#include "SDL.h"
-#else
-#include "SDL/SDL.h"
 #endif
 
-#include "portaudio.h"
+#include <portaudio.h>
+#include <SDL.h>
 
 /*for portaudio  */
 #define FRAMES_PER_BUFFER (256)

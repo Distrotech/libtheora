@@ -18,6 +18,7 @@ endif
 
 noinst_PROGRAMS = encoder_example dump_video $(player_example) $(splayer)
 
+CFLAGS = $(SDL_CFLAGS)
 LDFLAGS = -all-static 
 LDADD = ../lib/libtheora.la -logg -lm
 
