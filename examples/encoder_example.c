@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.24 2003/07/07 20:17:21 mauricio Exp $
+  last mod: $Id: encoder_example.c,v 1.25 2003/07/07 21:28:00 mauricio Exp $
 
  ********************************************************************/
 
@@ -53,10 +53,10 @@ struct option options [] = {
   {"video-rate-target",required_argument,NULL,'V'},
   {"audio-quality",required_argument,NULL,'a'},
   {"video-quality",required_argument,NULL,'v'},
-  {"aspect-numerator",required_argument,NULL,'s'},
-  {"aspect-denominator",required_argument,NULL,'S'},
-  {"framerate-numerator",required_argument,NULL,'f'},
-  {"framerate-denominator",required_argument,NULL,'F'},
+  {"aspect-numerator",optional_argument,NULL,'s'},
+  {"aspect-denominator",optional_argument,NULL,'S'},
+  {"framerate-numerator",optional_argument,NULL,'f'},
+  {"framerate-denominator",optional_argument,NULL,'F'},
   {NULL,0,NULL,0}
 };
 
@@ -249,9 +249,9 @@ static void id_file(char *f){
 
       /*update fps and aspect ratio globals if not specified in the command line*/
       if (video_hzn==-1) video_hzn = tmp_video_hzn;
-      if (video_hzd==-1) video_hzn = tmp_video_hzd;
-      if (video_an==-1) video_hzn = tmp_video_an;
-      if (video_ad==-1) video_hzn = tmp_video_ad;
+      if (video_hzd==-1) video_hzd = tmp_video_hzd;
+      if (video_an==-1) video_an = tmp_video_an;
+      if (video_ad==-1) video_ad = tmp_video_ad;
 
       if(interlace!='p'){
         fprintf(stderr,"Input video is interlaced; Theora handles only progressive scan\n");
