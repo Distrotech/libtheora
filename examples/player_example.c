@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.19 2003/06/09 01:30:58 mauricio Exp $
+  last mod: $Id: player_example.c,v 1.20 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
@@ -454,7 +454,10 @@ int main(int argc,char *argv[]){
   /* init supporting Vorbis structures needed in header parsing */
   vorbis_info_init(&vi);
   vorbis_comment_init(&vc);
+
+  /* init supporting Theora structures needed in header parsing */
   theora_comment_init(&tc);
+  theora_info_init(&ti);
 
   /* Ogg file open; parse the headers */
   /* Only interested in Vorbis/Theora streams */
@@ -477,7 +480,7 @@ int main(int argc,char *argv[]){
       ogg_stream_packetout(&test,&op);
       
       /* identify the codec: try theora */
-      if(!theora_p && theora_decode_header(&ti,&op)>=0){
+      if(!theora_p && theora_decode_header(&ti,&tc,&op)>=0){
 	/* it is theora */
 	memcpy(&to,&test,sizeof(test));
 	theora_p=1;
@@ -503,24 +506,11 @@ int main(int argc,char *argv[]){
       	fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
       	exit(1);
       }
-      if(theora_p==1){
-        if(theora_decode_comment(&tc,&op)){
-          fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
-          exit(1);
-        }else{
-          dump_comments(&tc);
-          theora_p++;
-          continue;
-        }
+      if(theora_decode_header(&ti,&tc,&op)){
+        printf("Error parsing Theora stream headers; corrupt stream?\n");
+        exit(1);
       }
-      if(theora_p==2){
-        if(theora_decode_tables(&ti,&op)){
-          fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
-          exit(1);
-        }
-        theora_p++;
-        /* fall through */
-      }
+      theora_p++;
       if(theora_p==3)break;
     }
 
@@ -559,6 +549,10 @@ int main(int argc,char *argv[]){
 	    to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
 		ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
     report_colorspace(&ti);
+  }else{
+    /* tear down the partial theora setup */
+    theora_info_clear(&ti);
+    theora_comment_clear(&tc);
   }
   if(vorbis_p){
     vorbis_synthesis_init(&vd,&vi);
@@ -727,6 +721,8 @@ int main(int argc,char *argv[]){
   if(theora_p){
     ogg_stream_clear(&to);
     theora_clear(&td);
+    theora_comment_clear(&tc);
+    theora_info_clear(&ti);
   }
   ogg_sync_clear(&oy);
 

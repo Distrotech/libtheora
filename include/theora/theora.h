@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.10 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: theora.h,v 1.11 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
@@ -61,6 +61,8 @@ typedef struct {
   unsigned char version_minor;
   unsigned char version_subminor;
 
+  void *codec_setup;
+
   /* encode only */
   int           dropframes_p;
   int           keyframe_auto_p;
@@ -108,13 +110,13 @@ extern int theora_encode_packetout( theora_state *t, int last_p,
 				    ogg_packet *op);
 extern int theora_encode_header(theora_state *t, ogg_packet *op);
 extern int theora_encode_comment(theora_comment *tc, ogg_packet *op);
-extern int theora_decode_header(theora_info *c, ogg_packet *op);
-extern int theora_decode_comment(theora_comment *tc, ogg_packet *op); 
-extern int theora_decode_tables(theora_info *c, ogg_packet *op);
+extern int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op);
 extern int theora_decode_init(theora_state *th, theora_info *c);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
 extern double theora_granule_time(theora_state *th,ogg_int64_t granulepos);
+extern void theora_info_init(theora_info *c);
+extern void theora_info_clear(theora_info *c);
 extern void theora_clear(theora_state *t);
 
 extern void theora_comment_init(theora_comment *tc);

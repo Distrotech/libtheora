@@ -11,11 +11,12 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.23 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: toplevel.c,v 1.24 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
+#include <string.h>
 #include <ogg/ogg.h>
 #include <theora/theora.h>
 #include "encoder_internal.h"
@@ -1121,8 +1122,8 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,0x82,8);
   _tp_writebuffer(&cpi->oggbuffer,"theora",6);
   
-  write_Qtables(&cpi->oggbuffer);
-  write_HuffmanSet(&cpi->oggbuffer,cpi->pb.HuffRoot_VP3x);
+  WriteQTables(&cpi->pb,&cpi->oggbuffer);
+  WriteHuffmanTrees(cpi->pb.HuffRoot_VP3x,&cpi->oggbuffer);
 
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
@@ -1136,6 +1137,20 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
   cpi->packetflag=0;
 
   return(0);
+}
+
+void theora_info_init(theora_info *c) {
+  memset(c,0,sizeof(*c));
+  c->codec_setup=_ogg_calloc(1,sizeof(codec_setup_info));
+}
+
+void theora_info_clear(theora_info *c) {
+  codec_setup_info *ci=c->codec_setup;
+  if(ci){
+    ClearHuffmanTrees(ci->HuffRoot);
+    _ogg_free(ci);
+  }
+  memset(c,0,sizeof(*c));
 }
 
 void theora_clear(theora_state *t){
@@ -1159,6 +1174,7 @@ void theora_clear(theora_state *t){
 
     if(pbi){
 
+      theora_info_clear(&pbi->info);
       ClearHuffmanSet(pbi);
       ClearFragmentInfo(pbi);
       ClearFrameInfo(pbi);
@@ -1172,93 +1188,58 @@ void theora_clear(theora_state *t){
   }
 }
 
-int theora_decode_header(theora_info *c, ogg_packet *op){
-  int ret;
-  oggpack_buffer opb;
-  oggpackB_readinit(&opb,op->packet,op->bytes);
-  
-  if(!op->b_o_s)return(OC_BADHEADER);
-  {
-    char id[6];
-    int i;
-    int typeflag=oggpackB_read(&opb,8);
+static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
+  long ret;
 
-    if(typeflag!=0x80)return(OC_NOTFORMAT);
-    
-    for(i=0;i<6;i++)
-      id[i]=(char)oggpackB_read(&opb,8);
-    
-    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+  ci->version_major=oggpackB_read(opb,8);
+  ci->version_minor=oggpackB_read(opb,8);
+  ci->version_subminor=oggpackB_read(opb,8);
 
-    memset(c,0,sizeof(*c));
+  if(ci->version_major!=VERSION_MAJOR)return(OC_VERSION);
+  if(ci->version_minor>VERSION_MINOR)return(OC_VERSION);
 
-    c->version_major=oggpackB_read(&opb,8);
-    c->version_minor=oggpackB_read(&opb,8);
-    c->version_subminor=oggpackB_read(&opb,8);
+  ci->width=oggpackB_read(opb,16)<<4;
+  ci->height=oggpackB_read(opb,16)<<4;
+  ci->frame_width=oggpackB_read(opb,24);
+  ci->frame_height=oggpackB_read(opb,24);
+  ci->offset_x=oggpackB_read(opb,8);
+  ci->offset_y=oggpackB_read(opb,8);
 
-    if(c->version_major!=VERSION_MAJOR)return(OC_VERSION);
-    if(c->version_minor>VERSION_MINOR)return(OC_VERSION);
-  }
+  ci->fps_numerator=oggpackB_read(opb,32);
+  ci->fps_denominator=oggpackB_read(opb,32);
+  ci->aspect_numerator=oggpackB_read(opb,24);
+  ci->aspect_denominator=oggpackB_read(opb,24);
 
-  c->width=oggpackB_read(&opb,16)<<4;
-  c->height=oggpackB_read(&opb,16)<<4;
-  c->frame_width=oggpackB_read(&opb,24);
-  c->frame_height=oggpackB_read(&opb,24);
-  c->offset_x=oggpackB_read(&opb,8);
-  c->offset_y=oggpackB_read(&opb,8);
+  ci->keyframe_frequency_force=1<<oggpackB_read(opb,5);
 
-  c->fps_numerator=oggpackB_read(&opb,32);
-  c->fps_denominator=oggpackB_read(&opb,32);
-  c->aspect_numerator=oggpackB_read(&opb,24);
-  c->aspect_denominator=oggpackB_read(&opb,24);
+  ci->colorspace=oggpackB_read(opb,8);
+  ci->target_bitrate=oggpackB_read(opb,24);
+  ci->quality=ret=oggpackB_read(opb,6);
 
-  c->keyframe_frequency_force=1<<oggpackB_read(&opb,5);
-
-  c->colorspace=oggpackB_read(&opb,8);
-  c->target_bitrate=oggpackB_read(&opb,24);
-  c->quality=ret=oggpackB_read(&opb,6);
-
-  if(ret==-1)return(OC_BADHEADER);
+  if(ret==-1L)return(OC_BADHEADER);
 
   return(0);
 }
 
-int theora_decode_comment(theora_comment *tc, ogg_packet *op){
-  oggpack_buffer opb;
-  oggpack_readinit(&opb,op->packet,op->bytes);
+static int _theora_unpack_comment(theora_comment *tc, oggpack_buffer *opb){
+  int i;
+  int len = oggpack_read(opb,32);
+  if(len<0)return(OC_BADHEADER);
+  tc->vendor=_ogg_calloc(1,len+1);
+  _tp_readbuffer(opb,tc->vendor, len);
+  tc->vendor[len]='\0';
 
-  {
-    char id[6];
-    int typeflag=oggpack_read(&opb,8);
-
-    if(typeflag!=0x81)return(OC_NOTFORMAT);
-    
-    _tp_readbuffer(&opb, id, 6);
-    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
-  }
-  
-  {
-    int i;
-    int len = oggpack_read(&opb,32);
-    if(len<0)return(OC_BADHEADER);
-    tc->vendor=_ogg_calloc(1,len+1);
-    _tp_readbuffer(&opb,tc->vendor, len);
-    tc->vendor[len]='\0';
-  
-    tc->comments=oggpack_read(&opb,32);
-    if(tc->comments<0)goto parse_err;
-    tc->user_comments=_ogg_calloc(tc->comments,sizeof(*tc->user_comments));
-    tc->comment_lengths=_ogg_calloc(tc->comments,sizeof(*tc->comment_lengths));
-    for(i=0;i<tc->comments;i++){
-      len=oggpack_read(&opb,32);
-      if(len<0)goto parse_err;
-      if(len){
-        tc->user_comments[i]=_ogg_calloc(1,len+1);
-        _tp_readbuffer(&opb,tc->user_comments[i],len);
-        tc->user_comments[i][len]='\0';
-        tc->comment_lengths[i]=len;
-      }
-    }
+  tc->comments=oggpack_read(opb,32);
+  if(tc->comments<0)goto parse_err;
+  tc->user_comments=_ogg_calloc(tc->comments,sizeof(*tc->user_comments));
+  tc->comment_lengths=_ogg_calloc(tc->comments,sizeof(*tc->comment_lengths));
+  for(i=0;i<tc->comments;i++){
+    len=oggpack_read(opb,32);
+    if(len<0)goto parse_err;
+    tc->user_comments[i]=_ogg_calloc(1,len+1);
+    _tp_readbuffer(opb,tc->user_comments[i],len);
+    tc->user_comments[i][len]='\0';
+    tc->comment_lengths[i]=len;
   }
   return(0);
 
@@ -1267,40 +1248,78 @@ parse_err:
   return(OC_BADHEADER);
 }
 
-int theora_decode_tables(theora_info *c, ogg_packet *op){
+static int _theora_unpack_tables(theora_info *c, oggpack_buffer *opb){
+  codec_setup_info *ci;
+  int               ret;
+
+  ci=(codec_setup_info *)c->codec_setup;
+
+  ret=ReadQTables(ci, opb);
+  if(ret)return ret;
+  return ReadHuffmanTrees(ci, opb);
+}
+
+int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
   oggpack_buffer opb;
+
+  if(!op)return OC_BADHEADER;
   oggpackB_readinit(&opb,op->packet,op->bytes);
 
-  {  
+  {
     char id[6];
-    int i;
     int typeflag=oggpackB_read(&opb,8);
 
-    if(typeflag!=0x82)return(OC_NOTFORMAT);
-    
-    for(i=0;i<6;i++)
-      id[i]=(char)oggpackB_read(&opb,8);
-    
-    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
-  }
-  
-  /* todo: check for error */
-  read_Qtables(&opb);
-  read_HuffmanSet(&opb);
+    if(!(typeflag&0x80))return(OC_NOTFORMAT);
 
-  return(0);
+    _tp_readbuffer(&opb,id,6);
+    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+
+    switch(typeflag){
+    case 0x80:
+      if(!op->b_o_s){
+        /* Not the initial packet */
+        return(OC_BADHEADER);
+      }
+      if(ci->version_major!=0){
+        /* previously initialized info header */
+        return OC_BADHEADER;
+      }
+
+      return(_theora_unpack_info(ci,&opb));
+
+    case 0x81:
+      if(ci->version_major==0){
+        /* um... we didn't get the initial header */
+        return(OC_BADHEADER);
+      }
+
+      return(_theora_unpack_comment(cc,&opb));
+
+    case 0x82:
+      if(ci->version_major==0 || cc->vendor==NULL){
+        /* um... we didn't get the initial header or comments yet */
+        return(OC_BADHEADER);
+      }
+
+      return(_theora_unpack_tables(ci,&opb));
+    }
+  }
+  return(OC_BADHEADER);
 }
 
 int theora_decode_init(theora_state *th, theora_info *c){
   PB_INSTANCE *pbi;
-  
+  codec_setup_info *ci;
+
+  ci=(codec_setup_info *)c->codec_setup;
   th->internal_decode=pbi=_ogg_calloc(1,sizeof(*pbi));
   
   InitPBInstance(pbi);
   memcpy(&pbi->info,c,sizeof(*c));
+  pbi->info.codec_setup=NULL;
   th->i=&pbi->info;
   th->granulepos=-1;
-        
+
   InitFrameDetails(pbi);
 
   pbi->keyframe_granule_shift=_ilog(c->keyframe_frequency_force-1);
@@ -1312,11 +1331,10 @@ int theora_decode_init(theora_state *th, theora_info *c){
   memset(pbi->skipped_display_fragments, 0, pbi->UnitFragments );
 
   /* Initialise version specific quantiser values */
-  InitQTables( pbi );
+  CopyQTables(pbi, ci);
 
   /* Huffman setup */
-  InitHuffmanSetPlay( pbi );
-    
+  InitHuffmanTrees(pbi, ci);
 
   return(0);
 

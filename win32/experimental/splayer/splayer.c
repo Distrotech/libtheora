@@ -40,6 +40,10 @@
 #include "portaudio.h"
 #include "pastreamio.h"
 
+/* this should go in a header file */
+int theora_decode_tables(theora_info *c, ogg_packet *op);
+
+
 /* Ogg and codec state for demux/decode */
 ogg_sync_state   oy; 
 ogg_page         og;
@@ -332,7 +336,7 @@ void parseHeaders(){
       ogg_stream_packetout(&test,&op);
       
       /* identify the codec: try theora */
-      if(!theora_p && theora_decode_header(&ti,&op)>=0){
+      if(!theora_p && theora_decode_header(&ti,&tc,&op)>=0){
 	/* it is theora */
 	memcpy(&to,&test,sizeof(test));
 	theora_p=1;
@@ -358,24 +362,11 @@ void parseHeaders(){
       	printf("Error parsing Theora stream headers; corrupt stream?\n");
       	exit(1);
       }
-      if(theora_p==1){
-        if(theora_decode_comment(&tc,&op)){
-          printf("Error parsing Theora stream headers; corrupt stream?\n");
-          exit(1);
-        }else{
-          dump_comments(&tc);
-          theora_p++;
-          continue;
-        }
+      if(theora_decode_header(&ti,&tc,&op)){
+        printf("Error parsing Theora stream headers; corrupt stream?\n");
+        exit(1);
       }
-      if(theora_p==2){
-        if(theora_decode_tables(&ti,&op)){
-          printf("Error parsing Theora stream headers; corrupt stream?\n");
-          exit(1);
-        }
-        theora_p++;
-        /* fall through */
-      }
+      theora_p++;
       if(theora_p==3)break;
     }
 
@@ -411,7 +402,7 @@ void parseHeaders(){
 
 int main( int argc, char* argv[] ){
   
-  int i,j, smresult;
+  int i,j;
   ogg_packet op;
   SDL_Event event;
   int hasdatatobuffer = 1;
@@ -429,15 +420,7 @@ int main( int argc, char* argv[] ){
 	exit(0);
   }
 
-  infile  = fopen( argv[1], "r" );
-
-#ifdef _WIN32 /* We need to set the file to binary mode. */
-   smresult = _setmode( _fileno(infile), _O_BINARY );
-   if( smresult == -1 )
-      printf( "Cannot set mode" );
-   else
-      printf( "Input file successfully changed to binary mode\n" );
-#endif
+  infile  = fopen( argv[1], "rb" );
 
   /* start up Ogg stream synchronization layer */
   ogg_sync_init(&oy);
@@ -446,16 +429,24 @@ int main( int argc, char* argv[] ){
   vorbis_info_init(&vi);
   vorbis_comment_init(&vc);
 
-  /*parseHeaders*/
+  /* init supporting Theora structures needed in header parsing */
+  theora_comment_init(&tc);
+  theora_info_init(&ti);
+
   parseHeaders();
 
   /* initialize decoders */
   if(theora_p){
+    dump_comments(&tc);
     theora_decode_init(&td,&ti);
     printf("Ogg logical stream %x is Theora %dx%d %.02f fps video\nEncoded frame content is %dx%d with %dx%d offset\n",
 	    to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
 		ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
 	report_colorspace(&ti);
+  }else{
+    /* tear down the partial theora setup */
+    theora_info_clear(&ti);
+    theora_comment_clear(&tc);
   }
   if(vorbis_p){
     vorbis_synthesis_init(&vd,&vi);
@@ -621,6 +612,8 @@ int main( int argc, char* argv[] ){
   if(theora_p){
     ogg_stream_clear(&to);
     theora_clear(&td);
+    theora_comment_clear(&tc);
+    theora_info_clear(&ti);
   }
   ogg_sync_clear(&oy);
 

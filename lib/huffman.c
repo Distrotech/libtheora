@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.7 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: huffman.c,v 1.8 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
@@ -75,7 +75,7 @@ static void CreateHuffmanList(HUFF_ENTRY ** HuffRoot,
 	search_ptr->Previous->Next = entry_ptr;
 	search_ptr->Previous = entry_ptr;
       }
-    }                                       
+    }
   }
 }
 
@@ -83,7 +83,7 @@ static void CreateCodeArray( HUFF_ENTRY * HuffRoot,
 		      ogg_uint32_t *HuffCodeArray, 
 		      unsigned char *HuffCodeLengthArray, 
 		      ogg_uint32_t CodeValue, 
-		      unsigned char CodeLength ) {    
+		      unsigned char CodeLength ) {
 
   /* If we are at a leaf then fill in a code array entry. */
   if ( ( HuffRoot->ZeroChild == NULL ) && ( HuffRoot->OneChild == NULL ) ){
@@ -91,10 +91,11 @@ static void CreateCodeArray( HUFF_ENTRY * HuffRoot,
     HuffCodeLengthArray[HuffRoot->Value] = CodeLength;
   }else{
     /* Recursive calls to scan down the tree. */
+    CodeLength++;
     CreateCodeArray(HuffRoot->ZeroChild, HuffCodeArray, HuffCodeLengthArray, 
-		    ((CodeValue << 1) + 0), CodeLength + 1);
+		    ((CodeValue << 1) + 0), CodeLength);
     CreateCodeArray(HuffRoot->OneChild, HuffCodeArray, HuffCodeLengthArray, 
-		    ((CodeValue << 1) + 1), CodeLength + 1);
+		    ((CodeValue << 1) + 1), CodeLength);
   }
 }
 
@@ -248,32 +249,18 @@ static void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
   }
 }
 
-void ClearHuffmanSet( PB_INSTANCE *pbi ){    
+void ClearHuffmanSet( PB_INSTANCE *pbi ){
   int i;
-  
-  if (pbi->HuffRoot_VP3x){
-    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
-      if (pbi->HuffRoot_VP3x[i]) DestroyHuffTree(pbi->HuffRoot_VP3x[i]);
-    _ogg_free(pbi->HuffRoot_VP3x);
-  }
 
-  if (pbi->HuffCodeArray_VP3x){
-    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
-      if (pbi->HuffCodeArray_VP3x[i]) 
-	_ogg_free (pbi->HuffCodeArray_VP3x[i]);
-    _ogg_free (pbi->HuffCodeArray_VP3x);
-  }
+  ClearHuffmanTrees(pbi->HuffRoot_VP3x);
 
-  if (pbi->HuffCodeLengthArray_VP3x) {
-    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
-      if (pbi->HuffCodeLengthArray_VP3x[i]) 
-	_ogg_free (pbi->HuffCodeLengthArray_VP3x[i]);
-    _ogg_free (pbi->HuffCodeLengthArray_VP3x);
-  }  
-  
-  pbi->HuffRoot_VP3x=NULL;
-  pbi->HuffCodeArray_VP3x=NULL;
-  pbi->HuffCodeLengthArray_VP3x=NULL;
+  for ( i = 0; i < NUM_HUFF_TABLES; i++ )
+    if (pbi->HuffCodeArray_VP3x[i]) 
+      _ogg_free (pbi->HuffCodeArray_VP3x[i]);
+
+  for ( i = 0; i < NUM_HUFF_TABLES; i++ )
+    if (pbi->HuffCodeLengthArray_VP3x[i]) 
+      _ogg_free (pbi->HuffCodeLengthArray_VP3x[i]);
 }
 
 void InitHuffmanSet( PB_INSTANCE *pbi ){
@@ -281,14 +268,8 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
 
   ClearHuffmanSet(pbi);
 
-  pbi->HuffRoot_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffRoot_VP3x));
-  pbi->HuffCodeArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeArray_VP3x));
-  pbi->HuffCodeLengthArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeLengthArray_VP3x));
   pbi->ExtraBitLengths_VP3x = ExtraBitLengths_VP31;
-  
+
   for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
     pbi->HuffCodeArray_VP3x[i] = 
       _ogg_calloc(MAX_ENTROPY_TOKENS,
@@ -303,36 +284,86 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
   }
 }
 
-void InitHuffmanSetPlay( PB_INSTANCE *pbi ){
+static int ReadHuffTree(HUFF_ENTRY * HuffRoot, int depth,
+                        oggpack_buffer *opb) {
+  long bit;
+  bit = oggpackB_read(opb, 1);
+  if(bit < 0) return OC_BADHEADER;
+  else if(!bit) {
+    int ret;
+    if (++depth > 32) return OC_BADHEADER;
+    HuffRoot->ZeroChild = (HUFF_ENTRY *)_ogg_calloc(1, sizeof(HUFF_ENTRY));
+    ret = ReadHuffTree(HuffRoot->ZeroChild, depth, opb);
+    if (ret < 0) return ret;
+    HuffRoot->OneChild = (HUFF_ENTRY *)_ogg_calloc(1, sizeof(HUFF_ENTRY));
+    ret = ReadHuffTree(HuffRoot->OneChild, depth, opb);
+    if (ret < 0) return ret;
+    HuffRoot->Value = -1;
+  } else {
+    HuffRoot->ZeroChild = NULL;
+    HuffRoot->OneChild = NULL;
+    HuffRoot->Value = oggpackB_read(opb, 5);
+    if (HuffRoot->Value < 0) return OC_BADHEADER;
+  }
+  return 0;
+}
+
+int ReadHuffmanTrees(codec_setup_info *ci, oggpack_buffer *opb) {
   int i;
+  for (i=0; i<NUM_HUFF_TABLES; i++) {
+     int ret;
+     ci->HuffRoot[i] = (HUFF_ENTRY *)_ogg_calloc(1, sizeof(HUFF_ENTRY));
+     ret = ReadHuffTree(ci->HuffRoot[i], 0, opb);
+     if (ret) return ret;
+  }
+  return 0;
+}
 
-  ClearHuffmanSet(pbi);
+static void WriteHuffTree(HUFF_ENTRY *HuffRoot, oggpack_buffer *opb) {
+  if (HuffRoot->Value >= 0) {
+    oggpackB_write(opb, 1, 1);
+    oggpackB_write(opb, HuffRoot->Value, 5);
+  } else {
+    oggpackB_write(opb, 0, 1);
+    WriteHuffTree(HuffRoot->ZeroChild, opb);
+    WriteHuffTree(HuffRoot->OneChild, opb);
+  }
+}
 
-  pbi->HuffRoot_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffRoot_VP3x));
-  pbi->HuffCodeArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeArray_VP3x));
-  pbi->HuffCodeLengthArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeLengthArray_VP3x));
+void WriteHuffmanTrees(HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES],
+                       oggpack_buffer *opb) {
+  int i;
+  for(i=0; i<NUM_HUFF_TABLES; i++) {
+    WriteHuffTree(HuffRoot[i], opb);
+  }
+}
+
+static HUFF_ENTRY *CopyHuffTree(const HUFF_ENTRY *HuffSrc) {
+  if(HuffSrc){
+    HUFF_ENTRY *HuffDst;
+    HuffDst = (HUFF_ENTRY *)_ogg_calloc(1, sizeof(HUFF_ENTRY));
+    HuffDst->Value = HuffSrc->Value;
+    if (HuffSrc->Value < 0) {
+      HuffDst->ZeroChild = CopyHuffTree(HuffSrc->ZeroChild);
+      HuffDst->OneChild = CopyHuffTree(HuffSrc->OneChild);
+    }
+    return HuffDst;
+  }
+  return NULL;
+}
+
+void InitHuffmanTrees(PB_INSTANCE *pbi, const codec_setup_info *ci) {
+  int i;
   pbi->ExtraBitLengths_VP3x = ExtraBitLengths_VP31;
-  
-  huff_x = 0;
-  for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
-	read_hufftree(pbi->HuffRoot_VP3x,i);
+  for(i=0; i<NUM_HUFF_TABLES; i++){
+    pbi->HuffRoot_VP3x[i] = CopyHuffTree(ci->HuffRoot[i]);
   }
 }
 
-void write_HuffmanSet(oggpack_buffer* opb, HUFF_ENTRY **hroot) {
-  int x;
-
-  for(x=0; x<NUM_HUFF_TABLES; x++) {
-    write_root(opb, hroot[x]);
-  }
-}
-
-void read_HuffmanSet(oggpack_buffer* opb) {
-  int x;
-  for(x=0; x<2230; x++) {
-    huffset_bits[x]=oggpackB_read(opb, 8);
+void  ClearHuffmanTrees(HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES]){
+  int i;
+  for(i=0; i<NUM_HUFF_TABLES; i++) {
+    DestroyHuffTree(HuffRoot[i]);
+    HuffRoot[i] = NULL;
   }
 }

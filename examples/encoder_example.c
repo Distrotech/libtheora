@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.19 2003/06/08 20:07:49 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.20 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
@@ -567,6 +567,7 @@ int main(int argc,char *argv[]){
   frame_x_offset=(video_x-frame_x)/2;
   frame_y_offset=(video_y-frame_y)/2;
   
+  theora_info_init(&ti);
   ti.width=video_x;
   ti.height=video_y;
   ti.frame_width=frame_x;
@@ -592,6 +593,7 @@ int main(int argc,char *argv[]){
   ti.noise_sensitivity=1;
 
   theora_encode_init(&td,&ti);
+  theora_info_clear(&ti);
 
   /* initialize Vorbis too, assuming we have audio to compress. */
   if(audio){

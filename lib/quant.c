@@ -11,10 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.7 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: quant.c,v 1.8 2003/06/09 01:45:19 tterribe Exp $
 
  ********************************************************************/
 
+#include <string.h>
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "quant_lookup.h"
@@ -119,52 +120,75 @@ static Q_LIST_ENTRY Inter_coeffsV1[64] ={
 
 #endif
 
-/*
- *	dbm 12/5/02 -- write qtables into header.  called from theora_encode_header (toplevel.c)
- *	someday we can change the quant tables to be adaptive, or just plain better.
- */
-void write_Qtables(oggpack_buffer* opb) {
+void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   int x;
   for(x=0; x<64; x++) {
-	oggpackB_write(opb, QThreshTableV1[x],16);
+    oggpackB_write(opb, pbi->QThreshTable[x],16);
   }
   for(x=0; x<64; x++) {
-	oggpackB_write(opb, DcScaleFactorTableV1[x],16);
+    oggpackB_write(opb, pbi->DcScaleFactorTable[x],16);
   }
   for(x=0; x<64; x++) {
-	oggpackB_write(opb, Y_coeffsV1[x],8);
+    oggpackB_write(opb, pbi->Y_coeffs[x],8);
   }
   for(x=0; x<64; x++) {
-	oggpackB_write(opb, UV_coeffsV1[x],8);
+    oggpackB_write(opb, pbi->UV_coeffs[x],8);
   }
   for(x=0; x<64; x++) {
-	oggpackB_write(opb, Inter_coeffsV1[x],8);
+    oggpackB_write(opb, pbi->Inter_coeffs[x],8);
   }
 }
 
-/*	dbm 12/5/02 -- read qtables from header.  called from theora_decode_header (toplevel.c) */
-
-void read_Qtables(oggpack_buffer* opb) {
-  int x;
-  for(x=0; x<64; x++) {
-	QThreshTableV1[x]=oggpackB_read(opb, 16);
+int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
+  long bits;
+  int  x;
+  for(x=0; x<Q_TABLE_SIZE; x++) {
+    bits=oggpackB_read(opb, 16);
+    if(bits<0)return OC_BADHEADER;
+    ci->QThreshTable[x]=bits;
+  }
+  for(x=0; x<Q_TABLE_SIZE; x++) {
+    bits=oggpackB_read(opb, 16);
+    if(bits<0)return OC_BADHEADER;
+    ci->DcScaleFactorTable[x]=bits;
   }
   for(x=0; x<64; x++) {
-	DcScaleFactorTableV1[x]=oggpackB_read(opb, 16);
+    bits=oggpackB_read(opb, 8);
+    if(bits<0)return OC_BADHEADER;
+    ci->Y_coeffs[x]=bits;
   }
   for(x=0; x<64; x++) {
-	Y_coeffsV1[x]=oggpackB_read(opb, 8);
+    bits=oggpackB_read(opb, 8);
+    if(bits<0)return OC_BADHEADER;
+    ci->UV_coeffs[x]=bits;
   }
   for(x=0; x<64; x++) {
-	UV_coeffsV1[x]=oggpackB_read(opb, 8);
+    bits=oggpackB_read(opb, 8);
+    if(bits<0)return OC_BADHEADER;
+    ci->Inter_coeffs[x]=bits;
   }
-  for(x=0; x<64; x++) {
-	Inter_coeffsV1[x]=oggpackB_read(opb, 8);
-  }
+  return 0;
 }
 
+void CopyQTables(PB_INSTANCE *pbi, codec_setup_info *ci) {
+  memcpy(pbi->QThreshTable, ci->QThreshTable, sizeof(pbi->QThreshTable));
+  memcpy(pbi->DcScaleFactorTable, ci->DcScaleFactorTable,
+         sizeof(pbi->DcScaleFactorTable));
+  memcpy(pbi->Y_coeffs, ci->Y_coeffs, sizeof(pbi->Y_coeffs));
+  memcpy(pbi->UV_coeffs, ci->UV_coeffs, sizeof(pbi->UV_coeffs));
+  memcpy(pbi->Inter_coeffs, ci->Inter_coeffs, sizeof(pbi->Inter_coeffs));
+}
+
+/* Initialize custom qtables using the VP31 values.
+   Someday we can change the quant tables to be adaptive, or just plain
+    better.*/
 void InitQTables( PB_INSTANCE *pbi ){
-  memcpy ( pbi->QThreshTable, QThreshTableV1, sizeof( pbi->QThreshTable ) );
+  memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
+  memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1,
+         sizeof(pbi->DcScaleFactorTable));
+  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(pbi->Y_coeffs));
+  memcpy(pbi->UV_coeffs, UV_coeffsV1, sizeof(pbi->UV_coeffs));
+  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, sizeof(pbi->Inter_coeffs));
 }
 
 static void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
@@ -527,11 +551,11 @@ static void init_dequantizer ( PB_INSTANCE *pbi,
   Q_LIST_ENTRY * DcScaleFactorTable;
   Q_LIST_ENTRY * UVDcScaleFactorTable;
   
-  Inter_coeffs = Inter_coeffsV1;
-  Y_coeffs = Y_coeffsV1;
-  UV_coeffs = UV_coeffsV1;
-  DcScaleFactorTable = DcScaleFactorTableV1;
-  UVDcScaleFactorTable = DcScaleFactorTableV1;
+  Inter_coeffs = pbi->Inter_coeffs;
+  Y_coeffs = pbi->Y_coeffs;
+  UV_coeffs = pbi->UV_coeffs;
+  DcScaleFactorTable = pbi->DcScaleFactorTable;
+  UVDcScaleFactorTable = pbi->DcScaleFactorTable;
   
   /* invert the dequant index into the quant index
      the dxer has a different order than the cxer. */
@@ -668,4 +692,3 @@ void UpdateQC( CP_INSTANCE *cpi, ogg_uint32_t NewQ ){
   init_quantizer ( cpi, qscale, (unsigned char) pbi->FrameQIndex );
   init_dequantizer ( pbi, qscale, (unsigned char) pbi->FrameQIndex );
 }
-
