@@ -11,10 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.15 2004/03/07 02:43:29 giles Exp $
+  last mod: $Id: quant.c,v 1.16 2004/03/08 00:40:54 giles Exp $
 
  ********************************************************************/
 
+//#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "encoder_internal.h"
@@ -164,9 +165,29 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   oggpackB_write(opb, 0, 2);  /* inter V the same */
 }
 
+static int _read_qtable_range(codec_setup_info *ci, oggpack_buffer* opb, int N) 
+{
+  int index, range;
+  int qi = 0;
+
+  theora_read(opb,_ilog(N-1),&index); /* qi=0 index */
+  //fprintf(stderr, " [%d]",index);
+  while(qi<63) {
+    theora_read(opb,_ilog(63-qi),&range); /* range to next code q matrix */
+    //fprintf(stderr," %d",range);
+    if(range<=0) return OC_BADHEADER;
+    qi+=range;
+    theora_read(opb,_ilog(N-1),&index); /* next index */
+    //fprintf(stderr, " [%d]",index);
+  }
+
+  return 0;
+}
+
 int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   long bits;
   int x,y, N;
+  //fprintf(stderr, "Reading Q tables...\n");
   /* AC scale table */
   for(x=0; x<Q_TABLE_SIZE; x++) {
     theora_read(opb,16,&bits);
@@ -182,126 +203,104 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   /* base matricies */
   theora_read(opb,9,&N);
   N++;
+  //fprintf(stderr, "  max q matrix index %d\n", N);
   if(N!=3)return OC_BADHEADER; /* we only support the VP3 config */
   ci->qmats=_ogg_malloc(N*64*sizeof(Q_LIST_ENTRY));
   ci->MaxQMatrixIndex = N;
   for(y=0; y<N; y++) {
+    //fprintf(stderr," q matrix %d:\n  ", y);
     for(x=0; x<64; x++) {
       theora_read(opb,8,&bits);
       if(bits<0)return OC_BADHEADER;
       ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)bits;
+      //fprintf(stderr," %03d", (Q_LIST_ENTRY)bits);
+      //if((x+1)%8==0)fprintf(stderr,"\n  ");
     }
+    //fprintf(stderr,"\n");
   }
   /* table mapping */
   {
-    int index, range, flag;
-    int qi = 0;
+    int flag, ret;
     /* intra Y */
-    theora_read(opb,_ilog(N-1),&index); /* qi=0 index */
-    while(qi<63) {
-      theora_read(opb,_ilog(63-qi),&range); /* range to next code q matrix */
-      if(range<=0) return OC_BADHEADER;
-      qi+=range;
-      theora_read(opb,_ilog(N-1),&index); /* next index */
-    }
+    //fprintf(stderr,"\n Intra Y:");
+    if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     /* intra U */
+    //fprintf(stderr, "\n Intra U:");
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
-      qi = 0;
-      theora_read(opb,_ilog(N-1),&index);
-      while(qi<63) {
-        theora_read(opb,_ilog(63-qi),&range);
-        if(range<=0) return OC_BADHEADER;
-        qi+=range;
-        theora_read(opb,_ilog(N-1),&index);
-      }
+      if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     } else {
       /* same as previous */
+      //fprintf(stderr," same as above");
     }
     /* intra V */
+    //fprintf(stderr,"\n Intra V:");
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
-      qi=0;
-      theora_read(opb,_ilog(N-1),&index); /* first index */
-      while(qi<63) {
-        theora_read(opb,_ilog(63-qi),&range); /* range */
-        if(range<=0) return OC_BADHEADER;
-        qi+=range;
-        theora_read(opb,_ilog(N-1),&index); /* next index */
-      }
+      if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     } else {
        /* same as previous */
+      //fprintf(stderr," same as above");
     }
     /* inter Y */
+    //fprintf(stderr,"\n Inter Y:");
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
-      qi=0;
-      theora_read(opb,_ilog(N-1),&index); /* first index */
-      while(qi<63) {
-        theora_read(opb,_ilog(63-qi),&range); /* range */
-        if(range<=0) return OC_BADHEADER;
-        qi+=range;
-        theora_read(opb,_ilog(N-1),&index); /* next index */
-      }
+      if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     } else {
       theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
+        //fprintf(stderr," same as intra");
       } else {
         /* same as previous */
+        //fprintf(stderr," same as above");
       }
     }
     /* inter U */
+    //fprintf(stderr,"\n Inter U:");
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
-      qi=0;
-      theora_read(opb,_ilog(N-1),&index); /* first index */
-      while(qi<63) {
-        theora_read(opb,_ilog(63-qi),&range); /* range */
-        if(range<=0) return OC_BADHEADER;
-        qi+=range;
-        theora_read(opb,_ilog(N-1),&index); /* next index */
-      }
+      if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     } else {
       theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
+        //fprintf(stderr," same as intra");
       } else {
         /* same as previous */
+        //fprintf(stderr," same as above");
       }
     }
     /* inter V */
+    //fprintf(stderr,"\n Inter V:");
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
-      qi=0;
-      theora_read(opb,_ilog(N-1),&index); /* first index */
-      while(qi<63) {
-        theora_read(opb,_ilog(63-qi),&range); /* range */
-        if(range<=0) return OC_BADHEADER;
-        qi+=range;
-        theora_read(opb,_ilog(N-1),&index); /* next index */
-      }
+      if((ret=_read_qtable_range(ci,opb,N))<0) return ret;
     } else {
       theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
+        //fprintf(stderr," same as intra");
       } else {
         /* same as previous */
+        //fprintf(stderr," same as above");
       }
     }
+    //fprintf(stderr,"\n");
   }
   
   /* ignore the range table and reference the matricies we use */
