@@ -186,14 +186,14 @@ static void open_video(void){
     exit(1);
   }
   
-  screen = SDL_SetVideoMode(ti.width, ti.height, 0, SDL_SWSURFACE);
+  screen = SDL_SetVideoMode(ti.frame_width, ti.frame_height, 0, SDL_SWSURFACE);
   if ( screen == NULL ) {
     printf("Unable to set %dx%d video: %s\n", 
-	    ti.width,ti.height,SDL_GetError());
+	    ti.frame_width,ti.frame_height,SDL_GetError());
     exit(1);
   }
   
-  yuv_overlay = SDL_CreateYUVOverlay(ti.width, ti.height,
+  yuv_overlay = SDL_CreateYUVOverlay(ti.frame_width, ti.frame_height,
 				     SDL_YV12_OVERLAY,
 				     screen);
   if ( yuv_overlay == NULL ) {
@@ -203,8 +203,8 @@ static void open_video(void){
   }
   rect.x = 0;
   rect.y = 0;
-  rect.w = ti.width;
-  rect.h = ti.height;
+  rect.w = ti.frame_width;
+  rect.h = ti.frame_height;
 
   SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 }
@@ -213,8 +213,9 @@ static void video_write(void){
 	/*taken from player_sample.c test file for theora alpha*/
   int i;
   yuv_buffer yuv;
+  int crop_offset;
   theora_decode_YUVout(&td,&yuv);
-
+  
   /* Lock SDL_yuv_overlay */
   if ( SDL_MUSTLOCK(screen) ) {
     if ( SDL_LockSurface(screen) < 0 ) return;
@@ -224,17 +225,20 @@ static void video_write(void){
   /* let's draw the data (*yuv[3]) on a SDL screen (*screen) */
   /* deal with border stride */
   /* reverse u and v for SDL */
-  for(i=0;i<yuv.y_height;i++)
-    memcpy(yuv_overlay->pixels[0]+yuv.y_width*i, 
-	   yuv.y+yuv.y_stride*i, 
-	   yuv.y_width);
-  for(i=0;i<yuv.uv_height;i++){
-    memcpy(yuv_overlay->pixels[1]+yuv.uv_width*i, 
-	   yuv.v+yuv.uv_stride*i, 
-	   yuv.uv_width);
-    memcpy(yuv_overlay->pixels[2]+yuv.uv_width*i, 
-	   yuv.u+yuv.uv_stride*i, 
-	   yuv.uv_width);
+  /* and crop input properly, respecting the encoded frame rect */
+  crop_offset=ti.offset_x+yuv.y_stride*ti.offset_y;
+  for(i=0;i<yuv_overlay->h;i++)
+    memcpy(yuv_overlay->pixels[0]+yuv_overlay->w*i, 
+	   yuv.y+crop_offset+yuv.y_stride*i, 
+	   yuv_overlay->w);
+  crop_offset=(ti.offset_x/2)+(yuv.uv_stride)*(ti.offset_y/2);
+  for(i=0;i<yuv_overlay->h/2;i++){
+    memcpy(yuv_overlay->pixels[1]+yuv_overlay->w/2*i, 
+	   yuv.v+crop_offset+yuv.uv_stride*i, 
+	   yuv_overlay->w/2);
+    memcpy(yuv_overlay->pixels[2]+yuv_overlay->w/2*i, 
+	   yuv.u+crop_offset+yuv.uv_stride*i, 
+	   yuv_overlay->w/2);
   }
 
   /* Unlock SDL_yuv_overlay */
