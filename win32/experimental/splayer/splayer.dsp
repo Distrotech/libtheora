@@ -87,11 +87,11 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=..\..\..\..\..\portaudio\pa_common\pa_lib.c
+SOURCE=.\portaudio\pa_common\pa_lib.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\..\..\..\portaudio\pa_win_wmme\pa_win_wmme.c
+SOURCE=.\portaudio\pa_win_wmme\pa_win_wmme.c
 # End Source File
 # Begin Source File
 
@@ -99,7 +99,7 @@ SOURCE=.\pastreamio.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\..\..\..\portaudio\pablio\ringbuffer.c
+SOURCE=.\portaudio\pablio\ringbuffer.c
 # End Source File
 # Begin Source File
 
