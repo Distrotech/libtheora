@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.18 2004/03/08 02:11:46 giles Exp $
+  last mod: $Id: quant.c,v 1.19 2004/03/18 02:00:30 giles Exp $
 
  ********************************************************************/
 
@@ -129,24 +129,31 @@ static int _ilog(unsigned int v){
   }
   return(ret);
 }
-                
+
 void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
-  int x;
+  int x, bits;
+  bits=10;
+  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->QThreshTable[x],16);
+    oggpackB_write(opb, pbi->QThreshTable[x],bits);
   }
+  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->DcScaleFactorTable[x],16);
+    oggpackB_write(opb, pbi->DcScaleFactorTable[x],bits);
   }
   oggpackB_write(opb, 3 - 1, 9); /* number of base matricies */
+  bits=8;
+  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->Y_coeffs[x],8);
+    oggpackB_write(opb, pbi->Y_coeffs[x],bits);
   }
+  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->UV_coeffs[x],8);
+    oggpackB_write(opb, pbi->UV_coeffs[x],bits);
   }
+  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->Inter_coeffs[x],8);
+    oggpackB_write(opb, pbi->Inter_coeffs[x],bits);
   }
   /* table mapping */
   oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
@@ -186,35 +193,37 @@ static int _read_qtable_range(codec_setup_info *ci, oggpack_buffer* opb, int N)
 }
 
 int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
-  long bits;
+  long bits,value;
   int x,y, N;
   //fprintf(stderr, "Reading Q tables...\n");
   /* AC scale table */
+  theora_read(opb,4,&bits); bits++;
   for(x=0; x<Q_TABLE_SIZE; x++) {
-    theora_read(opb,16,&bits);
+    theora_read(opb,bits,&value);
     if(bits<0)return OC_BADHEADER;
-    ci->QThreshTable[x]=bits;
+    ci->QThreshTable[x]=value;
   }
   /* DC scale table */
+  theora_read(opb,4,&bits); bits++;
   for(x=0; x<Q_TABLE_SIZE; x++) {
-    theora_read(opb,16,&bits);
+    theora_read(opb,bits,&value);
     if(bits<0)return OC_BADHEADER;
-    ci->DcScaleFactorTable[x]=(Q_LIST_ENTRY)bits;
+    ci->DcScaleFactorTable[x]=(Q_LIST_ENTRY)value;
   }
   /* base matricies */
-  theora_read(opb,9,&N);
-  N++;
+  theora_read(opb,9,&N); N++;
   //fprintf(stderr, "  max q matrix index %d\n", N);
   if(N!=3)return OC_BADHEADER; /* we only support the VP3 config */
   ci->qmats=_ogg_malloc(N*64*sizeof(Q_LIST_ENTRY));
   ci->MaxQMatrixIndex = N;
   for(y=0; y<N; y++) {
     //fprintf(stderr," q matrix %d:\n  ", y);
+    theora_read(opb,4,&bits); bits++;
     for(x=0; x<64; x++) {
-      theora_read(opb,8,&bits);
+      theora_read(opb,bits,&value);
       if(bits<0)return OC_BADHEADER;
-      ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)bits;
-      //fprintf(stderr," %03d", (Q_LIST_ENTRY)bits);
+      ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)value;
+      //fprintf(stderr," %03d", (Q_LIST_ENTRY)value);
       //if((x+1)%8==0)fprintf(stderr,"\n  ");
     }
     //fprintf(stderr,"\n");

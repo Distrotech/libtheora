@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.38 2004/03/13 23:46:27 giles Exp $
+  last mod: $Id: toplevel.c,v 1.39 2004/03/18 02:00:30 giles Exp $
 
  ********************************************************************/
 
@@ -24,7 +24,7 @@
 #define VERSION_MINOR 2
 #define VERSION_SUB 0
 
-#define VENDOR_STRING "Xiph.Org libTheora I 20040313 3 2 0"
+#define VENDOR_STRING "Xiph.Org libTheora I 20040317 3 2 0"
 
 #define A_TABLE_SIZE        29
 #define DF_CANDIDATE_WINDOW 5

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct_decode.c,v 1.10 2004/03/09 02:02:56 giles Exp $
+  last mod: $Id: dct_decode.c,v 1.11 2004/03/18 02:00:30 giles Exp $
 
  ********************************************************************/
 
@@ -73,16 +73,20 @@ static void SetupBoundingValueArray_Generic(PB_INSTANCE *pbi,
 
 void WriteFilterTables(PB_INSTANCE *pbi, oggpack_buffer *opb){
   int i;
+  int bits=4;
+  oggpackB_write(opb, bits, 3);
   for(i=0;i<Q_TABLE_SIZE;i++)
-    oggpackB_write(opb, pbi->LoopFilterLimits[i],7);
+    oggpackB_write(opb, pbi->LoopFilterLimits[i],bits);
 }
 
 int ReadFilterTables(codec_setup_info *ci, oggpack_buffer *opb){
-  int i, bits;
+  int i;
+  int bits, value;
 
+  theora_read(opb, 3, &bits);
   for(i=0;i<Q_TABLE_SIZE;i++){
-    theora_read(opb,7,&bits);
-    ci->LoopFilterLimitValues[i]=bits;
+    theora_read(opb,bits,&value);
+    ci->LoopFilterLimitValues[i]=value;
   }
   if(bits<0)return OC_BADHEADER;
 
