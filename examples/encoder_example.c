@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.4 2002/09/25 05:35:38 xiphmont Exp $
+  last mod: $Id: encoder_example.c,v 1.5 2002/09/25 06:06:36 xiphmont Exp $
 
  ********************************************************************/
 
@@ -83,7 +83,7 @@ static void usage(void){
 
 static void id_file(char *f){
   FILE *test;
-  char buffer[80];
+  unsigned char buffer[80];
   int ret;
 
   /* open it, look for magic */

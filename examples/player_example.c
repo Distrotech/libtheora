@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.7 2002/09/25 05:35:38 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.8 2002/09/25 06:06:36 xiphmont Exp $
 
  ********************************************************************/
 
@@ -168,6 +168,7 @@ static void open_audio(){
 
 static void audio_close(void){
   if(audiofd>-1){
+    ioctl(audiofd,SNDCTL_DSP_RESET,NULL);
     close(audiofd);
     free(audiobuf);
   }
@@ -271,7 +272,6 @@ void audio_write_nonblocking(void){
 int got_sigint=0;
 static void sigint_handler (int signal) {
   got_sigint = 1;
-  if(audiofd>-1)ioctl(audiofd,SNDCTL_DSP_RESET,NULL);
 }
 
 static void open_video(void){
@@ -549,7 +549,7 @@ int main(void){
       videobuf_ready=0;
     }
       
-    if(stateflag && audiobuf_ready && videobuf_ready){
+    if(stateflag && audiobuf_ready && videobuf_ready && !got_sigint){
       /* we have an audio frame ready (which means the audio buffer is
          full), it's not time to play video, so wait until one of the
          audio buffer is ready or it's near time to play video */
