@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.2 2002/09/23 23:18:05 xiphmont Exp $
+  last mod: $Id: encoder_example.c,v 1.3 2002/09/24 05:05:49 xiphmont Exp $
 
  ********************************************************************/
 
@@ -651,6 +651,20 @@ int main(int argc,char *argv[]){
       }
     }
 	    
+  }
+
+  /* clear out state */
+
+  if(audio){
+    ogg_stream_clear(&vo);
+    vorbis_block_clear(&vb);
+    vorbis_dsp_clear(&vd);
+    vorbis_comment_clear(&vc);
+    vorbis_info_clear(&vi);
+  }
+  if(video){
+    ogg_stream_clear(&to);
+    theora_clear(&td);
   }
 
   fprintf(stderr,"\r   \ndone.\n\n");
