@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
 #include <windows.h>
+#else
+typedef long DWORD;
+#endif
 
 /*extremely crude app to dump vp3 frames from an avi file*/
 /*filenames are hardcoded*/
