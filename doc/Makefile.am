@@ -6,9 +6,9 @@ docdir = $(datadir)/doc/$(PACKAGE)-$(VERSION)
 
 built_docs = spec.py spec.html
 
-static_docs = vp3-format.txt \
-	      testspec.ogg testspec.raw \
-              testspec2.ogg testspec2.raw
+static_docs = vp3-format.txt
+#		testspec.ogg testspec.raw \
+#		testspec2.ogg testspec2.raw
 
 doc_DATA = $(built_docs) $(static_docs)
 
