@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.24 2003/06/09 01:45:19 tterribe Exp $
+  last mod: $Id: toplevel.c,v 1.25 2003/06/09 12:39:24 giles Exp $
 
  ********************************************************************/
 
@@ -24,10 +24,10 @@
 #include "toplevel.h"
 
 #define VERSION_MAJOR 3
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 #define VERSION_SUB 0
 
-#define VENDOR_STRING "Xiph.Org libTheora I 20030511 3 1 0"
+#define VENDOR_STRING "Xiph.Org libTheora I 20030609 3 2 0"
 
 #define A_TABLE_SIZE	    29
 #define DF_CANDIDATE_WINDOW 5
