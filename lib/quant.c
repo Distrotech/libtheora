@@ -11,10 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.12 2004/03/07 01:26:31 giles Exp $
+  last mod: $Id: quant.c,v 1.13 2004/03/07 01:31:35 giles Exp $
 
  ********************************************************************/
 
+#include <stdlib.h>
 #include <string.h>
 #include "encoder_internal.h"
 #include "quant_lookup.h"
