@@ -110,7 +110,7 @@ lists options accepted by the encoder.
 
 An easy way to get raw video and audio files is to use MPlayer as an
 export utility.  The options " -ao pcm -vo yuv4mpeg " will export a
-wav vile named audiodump.wav and a YUV video file in the correct
+wav file named audiodump.wav and a YUV video file in the correct
 format for encoder_example as stream.yuv.  Be careful when exporting
 video alone; MPlayer may drop frames to 'keep up' with the audio
 timer.  The example encoder can't properly synchronize input audio and
