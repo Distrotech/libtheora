@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_decode.c,v 1.3 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: dct_decode.c,v 1.4 2002/09/25 10:01:52 xiphmont Exp $
 
  ********************************************************************/
 
@@ -50,12 +50,12 @@ ogg_uint32_t LoopFilterLimitValuesV2[Q_TABLE_SIZE] = {
 
 static int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
 
-static ogg_int32_t *SetupBoundingValueArray_Generic(PB_INSTANCE *pbi, 
-					     ogg_int32_t FLimit){
-  ogg_int32_t * BoundingValuePtr;
+static void SetupBoundingValueArray_Generic(PB_INSTANCE *pbi, 
+					    ogg_int32_t FLimit){
+
+  ogg_int32_t * BoundingValuePtr = pbi->FiltBoundingValue+256;
   ogg_int32_t i;
   
-  BoundingValuePtr = &pbi->FiltBoundingValue[256];
   /* Set up the bounding value array. */
   memset ( pbi->FiltBoundingValue, 0, (512*sizeof(*pbi->FiltBoundingValue)) );
   for ( i = 0; i < FLimit; i++ ){
@@ -64,15 +64,13 @@ static ogg_int32_t *SetupBoundingValueArray_Generic(PB_INSTANCE *pbi,
     BoundingValuePtr[i] = i;
     BoundingValuePtr[i+FLimit] = FLimit-i;
   }
-  
-  return BoundingValuePtr;
 }
 
 void SetupLoopFilter(PB_INSTANCE *pbi){
   ogg_int32_t FLimit; 
   
   FLimit = LoopFilterLimitValuesV2[pbi->FrameQIndex];
-  pbi->BoundingValuePtr = SetupBoundingValueArray_Generic(pbi, FLimit);
+  SetupBoundingValueArray_Generic(pbi, FLimit);
 }
 
 void CopyBlock(unsigned char *src, 
@@ -655,12 +653,13 @@ static void FilterHoriz(unsigned char * PixelPtr,
   ogg_int32_t FiltVal;
   
   for ( j = 0; j < 8; j++ ){            
-    FiltVal =  ( PixelPtr[0] ) - 
+    FiltVal =  
+      ( PixelPtr[0] ) - 
       ( PixelPtr[1] * 3 ) +
       ( PixelPtr[2] * 3 ) - 
       ( PixelPtr[3] );
     
-    FiltVal = BoundingValuePtr[(FiltVal + 4) >> 3];
+    FiltVal = *(BoundingValuePtr+((FiltVal + 4) >> 3));
     
     PixelPtr[1] = clamp255(PixelPtr[1] + FiltVal);
     PixelPtr[2] = clamp255(PixelPtr[2] - FiltVal);
@@ -687,7 +686,7 @@ static void FilterVert(unsigned char * PixelPtr,
       ( (ogg_int32_t)PixelPtr[2 * LineLength] * 3 ) - 
       ( (ogg_int32_t)PixelPtr[3 * LineLength] );
     
-    FiltVal = BoundingValuePtr[(FiltVal + 4) >> 3];
+    FiltVal = *(BoundingValuePtr+((FiltVal + 4) >> 3));
     
     PixelPtr[LineLength] = clamp255(PixelPtr[LineLength] + FiltVal);
     PixelPtr[2 * LineLength] = clamp255(PixelPtr[2*LineLength] - FiltVal);
@@ -699,7 +698,7 @@ static void FilterVert(unsigned char * PixelPtr,
 void LoopFilter(PB_INSTANCE *pbi){
   ogg_int32_t i;
   
-  ogg_int32_t * BoundingValuePtr;
+  ogg_int32_t * BoundingValuePtr=pbi->FiltBoundingValue+256;
   int FragsAcross=pbi->HFragments;	
   int FromFragment,ToFragment;
   int FragsDown = pbi->VFragments;
@@ -724,7 +723,7 @@ void LoopFilter(PB_INSTANCE *pbi){
   
   if ( FLimit == 0 ) return;
   
-  BoundingValuePtr = SetupBoundingValueArray_Generic(pbi, FLimit);
+  SetupBoundingValueArray_Generic(pbi, FLimit);
  
   
   for ( j = 0; j < 3 ; j++){
@@ -769,7 +768,7 @@ void LoopFilter(PB_INSTANCE *pbi){
       if ( !pbi->display_fragments[ i + 1 ] ){
 	FilterHoriz(pbi->LastFrameRecon+
 		    pbi->recon_pixel_index_table[i]+6, 
-		    LineLength, BoundingValuePtr);
+		    LineLength,BoundingValuePtr);
       }
       
       /* Bottom done if next row set */

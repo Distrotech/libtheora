@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.8 2002/09/25 06:06:36 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.9 2002/09/25 10:01:52 xiphmont Exp $
 
  ********************************************************************/
 
@@ -24,6 +24,12 @@
 
    A simple 'demux and write back streams' would have been easier,
    it's true. */
+
+#define _GNU_SOURCE
+#define _REENTRANT
+#define _LARGEFILE_SOURCE 
+#define _LARGEFILE64_SOURCE
+#define _FILE_OFFSET_BITS 64
 
 #include <stdio.h>
 #include <unistd.h>
@@ -549,7 +555,10 @@ int main(void){
       videobuf_ready=0;
     }
       
-    if(stateflag && audiobuf_ready && videobuf_ready && !got_sigint){
+    if(stateflag && 
+       (audiobuf_ready || !vorbis_p) && 
+       (videobuf_ready || !theora_p) && 
+       !got_sigint){
       /* we have an audio frame ready (which means the audio buffer is
          full), it's not time to play video, so wait until one of the
          audio buffer is ready or it's near time to play video */

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.9 2002/09/23 23:18:07 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.10 2002/09/25 10:01:52 xiphmont Exp $
 
  ********************************************************************/
 
@@ -315,8 +315,6 @@ typedef struct PB_INSTANCE {
   YUV_BUFFER_ENTRY *LastFrameRecon;
   YUV_BUFFER_ENTRY *PostProcessBuffer;
   
-  ogg_int32_t   *BoundingValuePtr;
-
   /**********************************************************************/
   /* Fragment Information */
   ogg_uint32_t  *pixel_index_table;        /* start address of first
@@ -634,8 +632,11 @@ typedef struct CP_INSTANCE {
 
 } CP_INSTANCE;
 
-/*#define clamp255(x) (((ogg_int32_t)(x)&~0xff)?((ogg_int32_t)(x))>>31:(x))*/
-#define clamp255(val)  ( val<0 ? 0: ( val>255 ? 255:val ) )
+static ogg_int32_t andmask[2]={0xff,0x00};
+static ogg_int32_t ormask[4]={0x00,0xff,0xff,0xff};
+
+//#define clamp255(val)  ( val<0 ? 0: ( val>255 ? 255:val ) )
+#define clamp255(x) ((unsigned char)((((x)<0)-1) & ((x) | -((x)>255))))
 
 extern void ConfigurePP( PP_INSTANCE *ppi, int Level ) ;
 extern ogg_uint32_t YUVAnalyseFrame( PP_INSTANCE *ppi, 
@@ -661,7 +662,7 @@ extern void IDct1( Q_LIST_ENTRY * InputData,
 		   ogg_int16_t * OutputData );
 
 extern void ReconIntra( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
-			ogg_uint16_t * ChangePtr, ogg_uint32_t LineStep );
+			ogg_int16_t * ChangePtr, ogg_uint32_t LineStep );
 
 extern void ReconInter( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
 			unsigned char * RefPtr, ogg_int16_t * ChangePtr, 
