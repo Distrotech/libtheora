@@ -11,12 +11,16 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.19 2004/03/07 02:27:04 giles Exp $
+  last mod: $Id: encoder_internal.h,v 1.20 2004/03/08 06:44:27 giles Exp $
 
  ********************************************************************/
 
 #ifndef ENCODER_INTERNAL_H
 #define ENCODER_INTERNAL_H
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <theora/theora.h>
 #include "huffman.h"

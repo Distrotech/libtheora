@@ -11,12 +11,16 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams
-  last mod: $Id: dump_video.c,v 1.9 2004/01/22 20:26:22 tterribe Exp $
+  last mod: $Id: dump_video.c,v 1.10 2004/03/08 06:44:26 giles Exp $
 
  ********************************************************************/
 
 /* By Mauricio Piacentini (mauricio at xiph.org) */
 /*  simply dump decoded YUV data, for verification of theora bitstream */
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #define _GNU_SOURCE
 #define _LARGEFILE_SOURCE

@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.27 2004/03/07 07:51:28 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.28 2004/03/08 06:44:26 giles Exp $
 
  ********************************************************************/
 
@@ -20,6 +20,10 @@
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #ifndef _REENTRANT
 # define _REENTRANT

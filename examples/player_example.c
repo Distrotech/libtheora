@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.28 2004/03/07 07:51:28 giles Exp $
+  last mod: $Id: player_example.c,v 1.29 2004/03/08 06:44:26 giles Exp $
 
  ********************************************************************/
 
@@ -29,6 +29,10 @@
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #ifndef _REENTRANT
 # define _REENTRANT

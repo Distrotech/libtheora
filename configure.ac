@@ -4,8 +4,10 @@ dnl ------------------------------------------------
 dnl Initialization and Versioning
 dnl ------------------------------------------------
 
-AC_INIT(lib/dct.c)
-AM_INIT_AUTOMAKE(libtheora,0.0)
+AC_INIT(libtheora,[unreleased snapshot])
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_SRCDIR([lib/dct.c])
+AM_INIT_AUTOMAKE
 
 dnl Library versioning
 
@@ -37,6 +39,7 @@ dnl Set build flags based on environment
 dnl --------------------------------------------------
 
 AC_CANONICAL_HOST
+AC_CANONICAL_TARGET
 
 dnl Set some target options
 
@@ -58,8 +61,16 @@ else
                 PROFILE="-W -pg -g -O2 -fno-inline-functions";;
         esac
 fi
-CFLAGS="$CFLAGS $cflags_save -D_REENTRANT"
+CFLAGS="$CFLAGS $cflags_save"
 LDFLAGS="$LDFLAGS $ldflags_save"
+
+dnl We like threads
+AH_VERBATIM([_REENTRANT],
+[/* define to mark the code thread-safe, and to
+   request thread-safe code from others. */
+#ifndef _REENTRANT
+#define _REENTRANT
+#endif])
 
 dnl --------------------------------------------------
 dnl Check for headers
@@ -106,7 +117,7 @@ AC_CHECK_LIB(portaudio, Pa_OpenStream, [
   AC_CHECK_HEADER(portaudio.h, [HAVE_PORTAUDIO=yes])
   ],,[-lpthread]
 )
-if test "$HAVE_PORTAUDIO" = "no"; then
+if test "x$HAVE_PORTAUDIO" != xyes; then
   AC_MSG_WARN([portaudio not found -- not compiling splayer example])
 fi
 
@@ -128,5 +139,10 @@ AC_SUBST(LIBS)
 AC_SUBST(DEBUG)
 AC_SUBST(PROFILE)
 
-AC_OUTPUT(Makefile lib/Makefile include/Makefile include/theora/Makefile \
-	doc/Makefile examples/Makefile debian/Makefile)
+AC_CONFIG_FILES([
+  Makefile lib/Makefile
+  include/Makefile include/theora/Makefile
+  examples/Makefile doc/Makefile
+  debian/Makefile
+])
+AC_OUTPUT

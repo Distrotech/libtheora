@@ -71,10 +71,11 @@ if test -z "$ACLOCAL_FLAGS"; then
   exit 1
 fi
 
+
 echo "  aclocal $ACLOCAL_FLAGS"
 aclocal $ACLOCAL_FLAGS
-#echo "  autoheader"
-#autoheader
+echo "  autoheader"
+autoheader
 echo "  libtoolize --automake"
 libtoolize --automake
 echo "  automake --add-missing $AUTOMAKE_FLAGS"
