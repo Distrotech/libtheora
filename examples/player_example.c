@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.14 2003/05/21 10:41:43 giles Exp $
+  last mod: $Id: player_example.c,v 1.15 2003/05/21 18:36:00 giles Exp $
 
  ********************************************************************/
 
@@ -51,10 +51,13 @@
    just a little bit important */
 #if defined(__FreeBSD__)
 #include <machine/soundcard.h>
+#define AUDIO_DEVICE "/dev/audio"
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 #include <soundcard.h>
+#define AUDIO_DEVICE "/dev/audio"
 #else
 #include <sys/soundcard.h>
+#define AUDIO_DEVICE "/dev/dsp"
 #endif
 #include <sys/ioctl.h>
 
@@ -146,9 +149,9 @@ static void open_audio(){
   int rate=vi.rate;
   int ret;
   
-  audiofd=open("/dev/dsp",O_RDWR);
+  audiofd=open(AUDIO_DEVICE,O_RDWR);
   if(audiofd<0){
-    fprintf(stderr,"Could not open audio device /dev/dsp.\n");
+    fprintf(stderr,"Could not open audio device " AUDIO_DEVICE ".\n");
     exit(1);
   }
   
