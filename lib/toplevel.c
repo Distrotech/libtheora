@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.13 2003/02/26 21:04:33 giles Exp $
+  last mod: $Id: toplevel.c,v 1.14 2003/02/26 21:16:58 giles Exp $
 
  ********************************************************************/
 
@@ -229,7 +229,7 @@ static void SetupKeyFrame(CP_INSTANCE *cpi) {
   memset( cpi->pb.display_fragments, 1, cpi->pb.UnitFragments );
   memset( cpi->extra_fragments, 1, cpi->pb.UnitFragments );
   
-  // Set up for a BASE/KEY FRAME 
+  /* Set up for a BASE/KEY FRAME */
   SetFrameType( &cpi->pb,BASE_FRAME );
 }
 
@@ -728,7 +728,7 @@ static void CompressFrame( CP_INSTANCE *cpi) {
 	  (cpi->LastKeyFrame >= (ogg_uint32_t)
 	   cpi->pb.info.keyframe_frequency_force) ){
 	
-	CompressKeyFrame(cpi);  // Code a key frame
+	CompressKeyFrame(cpi);  /* Code a key frame */
 	return;
       }
       
@@ -1035,7 +1035,8 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
 
-///	dbm -- added functions to write important data (qtables + huff stuff) into header
+  /* dbm -- added functions to write important data (qtables + huff stuff) into header
+     TODO: split this into a separate packet */
   write_Qtables(&cpi->oggbuffer);
   write_FrequencyCounts(&cpi->oggbuffer);
 
@@ -1123,7 +1124,7 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
   c->target_bitrate=oggpackB_read(&opb,24);
   c->quality=ret=oggpackB_read(&opb,6);
 
-///	dbm -- read important stuff from the stream header:
+  /* dbm -- read important stuff from the stream header: */
   read_Qtables(&opb);
   read_FrequencyCounts(&opb);
 

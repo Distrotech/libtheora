@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.5 2003/02/26 21:04:33 giles Exp $
+  last mod: $Id: quant.c,v 1.6 2003/02/26 21:16:58 giles Exp $
 
  ********************************************************************/
 
@@ -40,6 +40,48 @@ static Q_LIST_ENTRY DcScaleFactorTableV1[ Q_TABLE_SIZE ] = {
   30,  20,  20,  20,  20,  20,  20,  20,
   20,  10,  10,  10,  10,  10,  10,  10 
 };
+
+/* dbm -- defined some alternative tables to test header packing */
+#define NEW_QTABLES 0
+#if NEW_QTABLES
+
+static Q_LIST_ENTRY Y_coeffsV1[64] =
+{
+	8,  16,  16,  16,  20,  20,  20,  20,
+	16,  16,  16,  16,  20,  20,  20,  20,
+	16,  16,  16,  16,  22,  22,  22,  22,
+	16,  16,  16,  16,  22,  22,  22,  22,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24
+};
+
+static Q_LIST_ENTRY UV_coeffsV1[64] =
+{	17,	18,	24,	47,	99,	99,	99,	99,
+	18,	21,	26,	66,	99,	99,	99,	99,
+	24,	26,	56,	99,	99,	99,	99,	99,
+	47,	66,	99,	99,	99,	99,	99,	99,
+	99,	99,	99,	99,	99,	99,	99,	99,
+	99,	99,	99,	99,	99,	99,	99,	99,
+	99,	99,	99,	99,	99,	99,	99,	99,
+	99,	99,	99,	99,	99,	99,	99,	99
+};
+
+/* Different matrices for different encoder versions */
+static Q_LIST_ENTRY Inter_coeffsV1[64] =
+{
+	12, 16,  16,  16,  20,  20,  20,  20,
+	16,  16,  16,  16,  20,  20,  20,  20,
+	16,  16,  16,  16,  22,  22,  22,  22,
+	16,  16,  16,  16,  22,  22,  22,  22,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24,
+	20,  20,  22,  22,  24,  24,  24,  24
+};
+
+#else /* these are the old VP3 values: */
 
 static Q_LIST_ENTRY Y_coeffsV1[64] ={
   16,  11,  10,  16,  24,  40,  51,  61,
@@ -75,10 +117,12 @@ static Q_LIST_ENTRY Inter_coeffsV1[64] ={
   40,  48,  64,  64,  64,  96,  128, 128
 };
 
+#endif
 
-///	dbm 12/5/02 -- write qtables into header.  called from theora_encode_header (toplevel.c)
-///	someday we can change the quant tables to be adaptive, or just plain better.
-
+/*
+ *	dbm 12/5/02 -- write qtables into header.  called from theora_encode_header (toplevel.c)
+ *	someday we can change the quant tables to be adaptive, or just plain better.
+ */
 void write_Qtables(oggpack_buffer* opb) {
   int x;
   for(x=0; x<64; x++) {
@@ -98,7 +142,7 @@ void write_Qtables(oggpack_buffer* opb) {
   }
 }
 
-///	dbm 12/5/02 -- read qtables from header.  called from theora_decode_header (toplevel.c)
+/*	dbm 12/5/02 -- read qtables from header.  called from theora_decode_header (toplevel.c) */
 
 void read_Qtables(oggpack_buffer* opb) {
   int x;
@@ -235,7 +279,7 @@ static void init_quantizer ( CP_INSTANCE *cpi,
     temp_fp_quant_coeffs= 1.0 / temp_fp_quant_coeffs;
     pbi->fp_quant_Inter_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
     
-    // Inter UV
+    /* Inter UV */
     temp_fp_quant_coeffs = 
       (((ogg_uint32_t)(UVDcScaleFactorTable[QIndex] * Inter_coeffs[0])/100) << 2);
     if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 4)
