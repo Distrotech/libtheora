@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: transcoder_example.c,v 1.1 2003/09/26 15:11:47 tterribe Exp $
+  last mod: $Id: transcoder_example.c,v 1.2 2003/10/28 18:18:42 mauricio Exp $
 
  ********************************************************************/
 
@@ -457,12 +457,13 @@ int theora_transcode_bufferin( TC_INSTANCE *ttc, int isKeyFrame, char * bytes, i
 
 int theora_transcoder_init(theora_info * ti, TC_INSTANCE * ttc){
   memset(ttc, 0, sizeof(*ttc));
+  ttc->granulepos = -1;
   ttc->keyframe_granule_shift=_ilog(ti->keyframe_frequency_force-1);
   ttc->LastKeyFrame  = 0;
   ttc->KeyFrameCount = 0;
   ttc->ThisIsFirstFrame = 1;
   ttc->ThisIsKeyFrame = 0;
-  ttc->CurrentFrame = 1; /* or 0?*/
+  ttc->CurrentFrame = 1; 
   ttc->in_bytes = 0;
   ttc->in_bytecount  = 0;
   ttc->fps_denominator = ti->fps_denominator;
@@ -725,8 +726,8 @@ int main(int argc,char *argv[]){
   ti.dropframes_p=0;
   ti.quick_p=1;
   ti.keyframe_auto_p=1;
-  ti.keyframe_frequency=64;
-  ti.keyframe_frequency_force=64;
+  ti.keyframe_frequency=32768;
+  ti.keyframe_frequency_force=32768;
   ti.keyframe_data_target_bitrate=video_r*1.5;
   ti.keyframe_auto_threshold=80;
   ti.keyframe_mindistance=8;
