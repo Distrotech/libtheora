@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.37 2004/03/09 02:02:56 giles Exp $
+  last mod: $Id: toplevel.c,v 1.38 2004/03/13 23:46:27 giles Exp $
 
  ********************************************************************/
 
@@ -24,7 +24,7 @@
 #define VERSION_MINOR 2
 #define VERSION_SUB 0
 
-#define VENDOR_STRING "Xiph.Org libTheora I 20040228 3 2 0"
+#define VENDOR_STRING "Xiph.Org libTheora I 20040313 3 2 0"
 
 #define A_TABLE_SIZE        29
 #define DF_CANDIDATE_WINDOW 5
@@ -1186,9 +1186,9 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
   oggpackB_write(cpi->oggbuffer,0x82,8);
   _tp_writebuffer(cpi->oggbuffer,"theora",6);
 
+  WriteFilterTables(&cpi->pb,cpi->oggbuffer);
   WriteQTables(&cpi->pb,cpi->oggbuffer);
   WriteHuffmanTrees(cpi->pb.HuffRoot_VP3x,cpi->oggbuffer);
-  WriteFilterTables(&cpi->pb,cpi->oggbuffer);
 
 #ifndef LIBOGG2
   op->packet=oggpackB_get_buffer(cpi->oggbuffer);
@@ -1347,11 +1347,11 @@ static int _theora_unpack_tables(theora_info *c, oggpack_buffer *opb){
 
   ci=(codec_setup_info *)c->codec_setup;
 
+  ret=ReadFilterTables(ci, opb);
+  if(ret)return ret;
   ret=ReadQTables(ci, opb);
   if(ret)return ret;
   ret=ReadHuffmanTrees(ci, opb);
-  if(ret)return ret;
-  ret=ReadFilterTables(ci, opb);
   if(ret)return ret;
 
   return ret;
