@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.11 2003/05/12 00:20:05 giles Exp $
+  last mod: $Id: player_example.c,v 1.12 2003/05/12 00:22:59 giles Exp $
 
  ********************************************************************/
 
@@ -395,6 +395,7 @@ int main(void){
   /* init supporting Vorbis structures needed in header parsing */
   vorbis_info_init(&vi);
   vorbis_comment_init(&vc);
+  theora_comment_init(&tc);
 
   /* Ogg file on stdin; parse the headers */
   /* Only interested in Vorbis/Theora streams */
