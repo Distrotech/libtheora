@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.14 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: encoder_internal.h,v 1.15 2003/09/29 14:36:44 giles Exp $
 
  ********************************************************************/
 
@@ -644,9 +644,6 @@ typedef struct CP_INSTANCE {
   int               doneflag;
 
 } CP_INSTANCE;
-
-static ogg_int32_t andmask[2]={0xff,0x00};
-static ogg_int32_t ormask[4]={0x00,0xff,0xff,0xff};
 
 #define clamp255(x) ((unsigned char)((((x)<0)-1) & ((x) | -((x)>255))))
 
