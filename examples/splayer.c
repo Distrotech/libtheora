@@ -13,7 +13,7 @@
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
  * Modified by M. Piacentini http://www.tabuleiro.com
- * from the original Theora Alpha player_sample files 
+ * from the original Theora Alpha player_sample files
  *
  * Modified to build on Windows and use PortAudio as the audio
  * and synchronization layer, calculating license.
@@ -109,7 +109,7 @@ PASTREAMIO_Stream;
 #define PASTREAMIO_MONO     (1<<2)
 #define PASTREAMIO_STEREO   (1<<3)
 
- /***************************************************************************
+/***************************************************************************
 ** Helper function added to report stream time. */
 
 PaTimestamp GetAudioStreamTime( PASTREAMIO_Stream *aStream ){
@@ -873,7 +873,7 @@ int main( int argc, char* argv[] ){
   SDL_Event event;
   int hasdatatobuffer = 1;
   int playbackdone = 0;
-  double delay, last_frame_time = 0;
+  double now, delay, last_frame_time = 0;
 
   int frameNum=0;
   int skipNum=0;
@@ -1009,11 +1009,12 @@ int main( int argc, char* argv[] ){
 	     If the frame is late we need to decode additonal
 	     ones and keep looping, since theora at this stage
 	     needs to decode all frames */
-	  delay = videobuf_time-get_time();
+	  now=get_time();
+	  delay=videobuf_time-now;
 	  if(delay>=0.0){
 		/* got a good frame, not late, ready to break out */
 		videobuf_ready=1;
-	  }else if(videobuf_time-last_frame_time>=1.0){
+	  }else if(now-last_frame_time>=1.0){
 		/* display at least one frame per second, regardless */
 		videobuf_ready=1;
 	  }else{
@@ -1043,7 +1044,7 @@ int main( int argc, char* argv[] ){
       /* time to write our cached frame */
       video_write();
       videobuf_ready=0;
-      last_frame_time=videobuf_time;
+      last_frame_time=get_time();
 
       /* if audio has not started (first frame) then start it */
       if ((!isPlaying)&&(vorbis_p)){
