@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: scan.c,v 1.4 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: scan.c,v 1.5 2003/05/17 00:42:16 tterribe Exp $
 
  ********************************************************************/
 
@@ -475,7 +475,7 @@ static int RowSadScan( PP_INSTANCE *ppi,
     for ( i = 0; i < ppi->PlaneHFragments; i ++ ){
       if ( *LocalDispFragPtr <= BLOCK_NOT_CODED ){
 	/* Calculate the SAD score for the block row */
-	ScalarRowSAD(LocalYuvPtr1,LocalYuvPtr2);
+	GrpSad = ScalarRowSAD(LocalYuvPtr1,LocalYuvPtr2);
 
 	/* Now test the group SAD score */
 	if ( GrpSad > LocalGrpLowSadThresh ){
