@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams
-  last mod: $Id: dump_video.c,v 1.7 2003/11/15 17:27:12 tterribe Exp $
+  last mod: $Id: dump_video.c,v 1.8 2003/11/22 14:53:03 tterribe Exp $
 
  ********************************************************************/
 
@@ -30,7 +30,10 @@
 /*#include <sys/time.h>*/
 #include <sys/types.h>
 #include <sys/stat.h>
+/*Yes, yes, we're going to hell.*/
+#if defined(_WIN32)
 #include <io.h>
+#endif
 #include <fcntl.h>
 #include <math.h>
 #include <signal.h>
