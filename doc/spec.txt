@@ -1,21 +1,5 @@
-#spec060 -- new stuff
-#spec061 -- finally -- bitwise equivalent to C code! (without loop filter)
-#spec062 -- FINALLY -- bitwise equvalent, even for TKAL!  problem was dang page/packet stuff
-#           this works sorta, but still needs to be revamped so Ogg stuff is not brittle
-#           but at least it works with its own test data.  Now gotta add loop filter
-#spec063 -- some tweaks
-#spec064 -- loop filter -- not working yet, but reorged pixel maps & stuff
-#spec065 -- loop filter working! (?) yes!
-#spec066 -- cleanup time -- derf's comments, other stuff (see unk.txt)
-#           firster -- fix up UV ala C code
-#spec067 -- first -- fixing header parsing stuff
-#spec068 -- decode_packet() -- now we can do a proper main loop
-#spec069 -- ok, using correct logic for headers & frames
-#spec070 -- cleaned up for release as 0.070
-#spec071 -- take command line args, insist on info & table headers -- make it 0.071
-
 ####_Theora Bitstream Specification and Reference Decoder -- Theora 1.0
-##Document version: 0.071
+##Document version: 0.074
 
 #/(c) 2003 Xiph Foundation, Dan Miller
 
@@ -34,6 +18,7 @@
 #The most glaring deficiency is that presently the documentation and Python decoder only cover keyframes.  We are actively looking for volunteers to help us complete the work of fully documenting the Theora format.  If you are interested and believe you can help, please post a message to theora-dev@xiph.org, or contact jack@xiph.org or danbmil99@yahoo.com.
 
 #In addition to support for predicted frames, the Python script needs to be heavily error-protected.  Presently various illegal bitstreams will cause the program to go into an endless loop or crash in other unpredictable ways.  The specification should eventually be usable as a syntax checker that is able to detect and report on any possible error condition within the bitstream.  In addition to work on the code, we will need to generate a comprehensive test suite of encoded files that exercise every aspect of the bitstream.  Illegal files will also need to be generated to test the error handling capacity of the script.
+
 ##_About this document
 
 #This document is The Theora Bitstream Specification and Reference Decoder. It is both an english language description of the Theora video bitstream, and an interpretable program in the Python programming language, which can be executed using a version 2.0 or later Python interpreter.  More information about Python can be gleaned at www.python.org. When run as a Python script, this document will decode compliant Theora bitstreams, producing uncompressed YUV files.  The YUV output format is identical to that used by theora/win32/experimental/dumpvid/dump_vid.exe, which is as follows:
@@ -123,17 +108,25 @@ def flushpage():                                      #flush packet & disable pa
   bitmask = 0
   pagebytes = 999999                                  #kluge - yuk
 
-#/simple Ogg page header parsing routine.  Note we are not checking CRC's; we are assuming Ogg data is not corrupt.
+#/simple Ogg page header parsing routine.  Note we are not checking CRC's; we are assuming Ogg data is not corrupt.  Also, right now we only support single-stream Ogg files; we will abort if we ever see a different serial number.
+
+serialno = 'none'
 
 def read_page_header():
-  global oggindex, pagebytes, pagestart
+  global oggindex, pagebytes, pagestart, serialno
   flushpage()
   oggs = readstring(4)                                #get the putated 4-byte Ogg identifier
   if oggs != "OggS":
     print "invalid page data -- OggS =", oggs
     abort()
   oggindex += 10                                      #serialnum at offset 14
-  serialno = readOgg32()
+  sernum = readOgg32()
+  if serialno == 'none':
+    serialno = sernum
+  else:
+    if serialno != sernum:
+      print "Multiple streams not supported"
+      abort()
   oggindex += 8                                       #segment count at offset 26
   segments = readbits(8)
   bytes = 0
@@ -170,7 +163,6 @@ def readbit():
   return bit
 
 #/readbits: our workhorse.  Gets up to 32 bits from the stream 
-#/(note -- hi bit is first bit read! use readOgg32() or build up values through sequential byte reads for Ogg purposes)
 
 def readbits(x):
   ret = 0
@@ -187,7 +179,7 @@ def readstring(x):
     s += chr(readbits(8))
   return s
 
-#/readOgg32 reads a longword Ogg style:
+#/readOgg32 reads a longword Ogg style.  ONLY GOOD FOR BYTE-ALIGNED READS! (should fix)
 
 def readOgg32():                                      #different than readbits(32): byte order is reversed
 
@@ -457,9 +449,12 @@ hilbert = [
 [2,2], [2,3], [3,3], [3,2], 
 [3,1], [2,1], [2,0], [3,0] ]
 
+#/note the use of Python style integer division, //
+#/(this is important as Python's / operator behaves differently in various versions!)
+
 def de_hilbert(w, h, colist):                               #width, height, coefficient list
-  sbw = int( (w+3) / 4)                                     #super-block width (width in sb's)
-  sbh = int( (h+3) / 4)                                     #super-block height (height in sb's)
+  sbw = (w+3) // 4                                          #super-block width (width in sb's)
+  sbh = (h+3) // 4                                          #super-block height (height in sb's)
   ii = 0 
   comap = []
 
@@ -547,10 +542,10 @@ def DCpredict(comap, w, h):
 #/(Note that the dequantize routine also multiplies each coefficient by 4.  This is to facilitate the iDCT later on.)
 
 def dequant(data, scaleDC, scaleAC, dqtable):
-  mul = int( (scaleDC * dqtable[0]) / 100 ) * 4
+  mul = ( (scaleDC * dqtable[0]) // 100 ) * 4
   for x in range(64):
     if x>0:
-      mul = int( (scaleAC * dqtable[x]) / 100 ) * 4
+      mul = ( (scaleAC * dqtable[x]) // 100 ) * 4
     data[x] *= mul
 
 ##ZIG-ZAG order
@@ -579,7 +574,7 @@ def unzig(data,un):
 
 #Once coefficients are re-ordered and dequantized, the iDCT is performed on the 8x8 matrix to produce the actual pixel values (or differentials for predicted blocks).
 
-#Theora's particular choice of iDCT computation involves intermediate values that are calculated using 32 bit, fixed-point arithmetic.  Multiplication is defined as follows (assuming 32-bit integer parameters):
+#Theora's particular choice of iDCT computation involves intermediate values that are calculated using 32-bit, fixed-point arithmetic.  Multiplication is defined as follows (assuming 32-bit integer parameters):
 
 def Mul_fix(a, b):
   return (a * b) >> 16
@@ -792,9 +787,9 @@ def decode_frame():
     readbits(2)                                             #2 unused bits
 
 #/compute some values based on width & height:
-    blocks_Y = int( (encoded_height*encoded_width)/64 )     #Y blocks coded
-    blocks_UV = int(blocks_Y / 2)
-    blocks_U = int(blocks_UV / 2)
+    blocks_Y = encoded_height*encoded_width // 64           #Y blocks coded
+    blocks_UV = blocks_Y // 2
+    blocks_U = blocks_UV // 2
     blocks_V = blocks_U
     blocks_tot = int(blocks_Y * 1.5)                        #Y and UV blocks coded
 
@@ -810,9 +805,9 @@ def decode_frame():
         huff_Y = readbits(4)
         huff_UV = readbits(4)
       elif i == 1:
-        huff_Y = readbits(4)+16                             #get AC huff tables at 1, 6, 15, and 28
+        huff_Y = readbits(4)+16                             #get AC huff tables at i=1
         huff_UV = readbits(4)+16
-      elif i == 6:
+      elif i == 6:                                          #update at  6, 15, and 28
         huff_Y += 16
         huff_UV += 16
       elif i == 15:
@@ -826,9 +821,9 @@ def decode_frame():
 
       for x in range(blocks_tot):
         if x < blocks_Y:                                    #if we're in the Y plane,
-          huff = huff_Y
-        else:
-          huff = huff_UV
+          huff = huff_Y                                     #use huff_Y
+        else:                                               #or,
+          huff = huff_UV                                    #huff_UV for chroma planes
 
 #/first check whether this coefficient was already decoded (Because of an end-of-block or other run):
 
@@ -862,10 +857,10 @@ def decode_frame():
 
 #/now 'de-hilbertize' coefficient blocks:
 
-    Yheight = int(encoded_height/8)
-    Ywidth = int(encoded_width/8)
-    UVheight = int(Yheight/2)
-    UVwidth = int(Ywidth/2)
+    Yheight = encoded_height//8
+    Ywidth = encoded_width//8
+    UVheight = Yheight//2
+    UVwidth = Ywidth//2
     global comapY, comapU, comapV
     comapY = de_hilbert(Ywidth, Yheight, coeffs)
     comapU = de_hilbert(UVwidth, UVheight, coeffs[blocks_Y:])
@@ -981,7 +976,7 @@ while type(ret) == type(""):                          #string means stream heade
       print "  vendor string:", vendor_string
       print "  comment length:", comment_string_len
     elif ret == "table":
-      print "tables loaded"
+      print "  tables loaded"
   else:
     print "frame decoded"
 
@@ -1002,7 +997,7 @@ def interleave(U, V, w, h):
 
 #write data to disk:
 
-buf = array('B', Y + interleave(U, V, decode_width/2, decode_height/2) )
+buf = array('B', Y + interleave(U, V, decode_width//2, decode_height//2) )
 outfile = file(sys.argv[2],"wb")
 outfile.write(buf)
 
