@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.16 2004/03/08 00:40:54 giles Exp $
+  last mod: $Id: quant.c,v 1.17 2004/03/08 00:43:19 giles Exp $
 
  ********************************************************************/
 
@@ -157,7 +157,7 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   oggpackB_write(opb, 63, 6);
   oggpackB_write(opb, 1, 2);
   oggpackB_write(opb, 0, 1);  /* intra V is the same */
-  oggpackB_write(opb, 1, 0);  /* next range is explicit */
+  oggpackB_write(opb, 1, 1);  /* next range is explicit */
   oggpackB_write(opb, 2, 2);  /* matrix 2 for inter Y */
   oggpackB_write(opb, 63, 6);
   oggpackB_write(opb, 2, 2);
