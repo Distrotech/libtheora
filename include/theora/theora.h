@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: theora.h,v 1.16 2003/12/03 08:59:47 arc Exp $
+  last mod: $Id: theora.h,v 1.17 2003/12/06 18:06:19 arc Exp $
 
  ********************************************************************/
 
@@ -22,6 +22,8 @@
 #include <ogg/ogg.h>
 #else
 #include <ogg2/ogg.h>
+/* This is temporary until libogg2 is more complete */
+ogg_buffer_state *ogg_buffer_create(void);
 #endif
 
 typedef struct {

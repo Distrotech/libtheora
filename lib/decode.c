@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: decode.c,v 1.9 2003/12/03 08:59:39 arc Exp $
+  last mod: $Id: decode.c,v 1.10 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -65,23 +65,23 @@ static int LoadFrameHeader(PB_INSTANCE *pbi){
   unsigned char  SpareBits;       /* Spare cfg bits */
 
   /* Is the frame and inter frame or a key frame */
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->FrameType = (unsigned char)ret;
 
   /* Quality (Q) index */
-  theora_read(&pbi->opb,6,&ret);
+  theora_read(pbi->opb,6,&ret);
   DctQMask = (unsigned char)ret;
 
   /* spare bit for possible additional Q indicies - should be 0 */
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   SpareBits = (unsigned char)ret;
 
   if ( (pbi->FrameType == BASE_FRAME) ){
     /* Read the type / coding method for the key frame. */
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     pbi->KeyFrameType = (unsigned char)ret;
 
-    theora_read(&pbi->opb,2,&ret);
+    theora_read(pbi->opb,2,&ret);
     SpareBits = (unsigned char)ret;
 
   }
@@ -150,14 +150,15 @@ static void DecodeModes (PB_INSTANCE *pbi,
     const CODING_MODE  *ModeList;
 
     /* Read the coding method */
-    theora_read(&pbi->opb, MODE_METHOD_BITS, &CodingScheme);
+    theora_read(pbi->opb, MODE_METHOD_BITS, &ret);
+    CodingScheme=ret;
 
     /* If the coding method is method 0 then we have to read in a
        custom coding scheme */
     if ( CodingScheme == 0 ){
       /* Read the coding scheme. */
       for ( i = 0; i < MAX_MODES; i++ ){
-        theora_read(&pbi->opb, MODE_BITS, &ret);
+        theora_read(pbi->opb, MODE_BITS, &ret);
         CustomModeAlphabet[ret]=i;
       }
       ModeList=CustomModeAlphabet;
@@ -183,7 +184,7 @@ static void DecodeModes (PB_INSTANCE *pbi,
               if ( CodingScheme == (MODE_METHODS-1) ){
                 /* This is the fall back coding scheme. */
                 /* Simply MODE_BITS bits per mode entry. */
-                theora_read(&pbi->opb, MODE_BITS, &ret);
+                theora_read(pbi->opb, MODE_BITS, &ret);
                 CodingMethod = (CODING_MODE)ret;
               }else{
                 ModeEntry = FrArrayUnpackMode(pbi);
@@ -226,7 +227,8 @@ static ogg_int32_t ExtractMVectorComponentA(PB_INSTANCE *pbi){
   ogg_uint32_t  ExtraBits = 0;
 
   /* Get group to which coded component belongs */
-  theora_read(&pbi->opb, 3, &MVCode);
+  theora_read(pbi->opb, 3, &ret);
+  MVCode=ret;
 
   /*  Now extract the appropriate number of bits to identify the component */
   switch ( MVCode ){
@@ -240,37 +242,40 @@ static ogg_int32_t ExtractMVectorComponentA(PB_INSTANCE *pbi){
     MVectComponent = -1;
     break;
   case 3:
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     if (ret)
       MVectComponent = -2;
     else
       MVectComponent = 2;
     break;
   case 4:
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     if (ret)
       MVectComponent = -3;
     else
       MVectComponent = 3;
     break;
   case 5:
-    theora_read(&pbi->opb,2,&ExtraBits);
+    theora_read(pbi->opb,2,&ret);
+    ExtraBits=ret;
     MVectComponent = 4 + ExtraBits;
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     if (ret)
       MVectComponent = -MVectComponent;
     break;
   case 6:
-    theora_read(&pbi->opb,3,&ExtraBits);
+    theora_read(pbi->opb,3,&ret);
+    ExtraBits=ret;
     MVectComponent = 8 + ExtraBits;
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     if (ret)
       MVectComponent = -MVectComponent;
     break;
   case 7:
-    theora_read(&pbi->opb,4,&ExtraBits);
+    theora_read(pbi->opb,4,&ret);
+    ExtraBits=ret;
     MVectComponent = 16 + ExtraBits;
-    theora_read(&pbi->opb,1,&ret);
+    theora_read(pbi->opb,1,&ret);
     if (ret)
       MVectComponent = -MVectComponent;
     break;
@@ -284,8 +289,9 @@ static ogg_int32_t ExtractMVectorComponentB(PB_INSTANCE *pbi){
   ogg_int32_t   MVectComponent;
 
   /* Get group to which coded component belongs */
-  theora_read(&pbi->opb,5,&MVectComponent);
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,5,&ret);
+  MVectComponent=ret;
+  theora_read(pbi->opb,1,&ret);
   if (ret)
     MVectComponent = -MVectComponent;
 
@@ -329,7 +335,7 @@ static void DecodeMVectors ( PB_INSTANCE *pbi,
   PriorLastInterMV.y = 0;
 
   /* Read the entropy method used and set up the appropriate decode option */
-  theora_read(&pbi->opb, 1, &ret);  
+  theora_read(pbi->opb, 1, &ret);  
   if ( ret == 0 )
     ExtractMVectorComponent = ExtractMVectorComponentA;
   else
@@ -512,10 +518,11 @@ static ogg_uint32_t ExtractToken(oggpack_buffer *opb,
 static void UnpackAndExpandDcToken( PB_INSTANCE *pbi,
                                     Q_LIST_ENTRY *ExpandedBlock,
                                     unsigned char * CoeffIndex ){
-  ogg_int32_t           ExtraBits;
+  long			ret;
+  ogg_int32_t           ExtraBits = 0;
   ogg_uint32_t          Token;
 
-  Token = ExtractToken(&pbi->opb, pbi->HuffRoot_VP3x[pbi->DcHuffChoice]);
+  Token = ExtractToken(pbi->opb, pbi->HuffRoot_VP3x[pbi->DcHuffChoice]);
 
 
   /* Now.. if we are using the DCT optimised coding system, extract any
@@ -523,8 +530,8 @@ static void UnpackAndExpandDcToken( PB_INSTANCE *pbi,
    */
   if ( pbi->ExtraBitLengths_VP3x[Token] > 0 ){
     /* Extract the appropriate number of extra bits. */
-    theora_read(&pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ExtraBits);
-
+    theora_read(pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ret);
+    ExtraBits = ret;
   }
 
   /* Take token dependant action */
@@ -576,17 +583,19 @@ static void UnpackAndExpandDcToken( PB_INSTANCE *pbi,
 static void UnpackAndExpandAcToken( PB_INSTANCE *pbi,
                                     Q_LIST_ENTRY * ExpandedBlock,
                                     unsigned char * CoeffIndex  ) {
-  ogg_int32_t           ExtraBits;
+  long                  ret;
+  ogg_int32_t           ExtraBits = 0;
   ogg_uint32_t          Token;
 
-  Token = ExtractToken(&pbi->opb, pbi->HuffRoot_VP3x[pbi->ACHuffChoice]);
+  Token = ExtractToken(pbi->opb, pbi->HuffRoot_VP3x[pbi->ACHuffChoice]);
 
   /* Now.. if we are using the DCT optimised coding system, extract any
    *  assosciated additional bits token.
    */
   if ( pbi->ExtraBitLengths_VP3x[Token] > 0 ){
     /* Extract the appropriate number of extra bits. */
-    theora_read(&pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ExtraBits);
+    theora_read(pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ret);
+    ExtraBits = ret;
   }
 
   /* Take token dependant action */
@@ -666,9 +675,9 @@ static void UnPackVideo (PB_INSTANCE *pbi){
   pbi->BlocksToDecode = pbi->CodedBlockIndex;
 
   /* Get the DC huffman table choice for Y and then UV */
-  theora_read(&pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
+  theora_read(pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
   DcHuffChoice1 = ret + DC_HUFF_OFFSET;
-  theora_read(&pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
+  theora_read(pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
   DcHuffChoice2 = ret + DC_HUFF_OFFSET;
 
   /* UnPack DC coefficients / tokens */
@@ -704,9 +713,9 @@ static void UnPackVideo (PB_INSTANCE *pbi){
 
   /* Get the AC huffman table choice for Y and then for UV. */
 
-  theora_read(&pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
+  theora_read(pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
   AcHuffIndex1 = ret + AC_HUFF_OFFSET;
-  theora_read(&pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
+  theora_read(pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
   AcHuffIndex2 = ret + AC_HUFF_OFFSET;
 
   /* Unpack Lower AC coefficients. */

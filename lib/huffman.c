@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: huffman.c,v 1.11 2003/12/03 08:59:41 arc Exp $
+  last mod: $Id: huffman.c,v 1.12 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -225,6 +225,7 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
 static int ReadHuffTree(HUFF_ENTRY * HuffRoot, int depth,
                         oggpack_buffer *opb) {
   long bit;
+  long ret;
   theora_read(opb,1,&bit);
   if(bit < 0) return OC_BADHEADER;
   else if(!bit) {
@@ -240,7 +241,8 @@ static int ReadHuffTree(HUFF_ENTRY * HuffRoot, int depth,
   } else {
     HuffRoot->ZeroChild = NULL;
     HuffRoot->OneChild = NULL;
-    theora_read(opb,5,&HuffRoot->Value);
+    theora_read(opb,5,&ret);
+    HuffRoot->Value=ret;;
     if (HuffRoot->Value < 0) return OC_BADHEADER;
   }
   return 0;

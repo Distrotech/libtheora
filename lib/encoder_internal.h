@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.16 2003/12/03 08:59:42 arc Exp $
+  last mod: $Id: encoder_internal.h,v 1.17 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -257,10 +257,10 @@ typedef struct codec_setup_info {
 } codec_setup_info;
 
 typedef struct PB_INSTANCE {
-  oggpack_buffer opb;
-  theora_info    info;
+  oggpack_buffer *opb;
+  theora_info     info;
   /* how far do we shift the granulepos to seperate out P frame counts? */
-  int            keyframe_granule_shift;
+  int             keyframe_granule_shift;
 
 
   /***********************************************************************/
@@ -646,7 +646,10 @@ typedef struct CP_INSTANCE {
   PB_INSTANCE       pb;   /* playback */
 
   /* ogg bitpacker for use in packet coding, other API state */
-  oggpack_buffer    oggbuffer;
+  oggpack_buffer   *oggbuffer;
+#ifdef LIBOGG2  /* Remember, this is just until we drop libogg1 */
+  ogg_buffer_state *oggbufferstate;
+#endif
   int               readyflag;
   int               packetflag;
   int               doneflag;

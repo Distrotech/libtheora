@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.15 2003/12/03 08:59:40 arc Exp $
+  last mod: $Id: encode.c,v 1.16 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -112,7 +112,7 @@ static void EncodeDcTokenList (CP_INSTANCE *cpi) {
   ogg_uint32_t  DcHuffChoice[2];
   ogg_uint32_t  EntropyTableBits[2][DC_HUFF_CHOICES];
 
-  oggpack_buffer *opb=&cpi->oggbuffer;
+  oggpack_buffer *opb=cpi->oggbuffer;
 
   /* Clear table data structure */
   memset ( EntropyTableBits, 0, sizeof(ogg_uint32_t)*DC_HUFF_CHOICES*2 );
@@ -195,7 +195,7 @@ static void EncodeAcTokenList (CP_INSTANCE *cpi) {
   ogg_uint32_t  AcHuffChoice[2];
   ogg_uint32_t  EntropyTableBits[2][AC_HUFF_CHOICES];
 
-  oggpack_buffer *opb=&cpi->oggbuffer;
+  oggpack_buffer *opb=cpi->oggbuffer;
 
   memset ( EntropyTableBits, 0, sizeof(ogg_uint32_t)*AC_HUFF_CHOICES*2 );
 
@@ -272,14 +272,14 @@ static void PackModes (CP_INSTANCE *cpi) {
 
   unsigned char   BestModeSchemes[MAX_MODES];
   ogg_int32_t     ModeCount[MAX_MODES];
-  ogg_int32_t     TmpFreq;
-  ogg_int32_t     TmpIndex;
+  ogg_int32_t     TmpFreq = -1;
+  ogg_int32_t     TmpIndex = -1;
 
   ogg_uint32_t    BestScheme;
   ogg_uint32_t    BestSchemeScore;
   ogg_uint32_t    SchemeScore;
 
-  oggpack_buffer *opb=&cpi->oggbuffer;
+  oggpack_buffer *opb=cpi->oggbuffer;
 
   /* Build a frequency map for the modes in this frame */
   memset( ModeCount, 0, MAX_MODES*sizeof(ogg_int32_t) );
@@ -290,7 +290,6 @@ static void PackModes (CP_INSTANCE *cpi) {
      scheme 0 */
   for ( j = 0; j < MAX_MODES; j++ ) {
     /* Find the most frequent */
-    TmpFreq = -1;
     for ( i = 0; i < MAX_MODES; i++ ) {
       /* Is this the best scheme so far ??? */
       if ( ModeCount[i] > TmpFreq ) {
@@ -298,8 +297,12 @@ static void PackModes (CP_INSTANCE *cpi) {
         TmpIndex = i;
       }
     }
-    ModeCount[TmpIndex] = -1;
-    BestModeSchemes[TmpIndex] = (unsigned char)j;
+    /* I don't know if the above loop ever fails to match, but it's
+       better safe than sorry.  Plus this takes care of gcc warning */
+    if ( TmpIndex != -1 ) {
+      ModeCount[TmpIndex] = -1;
+      BestModeSchemes[TmpIndex] = (unsigned char)j;
+    }
   }
 
   /* Default/ fallback scheme uses MODE_BITS bits per mode entry */
@@ -368,7 +371,7 @@ static void PackMotionVectors (CP_INSTANCE *cpi) {
   ogg_uint32_t * MvBitsPtr;
   ogg_uint32_t * MvPatternPtr;
 
-  oggpack_buffer *opb=&cpi->oggbuffer;
+  oggpack_buffer *opb=cpi->oggbuffer;
 
   /* Choose the coding method */
   MvBitsPtr = &MvBits[MAX_MV_EXTENT];
@@ -594,7 +597,7 @@ static void PackCodedVideo (CP_INSTANCE *cpi) {
   }
 
   /* Note the number of bits used to code the tree itself. */
-  cpi->FrameBitCount = oggpackB_bytes(&cpi->oggbuffer) << 3;
+  cpi->FrameBitCount = oggpackB_bytes(cpi->oggbuffer) << 3;
 
   /* Mode and MV data not needed for key frames. */
   if ( GetFrameType(&cpi->pb) != BASE_FRAME ){
@@ -604,7 +607,7 @@ static void PackCodedVideo (CP_INSTANCE *cpi) {
     PackMotionVectors (cpi);
   }
 
-  cpi->FrameBitCount = oggpackB_bytes(&cpi->oggbuffer) << 3;
+  cpi->FrameBitCount = oggpackB_bytes(cpi->oggbuffer) << 3;
 
   /* Optimise the DC tokens */
   for ( i = 0; i < cpi->pb.CodedBlockIndex; i++ ) {
@@ -1453,7 +1456,7 @@ ogg_uint32_t PickModes(CP_INSTANCE *cpi,
 
 void WriteFrameHeader( CP_INSTANCE *cpi) {
   ogg_uint32_t i;
-  oggpack_buffer *opb=&cpi->oggbuffer;
+  oggpack_buffer *opb=cpi->oggbuffer;
 
   /* Output the frame type (base/key frame or inter frame) */
   oggpackB_write( opb, cpi->pb.FrameType, 1 );

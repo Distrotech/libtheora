@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: pb.c,v 1.6 2003/12/03 08:59:41 arc Exp $
+  last mod: $Id: pb.c,v 1.7 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -85,6 +85,9 @@ void InitTmpBuffers(PB_INSTANCE * pbi){
 void ClearPBInstance(PB_INSTANCE *pbi){
   if(pbi){
     ClearTmpBuffers(pbi);
+    if (pbi->opb) {
+      _ogg_free(pbi->opb);
+    }
   }
 }
 
@@ -93,6 +96,13 @@ void InitPBInstance(PB_INSTANCE *pbi){
   memset(pbi, 0, sizeof(*pbi));
 
   InitTmpBuffers(pbi);
+
+  /* allocate memory for the oggpack_buffer */
+#ifndef LIBOGG2
+  pbi->opb = _ogg_malloc(sizeof(oggpack_buffer));
+#else
+  pbi->opb = _ogg_malloc(oggpack_buffersize());
+#endif
 
   /* variables needing initialization (not being set to 0) */
 

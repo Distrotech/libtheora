@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.34 2003/12/03 08:59:42 arc Exp $
+  last mod: $Id: toplevel.c,v 1.35 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -244,7 +244,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
   ogg_int32_t MinFrameTargetRate;
 
   /* Update the frame carry over. */
-  cpi->TotKeyFrameBytes += oggpackB_bytes(&cpi->oggbuffer);
+  cpi->TotKeyFrameBytes += oggpackB_bytes(cpi->oggbuffer);
 
   /* reset keyframe context and calculate weighted average of last
      KEY_FRAME_CONTEXT keyframes */
@@ -254,7 +254,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
       cpi->PriorKeyFrameDistance[i] = cpi->PriorKeyFrameDistance[i+1];
     } else {
       cpi->PriorKeyFrameSize[KEY_FRAME_CONTEXT - 1] =
-        oggpackB_bytes(&cpi->oggbuffer);
+        oggpackB_bytes(cpi->oggbuffer);
       cpi->PriorKeyFrameDistance[KEY_FRAME_CONTEXT - 1] =
         cpi->LastKeyFrame;
     }
@@ -293,7 +293,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
   }
 
   cpi->LastKeyFrame = 1;
-  cpi->LastKeyFrameSize=oggpackB_bytes(&cpi->oggbuffer);
+  cpi->LastKeyFrameSize=oggpackB_bytes(cpi->oggbuffer);
 
 }
 
@@ -308,10 +308,13 @@ static void UpdateFrame(CP_INSTANCE *cpi){
   cpi->pb.InvLastInterDC = 0;
 
   /* Initialise bit packing mechanism. */
-  oggpackB_reset(&cpi->oggbuffer);
-
+#ifndef LIBOGG2
+  oggpackB_reset(cpi->oggbuffer);
+#else
+  oggpackB_writeinit(cpi->oggbuffer, cpi->oggbufferstate);
+#endif
   /* mark as video frame */
-  oggpackB_write(&cpi->oggbuffer,0,1);
+  oggpackB_write(cpi->oggbuffer,0,1);
 
   /* Write out the frame header information including size. */
   WriteFrameHeader(cpi);
@@ -328,7 +331,7 @@ static void UpdateFrame(CP_INSTANCE *cpi){
     /* Apply decay factor then add in the last frame size. */
     cpi->DropFrameTriggerBytes =
       ((cpi->DropFrameTriggerBytes * (DF_CANDIDATE_WINDOW-1)) /
-       DF_CANDIDATE_WINDOW) + oggpackB_bytes(&cpi->oggbuffer);
+       DF_CANDIDATE_WINDOW) + oggpackB_bytes(cpi->oggbuffer);
   }else{
     /* Increase cpi->DropFrameTriggerBytes a little. Just after a key
        frame may actually be a good time to drop a frame. */
@@ -359,7 +362,7 @@ static void UpdateFrame(CP_INSTANCE *cpi){
      not we were close enough with our selection of DCT quantiser.  */
   if ( GetFrameType(&cpi->pb) != BASE_FRAME ) {
     /* Work out a size correction factor. */
-    CorrectionFactor = (double)oggpackB_bytes(&cpi->oggbuffer) /
+    CorrectionFactor = (double)oggpackB_bytes(cpi->oggbuffer) /
       (double)cpi->ThisFrameTargetBytes;
 
     if ( (CorrectionFactor > 1.05) &&
@@ -395,9 +398,9 @@ static void UpdateFrame(CP_INSTANCE *cpi){
   } else {
     /* Update the frame carry over */
     cpi->CarryOver += ((ogg_int32_t)cpi->frame_target_rate -
-                       (ogg_int32_t)oggpackB_bytes(&cpi->oggbuffer));
+                       (ogg_int32_t)oggpackB_bytes(cpi->oggbuffer));
   }
-  cpi->TotalByteCount += oggpackB_bytes(&cpi->oggbuffer);
+  cpi->TotalByteCount += oggpackB_bytes(cpi->oggbuffer);
 }
 
 static void CompressFirstFrame(CP_INSTANCE *cpi) {
@@ -849,10 +852,14 @@ int theora_encode_init(theora_state *th, theora_info *c){
 
   /* Set up an encode buffer */
 #ifndef LIBOGG2
-  oggpackB_writeinit(&cpi->oggbuffer);
+  cpi->oggbuffer = _ogg_malloc(sizeof(oggpack_buffer));
+  oggpackB_writeinit(cpi->oggbuffer);
 #else
-  oggpackB_writeinit(&cpi->oggbuffer, ogg_buffer_create());
+  cpi->oggbuffer = _ogg_malloc(oggpack_buffersize());
+  cpi->oggbufferstate = ogg_buffer_create();
+  oggpackB_writeinit(cpi->oggbuffer, cpi->oggbufferstate);
 #endif 
+
   /* Set data rate related variables. */
   cpi->Configuration.TargetBandwidth = (c->target_bitrate) / 8;
 
@@ -980,7 +987,7 @@ int theora_encode_YUVin(theora_state *t,
   }
 
   /* Update stats variables. */
-  cpi->LastFrameSize = oggpackB_bytes(&cpi->oggbuffer);
+  cpi->LastFrameSize = oggpackB_bytes(cpi->oggbuffer);
   cpi->CurrentFrame++;
   cpi->packetflag=1;
 
@@ -993,16 +1000,16 @@ int theora_encode_YUVin(theora_state *t,
 
 int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
-  long bytes=oggpackB_bytes(&cpi->oggbuffer);
+  long bytes=oggpackB_bytes(cpi->oggbuffer);
 
   if(!bytes)return(0);
   if(!cpi->packetflag)return(0);
   if(cpi->doneflag)return(-1);
 
 #ifndef LIBOGG2
-  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+  op->packet=oggpackB_get_buffer(cpi->oggbuffer);
 #else
-  op->packet=oggpackB_writebuffer(&cpi->oggbuffer);
+  op->packet=oggpackB_writebuffer(cpi->oggbuffer);
 #endif
   op->bytes=bytes;
   op->b_o_s=0;
@@ -1020,9 +1027,23 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
 static void _tp_readbuffer(oggpack_buffer *opb, char *buf, const long len)
 {
   long i;
+  long ret;
 
-  for (i = 0; i < len; i++)
-    *buf++=(char)oggpack_read(opb,8);
+  for (i = 0; i < len; i++) {
+    theora_read(opb, 8, &ret);
+    *buf++=(char)ret;
+  }
+}
+
+static void _tp_readlsbint(oggpack_buffer *opb, long *value)
+{
+  int i;
+  long ret[4];
+
+  for (i = 0; i < 4; i++) {
+    theora_read(opb,8,&ret[i]);
+  }
+  *value = ret[0]|ret[1]<<8|ret[2]<<16|ret[3]<<24;
 }
 
 static void _tp_writebuffer(oggpack_buffer *opb, const char *buf, const long len)
@@ -1030,47 +1051,59 @@ static void _tp_writebuffer(oggpack_buffer *opb, const char *buf, const long len
   long i;
 
   for (i = 0; i < len; i++)
-    oggpack_write(opb, *buf++, 8);
+    oggpackB_write(opb, *buf++, 8);
+}
+
+static void _tp_writelsbint(oggpack_buffer *opb, long value)
+{
+  oggpackB_write(opb, value&0xFF, 8); 
+  oggpackB_write(opb, value>>8&0xFF, 8);
+  oggpackB_write(opb, value>>16&0xFF, 8);
+  oggpackB_write(opb, value>>24&0xFF, 8);
 }
 
 /* build the initial short header for stream recognition and format */
 int theora_encode_header(theora_state *t, ogg_packet *op){
   CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
-  oggpackB_reset(&cpi->oggbuffer);
-  oggpackB_write(&cpi->oggbuffer,0x80,8);
-  _tp_writebuffer(&cpi->oggbuffer, "theora", 6);
+#ifndef LIBOGG2
+  oggpackB_reset(cpi->oggbuffer);
+#else
+  oggpackB_writeinit(cpi->oggbuffer, cpi->oggbufferstate);
+#endif
+  oggpackB_write(cpi->oggbuffer,0x80,8);
+  _tp_writebuffer(cpi->oggbuffer, "theora", 6);
 
-  oggpackB_write(&cpi->oggbuffer,VERSION_MAJOR,8);
-  oggpackB_write(&cpi->oggbuffer,VERSION_MINOR,8);
-  oggpackB_write(&cpi->oggbuffer,VERSION_SUB,8);
+  oggpackB_write(cpi->oggbuffer,VERSION_MAJOR,8);
+  oggpackB_write(cpi->oggbuffer,VERSION_MINOR,8);
+  oggpackB_write(cpi->oggbuffer,VERSION_SUB,8);
 
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.width>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.height>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.frame_width,24);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.frame_height,24);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.offset_x,8);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.offset_y,8);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.width>>4,16);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.height>>4,16);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.frame_width,24);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.frame_height,24);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.offset_x,8);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.offset_y,8);
 
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.fps_numerator,32);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.fps_denominator,32);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.aspect_numerator,24);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.aspect_denominator,24);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.fps_numerator,32);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.fps_denominator,32);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.aspect_numerator,24);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.aspect_denominator,24);
 
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.colorspace,8);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.colorspace,8);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.info.quality,6);
 
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.keyframe_granule_shift,5);
+  oggpackB_write(cpi->oggbuffer,cpi->pb.keyframe_granule_shift,5);
 
-  oggpackB_write(&cpi->oggbuffer,0,5); /* spare config bits */
+  oggpackB_write(cpi->oggbuffer,0,5); /* spare config bits */
 
 #ifndef LIBOGG2
-  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+  op->packet=oggpackB_get_buffer(cpi->oggbuffer);
 #else
-  op->packet=oggpackB_writebuffer(&cpi->oggbuffer);
+  op->packet=oggpackB_writebuffer(cpi->oggbuffer);
 #endif
-  op->bytes=oggpackB_bytes(&cpi->oggbuffer);
+  op->bytes=oggpackB_bytes(cpi->oggbuffer);
 
   op->b_o_s=1;
   op->e_o_s=0;
@@ -1088,39 +1121,47 @@ int theora_encode_comment(theora_comment *tc, ogg_packet *op)
 {
   const char *vendor = theora_version_string();
   const int vendor_length = strlen(vendor);
-  oggpack_buffer opb;
+  oggpack_buffer *opb;
 
-  oggpack_writeinit(&opb);
-  oggpack_write(&opb, 0x81, 8);
-  _tp_writebuffer(&opb, "theora", 6);
+#ifndef LIBOGG2
+  opb = malloc(sizeof(oggpack_buffer));
+  oggpackB_writeinit(opb);
+#else
+  opb = malloc(oggpack_buffersize());
+  oggpackB_writeinit(opb, ogg_buffer_create());
+#endif 
+  oggpackB_write(opb, 0x81, 8);
+  _tp_writebuffer(opb, "theora", 6);
 
-  oggpack_write(&opb, vendor_length, 32);
-  _tp_writebuffer(&opb, vendor, vendor_length);
+  _tp_writelsbint(opb, vendor_length);
+  _tp_writebuffer(opb, vendor, vendor_length);
 
-  oggpack_write(&opb, tc->comments, 32);
+  _tp_writelsbint(opb, tc->comments);
   if(tc->comments){
     int i;
     for(i=0;i<tc->comments;i++){
       if(tc->user_comments[i]){
-        oggpack_write(&opb,tc->comment_lengths[i],32);
-        _tp_writebuffer(&opb,tc->user_comments[i],tc->comment_lengths[i]);
+        _tp_writelsbint(opb,tc->comment_lengths[i]);
+        _tp_writebuffer(opb,tc->user_comments[i],tc->comment_lengths[i]);
       }else{
-        oggpack_write(&opb,0,32);
+        oggpackB_write(opb,0,32);
       }
     }
   }
-  {
-    int bytes=oggpack_bytes(&opb);
-    op->packet=malloc(bytes);
+  op->bytes=oggpack_bytes(opb);
+
 #ifndef LIBOGG2
-    memcpy(op->packet, oggpack_get_buffer(&opb), bytes);
+  /* So we're expecting the application with free this? */
+  op->packet=malloc(oggpack_bytes(opb));
+  memcpy(op->packet, oggpack_get_buffer(opb), oggpack_bytes(opb));
+  oggpack_writeclear(opb);
 #else
-    /* I don't know why memcpy is used above, but it wont work here */
-    op->packet = oggpack_writebuffer(&opb);
+  op->packet = oggpack_writebuffer(opb);
+  /* When the application puts op->packet into a stream_state object,
+     it becomes the property of libogg2's internal memory management. */
 #endif
-    op->bytes=bytes;
-  }
-  oggpack_writeclear(&opb);
+
+  free(opb);
 
   op->b_o_s=0;
   op->e_o_s=0;
@@ -1136,15 +1177,23 @@ int theora_encode_comment(theora_comment *tc, ogg_packet *op)
 int theora_encode_tables(theora_state *t, ogg_packet *op){
   CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
-  oggpackB_reset(&cpi->oggbuffer);
-  oggpackB_write(&cpi->oggbuffer,0x82,8);
-  _tp_writebuffer(&cpi->oggbuffer,"theora",6);
+#ifndef LIBOGG2
+  oggpackB_reset(cpi->oggbuffer);
+#else
+  oggpackB_writeinit(cpi->oggbuffer, cpi->oggbufferstate);
+#endif
+  oggpackB_write(cpi->oggbuffer,0x82,8);
+  _tp_writebuffer(cpi->oggbuffer,"theora",6);
 
-  WriteQTables(&cpi->pb,&cpi->oggbuffer);
-  WriteHuffmanTrees(cpi->pb.HuffRoot_VP3x,&cpi->oggbuffer);
+  WriteQTables(&cpi->pb,cpi->oggbuffer);
+  WriteHuffmanTrees(cpi->pb.HuffRoot_VP3x,cpi->oggbuffer);
 
-  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
-  op->bytes=oggpackB_bytes(&cpi->oggbuffer);
+#ifndef LIBOGG2
+  op->packet=oggpackB_get_buffer(cpi->oggbuffer);
+#else
+  op->packet=oggpackB_writebuffer(cpi->oggbuffer);
+#endif
+  op->bytes=oggpackB_bytes(cpi->oggbuffer);
 
   op->b_o_s=0;
   op->e_o_s=0;
@@ -1186,8 +1235,8 @@ void theora_clear(theora_state *t){
       ClearTmpBuffers(&cpi->pb);
       ClearPPInstance(&cpi->pp);
 
-          _ogg_free(t->internal_encode);
-
+      _ogg_free(cpi->oggbuffer);
+      _ogg_free(t->internal_encode);
     }
 
     if(pbi){
@@ -1254,13 +1303,7 @@ static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
   ci->keyframe_frequency_force=1<<ret;
 
   /* spare configuration bits */
-  /* This has to be #ifdef for now since it needs to know if the packet
-     has terminated early, and this is the only place this is needed. */
-#ifndef LIBOGG2
-  if ( oggpackB_read(opb,5) < 0 )
-#else
-  if ( oggpackB_read(opb,5,&ret) < 5 ) 
-#endif
+  if ( theora_read(opb,5,&ret) == -1 )
     return (OC_BADHEADER);
 
   return(0);
@@ -1268,18 +1311,20 @@ static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
 
 static int _theora_unpack_comment(theora_comment *tc, oggpack_buffer *opb){
   int i;
-  int len = oggpack_read(opb,32);
+  int len;
+
+   _tp_readlsbint(opb,(long *) &len);
   if(len<0)return(OC_BADHEADER);
   tc->vendor=_ogg_calloc(1,len+1);
   _tp_readbuffer(opb,tc->vendor, len);
   tc->vendor[len]='\0';
 
-  tc->comments=oggpack_read(opb,32);
+  _tp_readlsbint(opb,(long *) &tc->comments);
   if(tc->comments<0)goto parse_err;
   tc->user_comments=_ogg_calloc(tc->comments,sizeof(*tc->user_comments));
   tc->comment_lengths=_ogg_calloc(tc->comments,sizeof(*tc->comment_lengths));
   for(i=0;i<tc->comments;i++){
-    len=oggpack_read(opb,32);
+    _tp_readlsbint(opb,(long *)&len);
     if(len<0)goto parse_err;
     tc->user_comments[i]=_ogg_calloc(1,len+1);
     _tp_readbuffer(opb,tc->user_comments[i],len);
@@ -1305,54 +1350,76 @@ static int _theora_unpack_tables(theora_info *c, oggpack_buffer *opb){
 }
 
 int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
-  oggpack_buffer opb;
-
+  long ret;
+  oggpack_buffer *opb;
+  
   if(!op)return OC_BADHEADER;
+  
 #ifndef LIBOGG2
-  oggpackB_readinit(&opb,op->packet,op->bytes);
+  opb = malloc(sizeof(oggpack_buffer));
+  oggpackB_readinit(opb,op->packet,op->bytes);
 #else
-  oggpackB_readinit(&opb,op->packet);
+  opb = malloc(oggpack_buffersize());
+  oggpackB_readinit(opb,op->packet);
 #endif
   {
     char id[6];
     int typeflag;
+    
+    theora_read(opb,8,&ret);
+    typeflag = ret;
+    if(!(typeflag&0x80)) {
+      free(opb);
+      return(OC_NOTFORMAT);
+    }
 
-    theora_read(&opb,8,&typeflag);
-    if(!(typeflag&0x80))return(OC_NOTFORMAT);
-
-    _tp_readbuffer(&opb,id,6);
-    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+    _tp_readbuffer(opb,id,6);
+    if(memcmp(id,"theora",6)) {
+      free(opb);
+      return(OC_NOTFORMAT);
+    }
 
     switch(typeflag){
     case 0x80:
       if(!op->b_o_s){
         /* Not the initial packet */
+        free(opb);
         return(OC_BADHEADER);
       }
       if(ci->version_major!=0){
         /* previously initialized info header */
+        free(opb);
         return OC_BADHEADER;
       }
 
-      return(_theora_unpack_info(ci,&opb));
+      ret = _theora_unpack_info(ci,opb);
+      free(opb);
+      return(ret);
 
     case 0x81:
       if(ci->version_major==0){
         /* um... we didn't get the initial header */
+        free(opb);
         return(OC_BADHEADER);
       }
 
-      return(_theora_unpack_comment(cc,&opb));
+      ret = _theora_unpack_comment(cc,opb);
+      free(opb);
+      return(ret);
 
     case 0x82:
       if(ci->version_major==0 || cc->vendor==NULL){
         /* um... we didn't get the initial header or comments yet */
+        free(opb);
         return(OC_BADHEADER);
       }
 
-      return(_theora_unpack_tables(ci,&opb));
+      ret = _theora_unpack_tables(ci,opb);
+      free(opb);
+      return(ret);
     
     default:
+      free(opb);
       if(ci->version_major==0 || cc->vendor==NULL || 
          ((codec_setup_info *)ci->codec_setup)->HuffRoot[0]==NULL){
         /* we haven't gotten the three required headers */
@@ -1362,6 +1429,8 @@ int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
       return(OC_NEWPACKET);
     }
   }
+  /* I don't think it's possible to get this far, but better safe.. */
+  free(opb);
   return(OC_BADHEADER);
 }
 
@@ -1399,19 +1468,19 @@ int theora_decode_init(theora_state *th, theora_info *c){
 }
 
 int theora_decode_packetin(theora_state *th,ogg_packet *op){
-  int ret;
+  long ret;
   PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
 
   pbi->DecoderErrorCode = 0;
 
 #ifndef LIBOGG2
-  oggpackB_readinit(&pbi->opb,op->packet,op->bytes);
+  oggpackB_readinit(pbi->opb,op->packet,op->bytes);
 #else
-  oggpackB_readinit(&pbi->opb,op->packet);
+  oggpackB_readinit(pbi->opb,op->packet);
 #endif
 
   /* verify that this is a video frame */
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
 
   if (ret==0) {
     ret=LoadAndDecode(pbi);

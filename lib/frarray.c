@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: frarray.c,v 1.9 2003/12/04 05:58:31 arc Exp $
+  last mod: $Id: frarray.c,v 1.10 2003/12/06 18:06:20 arc Exp $
 
  ********************************************************************/
 
@@ -57,7 +57,7 @@ static ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
   }
 
   /* Add the bits to the encode holding buffer. */
-  oggpackB_write( &cpi->oggbuffer, CodedVal, (ogg_uint32_t)CodedBits );
+  oggpackB_write( cpi->oggbuffer, CodedVal, (ogg_uint32_t)CodedBits );
 
   return CodedBits;
 }
@@ -100,7 +100,7 @@ static ogg_uint32_t FrArrayCodeBlockRun( CP_INSTANCE *cpi,
  }
 
   /* Add the bits to the encode holding buffer. */
-  oggpackB_write( &cpi->oggbuffer, CodedVal, (ogg_uint32_t)CodedBits );
+  oggpackB_write( cpi->oggbuffer, CodedVal, (ogg_uint32_t)CodedBits );
 
   return CodedBits;
 }
@@ -160,7 +160,7 @@ void PackAndWriteDFArray( CP_INSTANCE *cpi ){
 
   /* Code list of partially coded Super-Block.  */
   val = cpi->PartiallyCodedFlags[0];
-  oggpackB_write( &cpi->oggbuffer, (ogg_uint32_t)val, 1);
+  oggpackB_write( cpi->oggbuffer, (ogg_uint32_t)val, 1);
   i = 0;
   while ( i < cpi->pb.SuperBlocks ) {
     run_count = 0;
@@ -183,7 +183,7 @@ void PackAndWriteDFArray( CP_INSTANCE *cpi ){
 
   if ( i < cpi->pb.SuperBlocks ) {
     val = cpi->pb.SBFullyFlags[i];
-    oggpackB_write( &cpi->oggbuffer, (ogg_uint32_t)val, 1);
+    oggpackB_write( cpi->oggbuffer, (ogg_uint32_t)val, 1);
 
     while ( i < cpi->pb.SuperBlocks ) {
       run_count = 0;
@@ -205,7 +205,7 @@ void PackAndWriteDFArray( CP_INSTANCE *cpi ){
   if ( BListIndex > 0 ) {
     /* Code the block flags start value */
     val = cpi->BlockCodedFlags[0];
-    oggpackB_write( &cpi->oggbuffer, (ogg_uint32_t)val, 1);
+    oggpackB_write( cpi->oggbuffer, (ogg_uint32_t)val, 1);
 
     /* Now code the block flags. */
     for ( i = 0; i < BListIndex; ) {
@@ -379,12 +379,12 @@ static int FrArrayDeCodeSBRun (PB_INSTANCE *pbi, ogg_uint32_t bit_value,
 static void GetNextBInit(PB_INSTANCE *pbi){
   long ret;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->NextBit = (unsigned char)ret;
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  do theora_read(&pbi->opb,1,&ret);
+  do theora_read(pbi->opb,1,&ret);
   while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
 }
@@ -397,7 +397,7 @@ static unsigned char GetNextBBit (PB_INSTANCE *pbi){
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    do theora_read(&pbi->opb,1,&ret);
+    do theora_read(pbi->opb,1,&ret);
     while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
   }
@@ -412,12 +412,12 @@ static unsigned char GetNextBBit (PB_INSTANCE *pbi){
 static void GetNextSbInit(PB_INSTANCE *pbi){
   long ret;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->NextBit = (unsigned char)ret;
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  do theora_read(&pbi->opb,1,&ret);
+  do theora_read(pbi->opb,1,&ret);
   while (FrArrayDeCodeSBRun(pbi,ret,&pbi->BitsLeft)==0);
 
 }
@@ -431,7 +431,7 @@ static unsigned char GetNextSbBit (PB_INSTANCE *pbi){
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    do theora_read(&pbi->opb,1,&ret);
+    do theora_read(pbi->opb,1,&ret);
     while (FrArrayDeCodeSBRun(pbi,ret,&pbi->BitsLeft)==0);
 
   }
@@ -557,52 +557,52 @@ CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi){
   */
 
   /* Initialise the decoding. */
-  pbi->bit_pattern = 0;
   pbi->bits_so_far = 0;
 
-  theora_read(&pbi->opb,1,&pbi->bit_pattern);
+  theora_read(pbi->opb,1,&ret);
+  pbi->bit_pattern = ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0 )
     return (CODING_MODE)0;
 
   /* Get the next bit */
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x0002 )
     return (CODING_MODE)1;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match  */
   if ( pbi->bit_pattern == 0x0006 )
     return (CODING_MODE)2;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x000E )
     return (CODING_MODE)3;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x001E )
     return (CODING_MODE)4;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x003E )
     return (CODING_MODE)5;
 
-  theora_read(&pbi->opb,1,&ret);
+  theora_read(pbi->opb,1,&ret);
   pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
