@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.2 2003/05/12 00:29:46 giles Exp $
+  last mod: $Id: comment.c,v 1.3 2003/05/12 22:23:03 mauricio Exp $
 
  ********************************************************************/
 
@@ -37,11 +37,12 @@ void theora_comment_add(theora_comment *tc,char *comment){
 }
 
 void theora_comment_add_tag(theora_comment *tc, char *tag, char *value){
-  char *comment=alloca(strlen(tag)+strlen(value)+2); /* +2 for = and \0 */
+  char *comment=_ogg_malloc(strlen(tag)+strlen(value)+2); /* +2 for = and \0 */
   strcpy(comment, tag);
   strcat(comment, "=");
   strcat(comment, value);
   theora_comment_add(tc, comment);
+  _ogg_free(comment);
 }
                                                                                 
 /* This is more or less the same as strncasecmp - but that doesn't exist
@@ -80,7 +81,7 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
 int theora_comment_query_count(theora_comment *tc, char *tag){
   int i,count=0;
   int taglen = strlen(tag)+1; /* +1 for the = we append */
-  char *fulltag = alloca(taglen+1);
+  char *fulltag = _ogg_malloc(taglen+1);
   strcpy(fulltag,tag);
   strcat(fulltag, "=");
                                                                                 
@@ -88,7 +89,7 @@ int theora_comment_query_count(theora_comment *tc, char *tag){
     if(!tagcompare(tc->user_comments[i], fulltag, taglen))
       count++;
   }
-                                                                                
+  _ogg_free(fulltag);                                                                           
   return count;
 }
 

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.17 2003/05/12 00:29:46 giles Exp $
+  last mod: $Id: toplevel.c,v 1.18 2003/05/12 22:23:03 mauricio Exp $
 
  ********************************************************************/
 
@@ -1145,15 +1145,19 @@ void theora_clear(theora_state *t){
       EClearFrameInfo(cpi);		
       ClearTmpBuffers(&cpi->pb);
       ClearPPInstance(&cpi->pp);
+
+	  _ogg_free(t->internal_encode);
       
     }
 
     if(pbi){
 
+      ClearHuffmanSet(pbi);
       ClearFragmentInfo(pbi);
       ClearFrameInfo(pbi);
       ClearPBInstance(pbi);
 
+      _ogg_free(t->internal_decode);
     }
 
     t->internal_encode=NULL;

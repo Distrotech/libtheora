@@ -89,6 +89,10 @@ SOURCE=..\lib\blockmap.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\lib\comment.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\lib\dct.c
 # End Source File
 # Begin Source File
