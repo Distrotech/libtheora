@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.21 2003/06/10 01:31:32 tterribe Exp $
+  last mod: $Id: encoder_example.c,v 1.22 2003/06/10 11:42:45 giles Exp $
 
  ********************************************************************/
 
@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <time.h>
 #include <math.h>
 #include "theora/theora.h"
 #include "vorbis/codec.h"
@@ -168,7 +169,7 @@ static void id_file(char *f){
             (buffer[10]<<16)+(buffer[11]<<24);
 
           if(buffer[18]+(buffer[19]<<8)!=16){
-            fprintf(stderr,"Can only read 16 bit WAV files for now.\n",f);
+            fprintf(stderr,"Can only read 16 bit WAV files for now.\n");
             exit(1);
           }
 
@@ -212,8 +213,6 @@ static void id_file(char *f){
 
     if(!memcmp(buffer,"MPEG",4)){
       char interlace;
-      int aspectn;
-      int aspectd;
 
       if(video){
         /* umm, we already have one */
@@ -234,7 +233,7 @@ static void id_file(char *f){
       }
 
       if(interlace!='p'){
-        fprintf(stderr,"Input video is interlaced; Theora handles only progressive scan\n",f);
+        fprintf(stderr,"Input video is interlaced; Theora handles only progressive scan\n");
         exit(1);
       }
 
@@ -454,7 +453,7 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 }
 
 int main(int argc,char *argv[]){
-  int c,long_option_index,ret,i,j;
+  int c,long_option_index,ret;
 
   ogg_stream_state to; /* take physical pages, weld into a logical
                            stream of packets */

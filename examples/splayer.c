@@ -369,6 +369,9 @@ unsigned long RoundUpToNextPowerOf2( unsigned long n )
     return (1<<numBits);
 }
 
+/* forward prototype */
+PaError CloseAudioStream( PASTREAMIO_Stream *aStream );
+
 /************************************************************
  * Opens a PortAudio stream with default characteristics.
  * Allocates PASTREAMIO_Stream structure.
