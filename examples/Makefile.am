@@ -33,4 +33,3 @@ debug:
 profile:
 	$(MAKE) all CFLAGS="@PROFILE@"
 
-EXTRA_DIST = $(encoder_example_SOURCES)
