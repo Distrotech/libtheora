@@ -51,7 +51,7 @@
 
 /*start of portaudio helper functions, extracted from pablio directory*/
 
-/*Pa_streamio routines modified by mauricio at xiph.org
+/* Pa_streamio routines modified by mauricio at xiph.org
  * Modified version of Portable Audio Blocking read/write utility.
  * from the original PABLIO files
  * Modified to support only playback buffers, direct access
@@ -551,6 +551,7 @@ int          videobuf_ready=0;
 ogg_int64_t  videobuf_granulepos=-1;
 double       videobuf_time=0;
 
+int          audiobuf_ready = 0;
 ogg_int64_t  audiobuf_granulepos=0; /* time position of last sample */
 
 
@@ -941,11 +942,11 @@ int main( int argc, char* argv[] ){
 
   /*initialticks = GetTickCount();*/
   /*our main loop*/
-  while(1){
+  while(hasdatatobuffer){
 
     SDL_Delay(5);
 
-    if (playbackdone == 1 ) break;
+    if ( playbackdone == 1 ) break;
 
     /*break out on SDL quit event*/
     if ( SDL_PollEvent ( &event ) )
@@ -955,13 +956,14 @@ int main( int argc, char* argv[] ){
     }
 
     /*get some audio data*/
-    while(vorbis_p){
+    while(vorbis_p && !audiobuf_ready){
       int ret;
       float **pcm;
       int count = 0;
       int maxBytesToWrite;
 
-      /* is there pending audio? does it fit our circular buffer without blocking?*/
+      /* is there pending audio? does it fit 
+         out circular buffer without blocking? */
       ret=vorbis_synthesis_pcmout(&vd,&pcm);
       maxBytesToWrite = GetAudioStreamWriteable(aOutStream);
 
@@ -969,6 +971,7 @@ int main( int argc, char* argv[] ){
       {
 	/*break out until there is a significant amount of
 	data to avoid a series of small write operations*/
+	audiobuf_ready = 0;
 	break;
       }
       /* if there's pending, decoded audio, grab it */
@@ -982,7 +985,11 @@ int main( int argc, char* argv[] ){
 	    samples[count]=val;
 	    count++;
 	  }
-	WriteAudioStream( aOutStream, samples, i );
+	if(WriteAudioStream( aOutStream, samples, i )) {
+	  if(count==maxBytesToWrite){
+	    audiobuf_ready=1;
+	  }
+	}
         vorbis_synthesis_read(&vd,i);
 
 	if(vd.granulepos>=0)
@@ -1008,7 +1015,7 @@ int main( int argc, char* argv[] ){
 
 	  videobuf_granulepos=td.granulepos;
 	  videobuf_time=theora_granule_time(&td,videobuf_granulepos);
-	  /*update the frame counter*/
+	  /* update the frame counter */
 	  //printf("Frame\n");
 	  frameNum++;
 
@@ -1017,25 +1024,20 @@ int main( int argc, char* argv[] ){
 	  ones and keep looping, since theora at
 	  this stage needs to decode all frames*/
 
-	   if(videobuf_time>= get_time())
+	   if(videobuf_time>=get_time()){
 		/*got a good frame, not late, ready to break out*/
 		videobuf_ready=1;
-
-      }else
+	   }else{
+		fprintf(stderr, "dropping frame %d (%.3fs behind)\n",
+			frameNum, get_time() - videobuf_time);
+	   }
+      }else{
 	/*already have a good frame in the buffer*/
-      {
-        if (isPlaying == 1)
-        {
-	  printf("end\n");
-	  /*endticks = GetTickCount();*/
-	  isPlaying = 0;
-	  playbackdone = 1;
-	}
 	break;
       }
     }
  
-    if(stateflag && videobuf_ready && (videobuf_time<= get_time())){
+    if(stateflag && audiobuf_ready && videobuf_ready){
       /*time to write our cached frame*/
       video_write();
       videobuf_ready=0;
@@ -1045,18 +1047,16 @@ int main( int argc, char* argv[] ){
 	start_audio();
 	isPlaying = 1;
       }
-    }
-
-    /*buffer compressed data every loop */
-    if (hasdatatobuffer)
+    } else if (hasdatatobuffer)
     {
       hasdatatobuffer=buffer_data(&oy);
       if(hasdatatobuffer==0){
 	printf("Ogg buffering stopped, end of file reached.\n");
-
       }
     }
-
+    
+    /* HACK: look for more audio data */
+    audiobuf_ready=0;
 
     if (ogg_sync_pageout(&oy,&og)>0){
       if(theora_p)ogg_stream_pagein(&to,&og);
