@@ -1058,10 +1058,8 @@ int main( int argc, char* argv[] ){
     /* HACK: look for more audio data */
     audiobuf_ready=0;
 
-    if (ogg_sync_pageout(&oy,&og)>0){
-      if(theora_p)ogg_stream_pagein(&to,&og);
-      if(vorbis_p)ogg_stream_pagein(&vo,&og);
-    }
+    if (ogg_sync_pageout(&oy,&og)>0)
+      queue_page(&og);
 
   }
 
