@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: theora.h,v 1.14 2003/09/26 15:03:48 tterribe Exp $
+  last mod: $Id: theora.h,v 1.15 2003/10/21 22:06:29 giles Exp $
 
  ********************************************************************/
 
@@ -101,6 +101,7 @@ typedef struct theora_comment{
 #define OC_VERSION     -22
 #define OC_IMPL        -23
 #define OC_BADPACKET   -24
+#define OC_NEWPACKET   -25
 
 extern const char *theora_version_string(void);
 extern ogg_uint32_t theora_version_number(void);

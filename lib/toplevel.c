@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.27 2003/06/15 16:36:15 giles Exp $
+  last mod: $Id: toplevel.c,v 1.28 2003/10/21 22:06:30 giles Exp $
 
  ********************************************************************/
 
@@ -1301,6 +1301,15 @@ int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
       }
 
       return(_theora_unpack_tables(ci,&opb));
+    
+    default:
+      if(ci->version_major==0 || cc->vendor==NULL || 
+         ((codec_setup_info *)ci->codec_setup)->HuffRoot[0]==NULL){
+        /* we haven't gotten the three required headers */
+        return(OC_BADHEADER);
+      }
+      /* ignore any trailing header packets for forward compatibility */
+      return(OC_NEWPACKET);
     }
   }
   return(OC_BADHEADER);
