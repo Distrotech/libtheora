@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct_decode.c,v 1.7 2003/06/18 23:00:15 tterribe Exp $
+  last mod: $Id: dct_decode.c,v 1.8 2003/11/10 02:46:21 giles Exp $
 
  ********************************************************************/
 
@@ -28,7 +28,7 @@
 #define PL 1
 #define HIGHBITDUPPED(X) (((signed short) X)  >> 15)
 
-const static ogg_uint32_t LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
+static const ogg_uint32_t LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
   30, 25, 20, 20, 15, 15, 14, 14,
   13, 13, 12, 12, 11, 11, 10, 10,
   9,  9,  8,  8,  7,  7,  7,  7,
@@ -39,7 +39,7 @@ const static ogg_uint32_t LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
   0,  0,  0,  0,  0,  0,  0,  0
 };
 
-const static ogg_uint32_t LoopFilterLimitValuesV2[Q_TABLE_SIZE] = {
+static const ogg_uint32_t LoopFilterLimitValuesV2[Q_TABLE_SIZE] = {
   30, 25, 20, 20, 15, 15, 14, 14,
   13, 13, 12, 12, 11, 11, 10, 10,
   9,  9,  8,  8,  7,  7,  7,  7,
