@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.8 2003/05/11 12:48:24 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.9 2003/05/12 00:20:05 giles Exp $
 
  ********************************************************************/
 
@@ -425,6 +425,7 @@ int main(int argc,char *argv[]){
 
   theora_state     td;
   theora_info      ti;
+  theora_comment   tc;
 
   vorbis_info      vi; /* struct that stores all the static vorbis bitstream
                           settings */
@@ -565,6 +566,9 @@ int main(int argc,char *argv[]){
   fwrite(og.body,1,og.body_len,stdout);
 
   /* create the remaining theora headers */
+  theora_comment_init(&tc);
+  theora_encode_comment(&tc,&op);
+  ogg_stream_packetin(&to,&op);
   theora_encode_tables(&td,&op);
   ogg_stream_packetin(&to,&op); 
   

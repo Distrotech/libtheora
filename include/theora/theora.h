@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.4 2002/09/25 02:38:10 xiphmont Exp $
+  last mod: $Id: theora.h,v 1.5 2003/05/12 00:20:05 giles Exp $
 
  ********************************************************************/
 
@@ -71,7 +71,16 @@ typedef struct{
 
   void *internal_encode;
   void *internal_decode;
+
 } theora_state;
+
+typedef struct theora_comment{
+  char **user_comments;
+  int   *comment_lengths;
+  int    comments;
+  char  *vendor;                                                          
+
+} theora_comment;
 
 #define OC_FAULT       -1
 #define OC_EINVAL      -10
@@ -88,14 +97,24 @@ extern int theora_encode_YUVin(theora_state *t, yuv_buffer *yuv);
 extern int theora_encode_packetout( theora_state *t, int last_p, 
 				    ogg_packet *op);
 extern int theora_encode_header(theora_state *t, ogg_packet *op);
+extern int theora_encode_comment(theora_comment *tc, ogg_packet *op);
 extern int theora_decode_header(theora_info *c, ogg_packet *op);
+extern int theora_decode_comment(theora_comment *tc, ogg_packet *op); 
 extern int theora_decode_init(theora_state *th, theora_info *c);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
 extern double theora_granule_time(theora_state *th,ogg_int64_t granulepos);
 extern void theora_clear(theora_state *t);
 
+extern void theora_comment_init(theora_comment *tc);
+extern void theora_comment_add(theora_comment *tc, char *comment);
+extern void theora_comment_add_tag(theora_comment *tc,
+                                       char *tag, char *value);
+extern char *theora_comment_query(theora_comment *tc, char *tag, int count);
+extern int   theora_comment_query_count(theora_comment *tc, char *tag);
+extern void  theora_comment_clear(theora_comment *tc);
 
 
-#endif
+
+#endif /* _O_THEORA_H_ */
 

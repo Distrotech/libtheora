@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.15 2003/05/10 22:02:32 giles Exp $
+  last mod: $Id: toplevel.c,v 1.16 2003/05/12 00:20:06 giles Exp $
 
  ********************************************************************/
 
@@ -1007,18 +1007,29 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   return 1;
 }
 
+static void _tp_readbuffer(oggpack_buffer *opb, char *buf, const long len)
+{
+  long i;
+  
+  for (i = 0; i < len; i++)
+    *buf++=oggpack_read(opb,8);
+}
+
+static void _tp_writebuffer(oggpack_buffer *opb, const char *buf, const long len)
+{
+  long i;
+  
+  for (i = 0; i < len; i++)
+    oggpack_write(opb, *buf++, 8);
+}
+ 
 /* build the initial short header for stream recognition and format */
 int theora_encode_header(theora_state *t, ogg_packet *op){
   CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
   oggpackB_reset(&cpi->oggbuffer);
   oggpackB_write(&cpi->oggbuffer,0x80,8);
-  oggpackB_write(&cpi->oggbuffer,'t',8);
-  oggpackB_write(&cpi->oggbuffer,'h',8);
-  oggpackB_write(&cpi->oggbuffer,'e',8);
-  oggpackB_write(&cpi->oggbuffer,'o',8);
-  oggpackB_write(&cpi->oggbuffer,'r',8);
-  oggpackB_write(&cpi->oggbuffer,'a',8);
+  _tp_writebuffer(&cpi->oggbuffer, "theora", 6);
   
   oggpackB_write(&cpi->oggbuffer,VERSION_MAJOR,8);
   oggpackB_write(&cpi->oggbuffer,VERSION_MINOR,8);
@@ -1050,6 +1061,49 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   return(0);
 }
 
+/* build the comment header packet from the passed metadata */
+int theora_encode_comment(theora_comment *tc, ogg_packet *op)
+{
+  const char *vendor = theora_version_string();
+  const int vendor_length = strlen(vendor);
+  oggpack_buffer opb;
+  
+  oggpack_writeinit(&opb);
+  oggpack_write(&opb, 0x81, 8);
+  _tp_writebuffer(&opb, "theora", 6);
+  
+  oggpack_write(&opb, vendor_length, 32);
+  _tp_writebuffer(&opb, vendor, vendor_length);
+  
+  oggpack_write(&opb, tc->comments, 32);
+  if(tc->comments){
+    int i;
+    for(i=0;i<tc->comments;i++){
+      if(tc->user_comments[i]){
+        oggpack_write(&opb,tc->comment_lengths[i],32);
+        _tp_writebuffer(&opb,tc->user_comments[i],tc->comment_lengths[i]);
+      }else{
+        oggpack_write(&opb,0,32);
+      }
+    }
+  }
+  {
+    int bytes=oggpack_bytes(&opb);
+    op->packet=malloc(bytes);
+    memcpy(op->packet, oggpack_get_buffer(&opb), bytes);
+    op->bytes=bytes;
+  }
+  oggpack_writeclear(&opb);
+
+  op->b_o_s=0;
+  op->e_o_s=0;
+  
+  op->packetno=0;
+  op->granulepos=0;
+  
+  return (0);
+}
+
 /* build the final header packet with the tables required
    for decode */
 int theora_encode_tables(theora_state *t, ogg_packet *op){
@@ -1057,12 +1111,7 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
 
   oggpackB_reset(&cpi->oggbuffer);
   oggpackB_write(&cpi->oggbuffer,0x82,8);
-  oggpackB_write(&cpi->oggbuffer,'t',8);
-  oggpackB_write(&cpi->oggbuffer,'h',8);
-  oggpackB_write(&cpi->oggbuffer,'e',8);
-  oggpackB_write(&cpi->oggbuffer,'o',8);
-  oggpackB_write(&cpi->oggbuffer,'r',8);
-  oggpackB_write(&cpi->oggbuffer,'a',8);
+  _tp_writebuffer(&cpi->oggbuffer,"theora",6);
   
   write_Qtables(&cpi->oggbuffer);
   write_FrequencyCounts(&cpi->oggbuffer);
@@ -1154,6 +1203,50 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
   if(ret==-1)return(OC_BADHEADER);
 
   return(0);
+}
+
+int theora_decode_comment(theora_comment *tc, ogg_packet *op){
+  oggpack_buffer opb;
+  oggpack_readinit(&opb,op->packet,op->bytes);
+
+  {
+    char id[6];
+    int typeflag=oggpack_read(&opb,8);
+
+    if(typeflag!=0x81)return(OC_NOTFORMAT);
+    
+    _tp_readbuffer(&opb, id, 6);
+    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+  }
+  
+  {
+    int i;
+    int len = oggpack_read(&opb,32);
+    if(len<0)return(OC_BADHEADER);
+    tc->vendor=_ogg_calloc(1,len+1);
+    _tp_readbuffer(&opb,tc->vendor, len);
+    tc->vendor[len]='\0';
+  
+    tc->comments=oggpack_read(&opb,32);
+    if(tc->comments<0)goto parse_err;
+    tc->user_comments=_ogg_calloc(tc->comments,sizeof(*tc->user_comments));
+    tc->comment_lengths=_ogg_calloc(tc->comments,sizeof(*tc->comment_lengths));
+    for(i=0;i<tc->comments;i++){
+      len=oggpack_read(&opb,32);
+      if(len<0)goto parse_err;
+      if(len){
+        tc->user_comments[i]=_ogg_calloc(1,len+1);
+        _tp_readbuffer(&opb,tc->user_comments[i],len);
+        tc->user_comments[i][len]='\0';
+        tc->comment_lengths[i]=len;
+      }
+    }
+  }
+  return(0);
+
+parse_err:
+  theora_comment_clear(tc);
+  return(OC_BADHEADER);
 }
 
 int theora_decode_tables(theora_info *c, ogg_packet *op){

@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.10 2003/05/10 22:02:32 giles Exp $
+  last mod: $Id: player_example.c,v 1.11 2003/05/12 00:20:05 giles Exp $
 
  ********************************************************************/
 
@@ -68,6 +68,7 @@ ogg_page         og;
 ogg_stream_state vo;
 ogg_stream_state to;
 theora_info      ti;
+theora_comment   tc;
 theora_state     td;
 vorbis_info      vi;
 vorbis_dsp_state vd;
@@ -345,6 +346,28 @@ static void video_write(void){
   SDL_DisplayYUVOverlay(yuv_overlay, &rect);
   
 }
+/* dump the theora (or vorbis) comment header */
+static int dump_comments(theora_comment *tc){
+  int i, len;
+  char *value;
+  FILE *out=stdout;
+  
+  fprintf(out,"Encoded by %s\n",tc->vendor);
+  if(tc->comments){
+    fprintf(out, "theora comment header:\n");
+    for(i=0;i<tc->comments;i++){
+      if(tc->user_comments[i]){
+        len=tc->comment_lengths[i];
+      	value=malloc(len+1);
+      	memcpy(value,tc->user_comments[i],len);
+      	value[len]='\0';
+      	fprintf(out, "\t%s\n", value);
+      	free(value);
+      }
+    }
+  }
+  return(0);
+}
 
 /* helper: push a page into the appropriate steam */
 /* this can be done blindly; a stream won't accept a page
@@ -411,21 +434,34 @@ int main(void){
   }
   
   /* we're expecting more header packets. */
-  while((theora_p && theora_p<2) || (vorbis_p && vorbis_p<3)){
+  while((theora_p && theora_p<3) || (vorbis_p && vorbis_p<3)){
     int ret;
     
     /* look for further theora headers */
-    while(theora_p && (theora_p<2) && (ret=ogg_stream_packetout(&to,&op))){
+    while(theora_p && (theora_p<3) && (ret=ogg_stream_packetout(&to,&op))){
       if(ret<0){
       	fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
       	exit(1);
       }
-      if(theora_decode_tables(&ti,&op)){
-        fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
-        exit(1);
+      if(theora_p==1){
+        if(theora_decode_comment(&tc,&op)){
+          fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
+          exit(1);
+        }else{
+          dump_comments(&tc);
+          theora_p++;
+          continue;
+        }
       }
-      theora_p++;
-      if(theora_p==2) break;
+      if(theora_p==2){
+        if(theora_decode_tables(&ti,&op)){
+          fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
+          exit(1);
+        }
+        theora_p++;
+        /* fall through */
+      }
+      if(theora_p==3)break;
     }
 
     /* look for more vorbis header packets */  
