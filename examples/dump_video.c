@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams
-  last mod: $Id: dump_video.c,v 1.8 2003/11/22 14:53:03 tterribe Exp $
+  last mod: $Id: dump_video.c,v 1.9 2004/01/22 20:26:22 tterribe Exp $
 
  ********************************************************************/
 
@@ -282,6 +282,11 @@ int main(int argc,char *argv[]){
   /* on to the main decode loop.*/
 
   stateflag=0; /* playback has not begun */
+  /* queue any remaining pages from data we buffered but that did not
+      contain headers */
+  while(ogg_sync_pageout(&oy,&og)>0){
+    queue_page(&og);
+  }
   while(!got_sigint){
 
     while(theora_p && !videobuf_ready){
