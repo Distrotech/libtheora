@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct_decode.c,v 1.11 2004/03/18 02:00:30 giles Exp $
+  last mod: $Id: dct_decode.c,v 1.12 2004/03/18 17:10:00 giles Exp $
 
  ********************************************************************/
 
@@ -73,7 +73,7 @@ static void SetupBoundingValueArray_Generic(PB_INSTANCE *pbi,
 
 void WriteFilterTables(PB_INSTANCE *pbi, oggpack_buffer *opb){
   int i;
-  int bits=4;
+  int bits=5;
   oggpackB_write(opb, bits, 3);
   for(i=0;i<Q_TABLE_SIZE;i++)
     oggpackB_write(opb, pbi->LoopFilterLimits[i],bits);
