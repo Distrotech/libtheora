@@ -8,9 +8,9 @@ release of the Theora video codec on 25 09 2002.
 Theora is Xiph.Org's first publicly released video codec, intended
 for use within the Ogg's project's Ogg multimedia streaming system.
 Theora is derived directly from On2's VP3 codec; Currently the two are
-nearly identical, varying only in framing headers, but Theora will
-diverge and improve from the main VP3 development lineage as time
-progresses.
+nearly identical, varying only in encapsulating decoder tables in the 
+bitstream headers, but Theora will make use of this extra freedom 
+in the future to improve over what is possible with VP3.
 
 *** Where is Theora?
 
@@ -26,40 +26,21 @@ not expect the Theora packet or stream format from this release to
 remain compatible with future releases.  When the format for Theora is
 officially frozen, we'll let you know.
 
-This release serves several purposes:
+The purpose of this release is to provide an updated testing base for 
+those interested in theora and to dissiminate more widely the bitstream 
+changes we've made since the last alpha release.
 
-   1) An initial, thorough code review of the current VP3
-      implementation as we begin the transition to Theora.  We sum the
-      results of the VP3 review below:
-
-        . Fixed [on the order of] fifty bugs capable of crashing
-          the codec during encode, playback or both.
-        
-        . More thorough review of the codebase is warranted; however
-	  most immediately indicated work has been covered in initial
-	  review.
-
-        . Xiph.Org has substantially bootstrapped the imported
-          codebase and is ready to support Theora.
-
-        . Performance of unoptimized, pure-C version of VP3/Theora is
-	  very good.
-
-   2) Proof of concept: The example programs included in
-      Theora/examples implement a mixed-stream (Theora/Vorbis) Ogg
-      encoder and player.  These applications, though simple, show Ogg
-      functioning as intended as a full multimedia container,
-      illustrate the beginning of VP3/Theora integration into Ogg and
-      showcase the current level of performance of the portable,
-      unoptimized C implementation of Theora in terms of speed,
-      quality and bitrate.
-      
-   3) Initial implementation testing; this release serves as both a
-      testbed and a public request for input.
+In particular, the alpha 3 release includes a more complete set of 
+decoder data tables in the third header packet. Also, the encoded image 
+has been flipped vertically from the sense used in the alpha 1 and 2 
+releases. The origin is now in the lower left to match the original VP3. 
+Except for this change, lossless transcoding from alpha 1 and alpha 2 is 
+possible. Without this change, lossless transcoding from VP3 is not 
+possible.
 
 Once more for the record: THIS RELEASE IS NOT PRODUCTION CODE.  It is
-not for ripping DVDs, writing a Xine/MPlayer plugin or anything beyond
-tinkering.  The Theora stream format WILL CHANGE in future
+not for ripping DVDs, or otherwise use for content you won't want to 
+re-encode on demand.  The Theora stream format MAY WELL CHANGE in future
 releases. The API WILL CHANGE.  We will not yet support any Theora
 files produced by this alpha.  Not yet.  Soon, Grasshopper, Soon.
 
@@ -73,18 +54,14 @@ Requirements summary:
 
   For libtheora:  
          
-      libogg dated 24092002 or newer, built and installed from 
-      Xiph.Org CVS
-
-      GNU automake/autoconf/libtool build utilities
-     
+      libogg 1.1 or newer.
+      (there is optional support for libogg2, unreleased at this time)
 
   For example encoder:
 
       as above
 
-      libvorbis and libvorbisenc dated 24092002 or 
-      newer, built and installed from Xiph.Org CVS
+      libvorbis and libvorbisenc 1.0.1 or newer.
 
   For the player only:
 
@@ -94,11 +71,12 @@ Requirements summary:
  
       OSS audio driver and development headers
 
-This release is brand new and full portability is still in progress.
 The provided build system is the GNU automake/autoconf system, and
 the main library, libtheora, should already build smoothly on any
 system.  Failure of libtheora to build on a GNU-enabled system is
 considered a bug; please report problems to theora-dev@xiph.org.
+
+Some windows build support is included in the win32 directory.
 
 *** How do I use the sample encoder?
 
@@ -132,9 +110,10 @@ Troubleshooting the build process
 
 encoder_internal.h:664: parse error before `ogg_uint16_t'
 
-A *complete* new Ogg install, libs and headers, from CVS really is
-needed.  Don't forget to re-reun autogen.sh so that autoconf sucks in
-the new type declarations.
+This means you have version of libogg prior to 1.1. A *complete* new Ogg 
+install, libs and headers, from a new release or CVS is needed.  Don't 
+forget to re-reun autogen.sh so that autoconf sucks in the new type 
+declarations.
 
 Also be sure that there aren't multiple copies of Ogg installed in
 /usr and /usr/local; an older one might be first on the search path
@@ -144,13 +123,13 @@ for libs and headers.
 
 undefined reference to `oggpackB_stream'
 
-See above; you need libogg from CVS.
+See above; you need libogg 1.1 or later.
 
 *** Link error, such as:
 
 undefined reference to `vorbis_granule_time'
 
-You need libvorbis and libvorbisenc from CVS.
+You need libvorbis and libvorbisenc from the 1.0.1 release or later.
 
 *** Link error, such as:
 
