@@ -10,19 +10,19 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: reconstruct.c,v 1.4 2003/06/08 00:08:38 giles Exp $
+  function:
+  last mod: $Id: reconstruct.c,v 1.5 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
 
-void ReconIntra( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
-		 ogg_int16_t * ChangePtr, ogg_uint32_t LineStep ) {
+void ReconIntra( PB_INSTANCE *pbi, unsigned char * ReconPtr,
+                 ogg_int16_t * ChangePtr, ogg_uint32_t LineStep ) {
   ogg_uint32_t i;
-  
-  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++ ){	
+
+  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++ ){
     /* Convert the data back to 8 bit unsigned */
     /* Saturate the output to unsigend 8 bit values */
     ReconPtr[0] = clamp255( ChangePtr[0] + 128 );
@@ -33,19 +33,19 @@ void ReconIntra( PB_INSTANCE *pbi, unsigned char * ReconPtr,
     ReconPtr[5] = clamp255( ChangePtr[5] + 128 );
     ReconPtr[6] = clamp255( ChangePtr[6] + 128 );
     ReconPtr[7] = clamp255( ChangePtr[7] + 128 );
-    
+
     ReconPtr += LineStep;
     ChangePtr += BLOCK_HEIGHT_WIDTH;
   }
-  
+
 }
 
-void ReconInter( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
-		 unsigned char * RefPtr, ogg_int16_t * ChangePtr, 
-		 ogg_uint32_t LineStep ) {
+void ReconInter( PB_INSTANCE *pbi, unsigned char * ReconPtr,
+                 unsigned char * RefPtr, ogg_int16_t * ChangePtr,
+                 ogg_uint32_t LineStep ) {
   ogg_uint32_t i;
-  
-  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++) {	
+
+  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++) {
     ReconPtr[0] = clamp255(RefPtr[0] + ChangePtr[0]);
     ReconPtr[1] = clamp255(RefPtr[1] + ChangePtr[1]);
     ReconPtr[2] = clamp255(RefPtr[2] + ChangePtr[2]);
@@ -54,20 +54,20 @@ void ReconInter( PB_INSTANCE *pbi, unsigned char * ReconPtr,
     ReconPtr[5] = clamp255(RefPtr[5] + ChangePtr[5]);
     ReconPtr[6] = clamp255(RefPtr[6] + ChangePtr[6]);
     ReconPtr[7] = clamp255(RefPtr[7] + ChangePtr[7]);
-    
+
     ChangePtr += BLOCK_HEIGHT_WIDTH;
     ReconPtr += LineStep;
-    RefPtr += LineStep; 
+    RefPtr += LineStep;
   }
-  
+
 }
 
-void ReconInterHalfPixel2( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
-			   unsigned char * RefPtr1, unsigned char * RefPtr2, 
-			   ogg_int16_t * ChangePtr, ogg_uint32_t LineStep ) {
+void ReconInterHalfPixel2( PB_INSTANCE *pbi, unsigned char * ReconPtr,
+                           unsigned char * RefPtr1, unsigned char * RefPtr2,
+                           ogg_int16_t * ChangePtr, ogg_uint32_t LineStep ) {
   ogg_uint32_t  i;
-  
-  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++ ){	
+
+  for ( i = 0; i < BLOCK_HEIGHT_WIDTH; i++ ){
     ReconPtr[0] = clamp255((((int)RefPtr1[0] + (int)RefPtr2[0]) >> 1) + ChangePtr[0] );
     ReconPtr[1] = clamp255((((int)RefPtr1[1] + (int)RefPtr2[1]) >> 1) + ChangePtr[1] );
     ReconPtr[2] = clamp255((((int)RefPtr1[2] + (int)RefPtr2[2]) >> 1) + ChangePtr[2] );
@@ -79,8 +79,8 @@ void ReconInterHalfPixel2( PB_INSTANCE *pbi, unsigned char * ReconPtr,
 
     ChangePtr += BLOCK_HEIGHT_WIDTH;
     ReconPtr += LineStep;
-    RefPtr1 += LineStep; 
-    RefPtr2 += LineStep; 
+    RefPtr1 += LineStep;
+    RefPtr2 += LineStep;
   }
 
 }

@@ -10,8 +10,8 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: compglobals.c,v 1.2 2003/06/08 00:08:38 giles Exp $
+  function:
+  last mod: $Id: compglobals.c,v 1.3 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
@@ -20,7 +20,7 @@
 
 /* the Roundup32 silliness is dangerous on non-Intel processors and
    will also choke some C compilers.  Find a non dangerous way later.
-   Disabled for now. 
+   Disabled for now.
 
    #define ROUNDUP32(X) ( ( ( (unsigned long) X ) + 31 )&( 0xFFFFFFE0 ) ) */
 
@@ -55,10 +55,10 @@ void EDeleteFragmentInfo(CP_INSTANCE * cpi){
     _ogg_free(cpi->PartiallyCodedMbPatterns);
   if(cpi->UncodedMbFlags)
     _ogg_free(cpi->UncodedMbFlags);
-  
+
   if(cpi->BlockCodedFlagsAlloc)
     _ogg_free(cpi->BlockCodedFlagsAlloc);
-  
+
   cpi->extra_fragmentsAlloc = 0;
   cpi->FragmentLastQAlloc = 0;
   cpi->FragTokensAlloc = 0;
@@ -71,7 +71,7 @@ void EDeleteFragmentInfo(CP_INSTANCE * cpi){
   cpi->DCTDataBufferAlloc = 0;
   cpi->quantized_listAlloc = 0;
   cpi->OriginalDCAlloc = 0;
-  
+
   cpi->extra_fragments = 0;
   cpi->FragmentLastQ = 0;
   cpi->FragTokens = 0;
@@ -85,20 +85,20 @@ void EDeleteFragmentInfo(CP_INSTANCE * cpi){
   cpi->quantized_list = 0;
   cpi->OriginalDC = 0;
   cpi->FixedQ = 0;
-  
+
   cpi->BlockCodedFlagsAlloc = 0;
   cpi->BlockCodedFlags = 0;
 }
 
 void EAllocateFragmentInfo(CP_INSTANCE * cpi){
-  
+
   /* clear any existing info */
   EDeleteFragmentInfo(cpi);
-  
+
   /* Perform Fragment Allocations */
-  cpi->extra_fragments =  
+  cpi->extra_fragments =
     _ogg_malloc(32+cpi->pb.UnitFragments*sizeof(unsigned char));
-  
+
   /* A note to people reading and wondering why malloc returns aren't
      checked:
 
@@ -113,39 +113,39 @@ void EAllocateFragmentInfo(CP_INSTANCE * cpi){
      strategy is only to allocate virtual pages, which are not mapped
      until the memory on that page is touched.  At *that* point, if
      the machine is out of heap, the page fails to be mapped and a
-     SEGV is generated.  
+     SEGV is generated.
 
      That means that is we want to deal with out of memory conditions,
      we *must* be prepared to process a SEGV.  If we implement the
      SEGV handler, there's no reason to to check malloc return; it is
      a waste of code. */
 
-  cpi->FragmentLastQ = 
+  cpi->FragmentLastQ =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->FragmentLastQAlloc));
-  cpi->FragTokens =  
+  cpi->FragTokens =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->FragTokensAlloc));
   cpi->OriginalDC =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->OriginalDCAlloc));
-  cpi->FragTokenCounts =  
-    _ogg_malloc(cpi->pb.UnitFragments* 
+  cpi->FragTokenCounts =
+    _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->FragTokenCountsAlloc));
-  cpi->RunHuffIndices =  
+  cpi->RunHuffIndices =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->RunHuffIndicesAlloc));
-  cpi->LastCodedErrorScore =  
+  cpi->LastCodedErrorScore =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->LastCodedErrorScoreAlloc));
-  cpi->BlockCodedFlags =  
+  cpi->BlockCodedFlags =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->BlockCodedFlagsAlloc));
-  cpi->ModeList =  
+  cpi->ModeList =
     _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(*cpi->ModeListAlloc));
-  cpi->MVList =  
-    _ogg_malloc(cpi->pb.UnitFragments* 
+  cpi->MVList =
+    _ogg_malloc(cpi->pb.UnitFragments*
 		sizeof(cpi->MVListAlloc));
   cpi->DCT_codes =
     _ogg_malloc(64*
@@ -156,14 +156,14 @@ void EAllocateFragmentInfo(CP_INSTANCE * cpi){
   cpi->quantized_list =
     _ogg_malloc(64*
 		sizeof(*cpi->quantized_listAlloc));
-  cpi->PartiallyCodedFlags = 
-    _ogg_malloc(cpi->pb.MacroBlocks* 
+  cpi->PartiallyCodedFlags =
+    _ogg_malloc(cpi->pb.MacroBlocks*
 		sizeof(*cpi->PartiallyCodedFlags));
-  cpi->PartiallyCodedMbPatterns = 
-    _ogg_malloc(cpi->pb.MacroBlocks* 
+  cpi->PartiallyCodedMbPatterns =
+    _ogg_malloc(cpi->pb.MacroBlocks*
 		sizeof(*cpi->PartiallyCodedMbPatterns));
-  cpi->UncodedMbFlags = 
-    _ogg_malloc(cpi->pb.MacroBlocks* 
+  cpi->UncodedMbFlags =
+    _ogg_malloc(cpi->pb.MacroBlocks*
 		sizeof(*cpi->UncodedMbFlags));
 
 }
@@ -173,7 +173,7 @@ void EDeleteFrameInfo(CP_INSTANCE * cpi) {
     _ogg_free(cpi->ConvDestBufferAlloc );
   cpi->ConvDestBufferAlloc = 0;
   cpi->ConvDestBuffer = 0;
-  
+
   if(cpi->yuv0ptrAlloc)
     _ogg_free(cpi->yuv0ptrAlloc);
   cpi->yuv0ptrAlloc = 0;
@@ -188,7 +188,7 @@ void EDeleteFrameInfo(CP_INSTANCE * cpi) {
     _ogg_free(cpi->OptimisedTokenListEbAlloc);
   cpi->OptimisedTokenListEbAlloc = 0;
   cpi->OptimisedTokenListEb = 0;
-  
+
   if(cpi->OptimisedTokenListAlloc )
     _ogg_free(cpi->OptimisedTokenListAlloc);
   cpi->OptimisedTokenListAlloc = 0;
@@ -203,7 +203,7 @@ void EDeleteFrameInfo(CP_INSTANCE * cpi) {
     _ogg_free(cpi->OptimisedTokenListPlAlloc);
   cpi->OptimisedTokenListPlAlloc = 0;
   cpi->OptimisedTokenListPl = 0;
-  
+
 }
 
 void EAllocateFrameInfo(CP_INSTANCE * cpi){
@@ -213,25 +213,25 @@ void EAllocateFrameInfo(CP_INSTANCE * cpi){
   EDeleteFrameInfo(cpi);
 
   /* allocate frames */
-  cpi->ConvDestBuffer = 
+  cpi->ConvDestBuffer =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->ConvDestBuffer));
-  cpi->yuv0ptr = 
+  cpi->yuv0ptr =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->yuv0ptr));
-  cpi->yuv1ptr = 
+  cpi->yuv1ptr =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->yuv1ptr));
-  cpi->OptimisedTokenListEb = 
+  cpi->OptimisedTokenListEb =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->OptimisedTokenListEb));
-  cpi->OptimisedTokenList = 
+  cpi->OptimisedTokenList =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->OptimisedTokenList));
-  cpi->OptimisedTokenListHi = 
+  cpi->OptimisedTokenListHi =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->OptimisedTokenListHi));
-  cpi->OptimisedTokenListPl = 
+  cpi->OptimisedTokenListPl =
     _ogg_malloc(FrameSize*
 		sizeof(*cpi->OptimisedTokenListPl));
 }
@@ -252,7 +252,7 @@ void DeleteCPInstance(CP_INSTANCE *cpi){
 
 void InitCPInstance(CP_INSTANCE *cpi){
   ogg_uint32_t  i;
-  
+
   memset((unsigned char *) cpi, 0, sizeof(*cpi));
   AllocateTmpBuffers(&cpi->pb);
   cpi->pp = CreatePPInstance();
@@ -264,14 +264,14 @@ void InitCPInstance(CP_INSTANCE *cpi){
   cpi->Configuration.ActiveMaxQ = 32;
   cpi->Configuration.OutputFrameRate = 30;
   cpi->Configuration.TargetBandwidth = 3000;
-  
-  cpi->MVChangeFactor    =    14;     
-  cpi->FourMvChangeFactor =   8;           
-  cpi->MinImprovementForNewMV = 25;   
+
+  cpi->MVChangeFactor    =    14;
+  cpi->FourMvChangeFactor =   8;
+  cpi->MinImprovementForNewMV = 25;
   cpi->ExhaustiveSearchThresh = 2500;
-  cpi->MinImprovementForFourMV = 100;   
+  cpi->MinImprovementForFourMV = 100;
   cpi->FourMVThreshold = 10000;
-  cpi->BitRateCapFactor = 1.50;    
+  cpi->BitRateCapFactor = 1.50;
   cpi->InterTripOutThresh = 5000;
   cpi->MVEnabled = TRUE;
   cpi->InterCodeCount = 127;
@@ -283,11 +283,11 @@ void InitCPInstance(CP_INSTANCE *cpi){
   cpi->QuickCompress = TRUE;
   cpi->MaxConsDroppedFrames = 1;
   cpi->Sharpness = 2;
-  
+
   cpi->PreProcFilterLevel = 2;
-  
+
   /* Set up default values for QTargetModifier[Q_TABLE_SIZE] table */
-  for ( i = 0; i < Q_TABLE_SIZE; i++ ) 
+  for ( i = 0; i < Q_TABLE_SIZE; i++ )
     cpi->QTargetModifier[Q_TABLE_SIZE] = 1.0;
- 
+
 }

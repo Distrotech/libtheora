@@ -10,28 +10,27 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: block_inline.h,v 1.4 2003/06/08 00:08:38 giles Exp $
+  function:
+  last mod: $Id: block_inline.h,v 1.5 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
 static ogg_int32_t MBOrderMap[4] = { 0, 2, 3, 1 };
-static ogg_int32_t BlockOrderMap1[4][4] = { 
+static ogg_int32_t BlockOrderMap1[4][4] = {
   { 0, 1, 3, 2 },
-  { 0, 2, 3, 1 },       
+  { 0, 2, 3, 1 },
   { 0, 2, 3, 1 },
   { 3, 2, 0, 1 }
 };
 
-static ogg_int32_t QuadMapToIndex1( ogg_int32_t	(*BlockMap)[4][4], 
-				    ogg_uint32_t SB, ogg_uint32_t MB, 
-				    ogg_uint32_t B ){
+static ogg_int32_t QuadMapToIndex1( ogg_int32_t (*BlockMap)[4][4],
+                                    ogg_uint32_t SB, ogg_uint32_t MB,
+                                    ogg_uint32_t B ){
   return BlockMap[SB][MBOrderMap[MB]][BlockOrderMap1[MB][B]];
 }
 
 
-static ogg_int32_t QuadMapToMBTopLeft( ogg_int32_t (*BlockMap)[4][4], 
-				       ogg_uint32_t SB, ogg_uint32_t MB ){
+static ogg_int32_t QuadMapToMBTopLeft( ogg_int32_t (*BlockMap)[4][4],
+                                       ogg_uint32_t SB, ogg_uint32_t MB ){
   return BlockMap[SB][MBOrderMap[MB]][0];
 }
-

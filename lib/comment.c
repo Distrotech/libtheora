@@ -11,11 +11,12 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.5 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: comment.c,v 1.6 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
+#include <string.h>
 #include <ogg/ogg.h>
 #include <theora/theora.h>
 #include "encoder_internal.h"
@@ -23,7 +24,7 @@
 void theora_comment_init(theora_comment *tc){
   memset(tc,0,sizeof(*tc));
 }
-                                                                                
+
 void theora_comment_add(theora_comment *tc,char *comment){
   tc->user_comments=_ogg_realloc(tc->user_comments,
                             (tc->comments+2)*sizeof(*tc->user_comments));
@@ -44,7 +45,7 @@ void theora_comment_add_tag(theora_comment *tc, char *tag, char *value){
   theora_comment_add(tc, comment);
   _ogg_free(comment);
 }
-                                                                                
+
 /* This is more or less the same as strncasecmp - but that doesn't exist
  * everywhere, and this is a fairly trivial function, so we include it */
 static int tagcompare(const char *s1, const char *s2, int n){
@@ -62,10 +63,10 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
   int found = 0;
   int taglen = strlen(tag)+1; /* +1 for the = we append */
   char *fulltag = _ogg_malloc(taglen+ 1);
-                                                                                
+
   strcpy(fulltag, tag);
   strcat(fulltag, "=");
-                                                                                
+
   for(i=0;i<tc->comments;i++){
     if(!tagcompare(tc->user_comments[i], fulltag, taglen)){
       if(count == found)
@@ -75,7 +76,7 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
         found++;
     }
   }
-  _ogg_free(fulltag); 
+  _ogg_free(fulltag);
   return NULL; /* didn't find anything */
 }
 
@@ -85,12 +86,12 @@ int theora_comment_query_count(theora_comment *tc, char *tag){
   char *fulltag = _ogg_malloc(taglen+1);
   strcpy(fulltag,tag);
   strcat(fulltag, "=");
-                                                                                
+
   for(i=0;i<tc->comments;i++){
     if(!tagcompare(tc->user_comments[i], fulltag, taglen))
       count++;
   }
-  _ogg_free(fulltag);                                                                           
+  _ogg_free(fulltag);
   return count;
 }
 

@@ -72,7 +72,7 @@ static void warnx(int print_error, const char *fmt, ...)
 	}
 }
 
-#endif //_WIN32
+#endif /*_WIN32*/
 
 /* not part of the original file */
 #ifndef _DIAGASSERT

@@ -10,12 +10,13 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: pb.c,v 1.4 2003/06/08 00:08:38 giles Exp $
+  function:
+  last mod: $Id: pb.c,v 1.5 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
+#include <string.h>
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
 
@@ -37,7 +38,7 @@ void ClearTmpBuffers(PB_INSTANCE * pbi){
     _ogg_free(pbi->dequant_Inter_coeffs);
   if(pbi->dequant_InterUV_coeffs)
     _ogg_free(pbi->dequant_InterUV_coeffs);
-  
+
 
   pbi->ReconDataBuffer=0;
   pbi->DequantBuffer = 0;
@@ -51,35 +52,35 @@ void ClearTmpBuffers(PB_INSTANCE * pbi){
 }
 
 void InitTmpBuffers(PB_INSTANCE * pbi){
-  
+
   /* clear any existing info */
   ClearTmpBuffers(pbi);
-  
+
   /* Adjust the position of all of our temporary */
-  pbi->ReconDataBuffer      = 
+  pbi->ReconDataBuffer      =
     _ogg_malloc(64*sizeof(*pbi->ReconDataBuffer));
-  
-  pbi->DequantBuffer        = 
+
+  pbi->DequantBuffer        =
     _ogg_malloc(64 * sizeof(*pbi->DequantBuffer));
-  
-  pbi->TmpDataBuffer        = 
+
+  pbi->TmpDataBuffer        =
     _ogg_malloc(64 * sizeof(*pbi->TmpDataBuffer));
-  
-  pbi->TmpReconBuffer       = 
+
+  pbi->TmpReconBuffer       =
     _ogg_malloc(64 * sizeof(*pbi->TmpReconBuffer));
-  
-  pbi->dequant_Y_coeffs     = 
+
+  pbi->dequant_Y_coeffs     =
     _ogg_malloc(64 * sizeof(*pbi->dequant_Y_coeffs));
-  
-  pbi->dequant_UV_coeffs    = 
+
+  pbi->dequant_UV_coeffs    =
     _ogg_malloc(64 * sizeof(*pbi->dequant_UV_coeffs));
-  
-  pbi->dequant_Inter_coeffs = 
+
+  pbi->dequant_Inter_coeffs =
     _ogg_malloc(64 * sizeof(*pbi->dequant_Inter_coeffs));
-  
-  pbi->dequant_InterUV_coeffs = 
+
+  pbi->dequant_InterUV_coeffs =
     _ogg_malloc(64 * sizeof(*pbi->dequant_InterUV_coeffs));
-  
+
 }
 
 void ClearPBInstance(PB_INSTANCE *pbi){
@@ -91,16 +92,16 @@ void ClearPBInstance(PB_INSTANCE *pbi){
 void InitPBInstance(PB_INSTANCE *pbi){
   /* initialize whole structure to 0 */
   memset(pbi, 0, sizeof(*pbi));
-  
+
   InitTmpBuffers(pbi);
-  
+
   /* variables needing initialization (not being set to 0) */
-  
+
   pbi->ModifierPointer[0] = &pbi->Modifier[0][255];
   pbi->ModifierPointer[1] = &pbi->Modifier[1][255];
   pbi->ModifierPointer[2] = &pbi->Modifier[2][255];
   pbi->ModifierPointer[3] = &pbi->Modifier[3][255];
-  
+
   pbi->DecoderErrorCode = 0;
   pbi->KeyFrameType = DCT_KEY_FRAME;
   pbi->FramesHaveBeenSkipped = 0;

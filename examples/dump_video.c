@@ -10,8 +10,8 @@
  *                                                                  *
  ********************************************************************
 
-  function: example dumpvid application; dumps  Theora streams 
-  last mod: $Id: dump_video.c,v 1.4 2003/06/09 01:45:19 tterribe Exp $
+  function: example dumpvid application; dumps  Theora streams
+  last mod: $Id: dump_video.c,v 1.5 2003/06/10 01:31:32 tterribe Exp $
 
  ********************************************************************/
 
@@ -20,7 +20,7 @@
 
 #define _GNU_SOURCE
 #define _REENTRANT
-#define _LARGEFILE_SOURCE 
+#define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
 
@@ -49,7 +49,7 @@ int buffer_data(FILE *in,ogg_sync_state *oy){
 
 /* never forget that globals are a one-way ticket to Hell */
 /* Ogg and codec state for demux/decode */
-ogg_sync_state   oy; 
+ogg_sync_state   oy;
 ogg_page         og;
 ogg_stream_state vo;
 ogg_stream_state to;
@@ -58,7 +58,6 @@ theora_comment   tc;
 theora_state     td;
 
 int              theora_p=0;
-//int              vorbis_p=0;
 int              stateflag=0;
 
 /* single frame video buffering */
@@ -79,35 +78,35 @@ static void open_video(void){
 
 static void video_write(void){
   int i;
-		
+
   yuv_buffer yuv;
   theora_decode_YUVout(&td,&yuv);
 
   for(i=0;i<yuv.y_height;i++)
     fwrite(yuv.y+yuv.y_stride*i, 1, yuv.y_width, outfile);
- for(i=0;i<yuv.uv_height;i++){
-	fwrite(yuv.v+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
-	fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
-	}
-  
+  for(i=0;i<yuv.uv_height;i++){
+    fwrite(yuv.v+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
+  fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
+  }
+
 }
 /* dump the theora (or vorbis) comment header */
 static int dump_comments(theora_comment *tc){
   int i, len;
   char *value;
   FILE *out=stdout;
-  
+
   fprintf(out,"Encoded by %s\n",tc->vendor);
   if(tc->comments){
     fprintf(out, "theora comment header:\n");
     for(i=0;i<tc->comments;i++){
       if(tc->user_comments[i]){
         len=tc->comment_lengths[i];
-      	value=malloc(len+1);
-      	memcpy(value,tc->user_comments[i],len);
-      	value[len]='\0';
-      	fprintf(out, "\t%s\n", value);
-      	free(value);
+        value=malloc(len+1);
+        memcpy(value,tc->user_comments[i],len);
+        value[len]='\0';
+        fprintf(out, "\t%s\n", value);
+        free(value);
       }
     }
   }
@@ -120,7 +119,7 @@ static int dump_comments(theora_comment *tc){
 static int queue_page(ogg_page *page){
   if(theora_p)ogg_stream_pagein(&to,&og);
   return 0;
-}                                   
+}
 
 static void usage(void){
   fprintf(stderr,
@@ -131,15 +130,15 @@ static void usage(void){
 }
 
 int main(int argc,char *argv[]){
-  
+
   int i,j;
   ogg_packet op;
-  
+
   FILE *infile = stdin;
   outfile = stdout;
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
-  /* Beware the evil ifdef. We avoid these where we can, but this one we 
+  /* Beware the evil ifdef. We avoid these where we can, but this one we
      cannot. Don't add any more, you'll probably go to hell if you do. */
   _setmode( _fileno( stdin ), _O_BINARY );
   _setmode( _fileno( stdout ), _O_BINARY );
@@ -157,7 +156,7 @@ int main(int argc,char *argv[]){
       usage();
       exit(1);
   }
-  
+
   /* start up Ogg stream synchronization layer */
   ogg_sync_init(&oy);
 
@@ -176,41 +175,41 @@ int main(int argc,char *argv[]){
     if(ret==0)break;
     while(ogg_sync_pageout(&oy,&og)>0){
       ogg_stream_state test;
-      
+
       /* is this a mandated initial header? If not, stop parsing */
       if(!ogg_page_bos(&og)){
-	/* don't leak the page; get it into the appropriate stream */
-	queue_page(&og);
-	stateflag=1;
-	break;
+        /* don't leak the page; get it into the appropriate stream */
+        queue_page(&og);
+        stateflag=1;
+        break;
       }
-      
+
       ogg_stream_init(&test,ogg_page_serialno(&og));
       ogg_stream_pagein(&test,&og);
       ogg_stream_packetout(&test,&op);
-      
+
       /* identify the codec: try theora */
       if(!theora_p && theora_decode_header(&ti,&tc,&op)>=0){
-	/* it is theora */
-	memcpy(&to,&test,sizeof(test));
-	theora_p=1;
+        /* it is theora */
+        memcpy(&to,&test,sizeof(test));
+        theora_p=1;
       }else{
-	/* whatever it is, we don't care about it */
-	ogg_stream_clear(&test);
+        /* whatever it is, we don't care about it */
+        ogg_stream_clear(&test);
       }
     }
     /* fall through to non-bos page parsing */
   }
-  
+
   /* we're expecting more header packets. */
   while(theora_p && theora_p<3){
     int ret;
-    
+
     /* look for further theora headers */
     while(theora_p && (theora_p<3) && (ret=ogg_stream_packetout(&to,&op))){
       if(ret<0){
-      	fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
-      	exit(1);
+        fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
+        exit(1);
       }
       if(theora_decode_header(&ti,&tc,&op)){
         printf("Error parsing Theora stream headers; corrupt stream?\n");
@@ -220,17 +219,17 @@ int main(int argc,char *argv[]){
       if(theora_p==3)break;
     }
 
-    
+
     /* The header pages/packets will arrive before anything else we
        care about, or the stream is not obeying spec */
-    
+
     if(ogg_sync_pageout(&oy,&og)>0){
       queue_page(&og); /* demux into the appropriate stream */
     }else{
       int ret=buffer_data(infile,&oy); /* someone needs more data */
       if(ret==0){
-	fprintf(stderr,"End of file while searching for codec headers.\n");
-	exit(1);
+        fprintf(stderr,"End of file while searching for codec headers.\n");
+        exit(1);
       }
     }
   }
@@ -239,8 +238,8 @@ int main(int argc,char *argv[]){
   if(theora_p){
     theora_decode_init(&td,&ti);
     fprintf(stderr,"Ogg logical stream %x is Theora %dx%d %.02f fps video\nEncoded frame content is %dx%d with %dx%d offset\n",
-	    to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
-		ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
+            to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
+            ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
   }else{
     /* tear down the partial theora setup */
     theora_info_clear(&ti);
@@ -257,27 +256,27 @@ int main(int argc,char *argv[]){
 
   stateflag=0; /* playback has not begun */
   while(!got_sigint){
-      
+
     while(theora_p && !videobuf_ready){
       /* theora is one in, one out... */
       if(ogg_stream_packetout(&to,&op)>0){
-   
-	theora_decode_packetin(&td,&op);
-	videobuf_granulepos=td.granulepos;
-	videobuf_time=theora_granule_time(&td,videobuf_granulepos);
-	videobuf_ready=1;
-		
+
+        theora_decode_packetin(&td,&op);
+        videobuf_granulepos=td.granulepos;
+        videobuf_time=theora_granule_time(&td,videobuf_granulepos);
+        videobuf_ready=1;
+
       }else
-	break;
+        break;
     }
-    
+
     if(!videobuf_ready  && feof(infile))break;
-    
+
     if(!videobuf_ready ){
       /* no data yet for somebody.  Grab another page */
       int ret=buffer_data(infile,&oy);
       while(ogg_sync_pageout(&oy,&og)>0){
-      	queue_page(&og);
+        queue_page(&og);
       }
     }
 
@@ -297,10 +296,10 @@ int main(int argc,char *argv[]){
   ogg_sync_clear(&oy);
 
   if(infile && infile!=stdin)fclose(infile);
-  
+
   fprintf(stderr,
-	  "\r                                                              "
-	  "\nDone.\n");
+          "\r                                                              "
+          "\nDone.\n");
   return(0);
 
 }

@@ -10,8 +10,8 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: theora.h,v 1.11 2003/06/09 01:45:19 tterribe Exp $
+  function:
+  last mod: $Id: theora.h,v 1.12 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
@@ -68,7 +68,7 @@ typedef struct {
   int           keyframe_auto_p;
   ogg_uint32_t  keyframe_frequency;
   ogg_uint32_t  keyframe_frequency_force;  /* also used for decode init to
-					      get granpos shift correct */
+                                              get granpos shift correct */
   ogg_uint32_t  keyframe_data_target_bitrate;
   ogg_int32_t   keyframe_auto_threshold;
   ogg_uint32_t  keyframe_mindistance;
@@ -90,7 +90,7 @@ typedef struct theora_comment{
   char **user_comments;
   int   *comment_lengths;
   int    comments;
-  char  *vendor;                                                          
+  char  *vendor;
 
 } theora_comment;
 
@@ -106,11 +106,12 @@ extern const char *theora_version_string(void);
 extern ogg_uint32_t theora_version_number(void);
 extern int theora_encode_init(theora_state *th, theora_info *c);
 extern int theora_encode_YUVin(theora_state *t, yuv_buffer *yuv);
-extern int theora_encode_packetout( theora_state *t, int last_p, 
-				    ogg_packet *op);
+extern int theora_encode_packetout( theora_state *t, int last_p,
+                                    ogg_packet *op);
 extern int theora_encode_header(theora_state *t, ogg_packet *op);
 extern int theora_encode_comment(theora_comment *tc, ogg_packet *op);
-extern int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op);
+extern int theora_decode_header(theora_info *ci, theora_comment *cc,
+                                ogg_packet *op);
 extern int theora_decode_init(theora_state *th, theora_info *c);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
@@ -130,4 +131,3 @@ extern void  theora_comment_clear(theora_comment *tc);
 
 
 #endif /* _O_THEORA_H_ */
-

@@ -10,8 +10,8 @@
  *                                                                  *
  ********************************************************************
 
-  function: 
-  last mod: $Id: dct.c,v 1.3 2003/06/08 00:08:38 giles Exp $
+  function:
+  last mod: $Id: dct.c,v 1.4 2003/06/10 01:31:33 tterribe Exp $
 
  ********************************************************************/
 
@@ -31,17 +31,17 @@ static ogg_int32_t xC7S1 = 12785;
 
 void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
   int loop;
-  
+
   ogg_int32_t  is07, is12, is34, is56;
   ogg_int32_t  is0734, is1256;
-  ogg_int32_t  id07, id12, id34, id56; 
-  
+  ogg_int32_t  id07, id12, id34, id56;
+
   ogg_int32_t  irot_input_x, irot_input_y;
   ogg_int32_t  icommon_product1;   /* Re-used product  (c4s4 * (s12 - s56)). */
   ogg_int32_t  icommon_product2;   /* Re-used product  (c4s4 * (d12 + d56)). */
-  
-  ogg_int32_t  temp1, temp2;	     /* intermediate variable for computation */
-  
+
+  ogg_int32_t  temp1, temp2;         /* intermediate variable for computation */
+
   ogg_int32_t  InterData[64];
   ogg_int32_t *ip = InterData;
   ogg_int16_t * op = OutputData;
@@ -51,37 +51,37 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     is12 = InputData[1] + InputData[2];
     is34 = InputData[3] + InputData[4];
     is56 = InputData[5] + InputData[6];
-    
+
     id07 = InputData[0] - InputData[7];
     id12 = InputData[1] - InputData[2];
     id34 = InputData[3] - InputData[4];
     id56 = InputData[5] - InputData[6];
-    
+
     is0734 = is07 + is34;
     is1256 = is12 + is56;
-    
+
     /* Pre-Calculate some common product terms. */
-    icommon_product1 = xC4S4*(is12 - is56); 
+    icommon_product1 = xC4S4*(is12 - is56);
     icommon_product1 = DOROUND(icommon_product1);
     icommon_product1>>=16;
-    
+
     icommon_product2 = xC4S4*(id12 + id56);
     icommon_product2 = DOROUND(icommon_product2);
     icommon_product2>>=16;
-    
-    
+
+
     ip[0] = (xC4S4*(is0734 + is1256));
     ip[0] = DOROUND(ip[0]);
     ip[0] >>= 16;
-    
+
     ip[4] = (xC4S4*(is0734 - is1256));
     ip[4] = DOROUND(ip[4]);
     ip[4] >>= 16;
-    
+
     /* Define inputs to rotation for outputs 2 and 6 */
     irot_input_x = id12 - id56;
     irot_input_y = is07 - is34;
-    
+
     /* Apply rotation for outputs 2 and 6.  */
     temp1=xC6S2*irot_input_x;
     temp1=DOROUND(temp1);
@@ -90,7 +90,7 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     ip[2] = temp1 + temp2;
-    
+
     temp1=xC6S2*irot_input_y;
     temp1=DOROUND(temp1);
     temp1>>=16;
@@ -102,9 +102,9 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     /* Define inputs to rotation for outputs 1 and 7  */
     irot_input_x = icommon_product1 + id07;
     irot_input_y = -( id34 + icommon_product2 );
-    
+
     /* Apply rotation for outputs 1 and 7.  */
-    
+
     temp1=xC1S7*irot_input_x;
     temp1=DOROUND(temp1);
     temp1>>=16;
@@ -112,7 +112,7 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     ip[1] = temp1 - temp2;
-    
+
     temp1=xC7S1*irot_input_x;
     temp1=DOROUND(temp1);
     temp1>>=16;
@@ -120,11 +120,11 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     ip[7] = temp1 + temp2 ;
-    
+
     /* Define inputs to rotation for outputs 3 and 5 */
     irot_input_x = id07 - icommon_product1;
     irot_input_y = id34 - icommon_product2;
-    
+
     /* Apply rotation for outputs 3 and 5. */
     temp1=xC3S5*irot_input_x;
     temp1=DOROUND(temp1);
@@ -141,11 +141,11 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     ip[5] = temp1 + temp2;
-    
+
     /* Increment data pointer for next row. */
     InputData += 8 ;
     ip += 8; /* advance pointer to next row */
-		
+
   }
 
 
@@ -157,24 +157,24 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     is12 = ip[1 * 8] + ip[2 * 8];
     is34 = ip[3 * 8] + ip[4 * 8];
     is56 = ip[5 * 8] + ip[6 * 8];
-    
+
     id07 = ip[0 * 8] - ip[7 * 8];
     id12 = ip[1 * 8] - ip[2 * 8];
     id34 = ip[3 * 8] - ip[4 * 8];
     id56 = ip[5 * 8] - ip[6 * 8];
-    
+
     is0734 = is07 + is34;
     is1256 = is12 + is56;
-    
+
     /* Pre-Calculate some common product terms. */
-    icommon_product1 = xC4S4*(is12 - is56) ; 
+    icommon_product1 = xC4S4*(is12 - is56) ;
     icommon_product2 = xC4S4*(id12 + id56) ;
     icommon_product1 = DOROUND(icommon_product1);
     icommon_product2 = DOROUND(icommon_product2);
     icommon_product1>>=16;
     icommon_product2>>=16;
-    
-    
+
+
     temp1 = xC4S4*(is0734 + is1256) ;
     temp2 = xC4S4*(is0734 - is1256) ;
     temp1 = DOROUND(temp1);
@@ -183,11 +183,11 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2>>=16;
     op[0*8] = (ogg_int16_t) temp1;
     op[4*8] = (ogg_int16_t) temp2;
-    
+
     /* Define inputs to rotation for outputs 2 and 6 */
     irot_input_x = id12 - id56;
     irot_input_y = is07 - is34;
-    
+
     /* Apply rotation for outputs 2 and 6.  */
     temp1=xC6S2*irot_input_x;
     temp1=DOROUND(temp1);
@@ -196,7 +196,7 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     op[2*8] = (ogg_int16_t) (temp1 + temp2);
-    
+
     temp1=xC6S2*irot_input_y;
     temp1=DOROUND(temp1);
     temp1>>=16;
@@ -204,11 +204,11 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     op[6*8] = (ogg_int16_t) (temp1 -temp2) ;
-    
+
     /* Define inputs to rotation for outputs 1 and 7 */
     irot_input_x = icommon_product1 + id07;
     irot_input_y = -( id34 + icommon_product2 );
-    
+
     /* Apply rotation for outputs 1 and 7. */
     temp1=xC1S7*irot_input_x;
     temp1=DOROUND(temp1);
@@ -217,7 +217,7 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     op[1*8] = (ogg_int16_t) (temp1 - temp2);
-    
+
     temp1=xC7S1*irot_input_x;
     temp1=DOROUND(temp1);
     temp1>>=16;
@@ -225,11 +225,11 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     op[7*8] = (ogg_int16_t) (temp1 + temp2);
-    
+
     /* Define inputs to rotation for outputs 3 and 5 */
     irot_input_x = id07 - icommon_product1;
     irot_input_y = id34 - icommon_product2;
-    
+
     /* Apply rotation for outputs 3 and 5. */
     temp1=xC3S5*irot_input_x;
     temp1=DOROUND(temp1);
@@ -246,7 +246,7 @@ void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData ){
     temp2=DOROUND(temp2);
     temp2>>=16;
     op[5*8] = (ogg_int16_t) (temp1 + temp2);
-    
+
     /* Increment data pointer for next column.  */
     ip ++;
     op ++;
