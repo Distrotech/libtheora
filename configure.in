@@ -77,6 +77,16 @@ dnl --------------------------------------------------
 dnl Check for library functions
 dnl --------------------------------------------------
 
+XIPH_PATH_OGG(, AC_MSG_ERROR([
+    libogg is required to build this package!
+    please see http://www.xiph.org/ for how to
+    obtain a copy.
+]))
+LIBS="$LIBS $OGG_LIBS"
+AC_CHECK_FUNC(oggpackB_read, , [
+  AC_MSG_ERROR([newer libogg version (>1.0) required])
+])
+
 AM_PATH_SDL(,[
 	HAVE_SDL=yes
 	SDL_LIBS=`$SDL_CONFIG --static-libs`
