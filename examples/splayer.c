@@ -500,9 +500,10 @@ error:
     free( aStream );
     return err;
 }
-/*end of portaudio specific routines*/
 
-/*portaudio related global types  */
+/* -- end of portaudio specific routines --*/
+
+/* portaudio related global types  */
 #define PA_SAMPLE_TYPE  paInt16
 typedef short SAMPLE;
 #define SAMPLE_SILENCE  (0)
@@ -511,16 +512,12 @@ PASTREAMIO_Stream  *aOutStream; /* our modified stream buffer*/
 SAMPLE      *samples; /*local buffer for samples*/
 double latency_sec = 0;
 
-/*ticks information to be used if the audio stream is not present*/
+/* ticks information to be used if the audio stream is not present */
 int    currentTicks = -1;
 
-/*initial state of the audio stream*/
+/* initial state of the audio stream */
 int isPlaying = 0;
 PaError err;
-
-/* this should go in a header file */
-int theora_decode_tables(theora_info *c, ogg_packet *op);
-
 
 /* Ogg and codec state for demux/decode */
 ogg_sync_state   oy; 
@@ -551,34 +548,16 @@ int          videobuf_ready=0;
 ogg_int64_t  videobuf_granulepos=-1;
 double       videobuf_time=0;
 
-int          audiobuf_ready = 0;
+int          audiobuf_ready=0;
 ogg_int64_t  audiobuf_granulepos=0; /* time position of last sample */
 
-
-short initialticks, endticks;
-
-/* Helper; just grab some more compressed bitstream and sync it for
-   page extraction */
-int buffer_data(ogg_sync_state *oy){
-  char *buffer=ogg_sync_buffer(oy,4096);
-  int bytes=fread(buffer,1,4096,infile);
-  ogg_sync_wrote(oy,bytes);
-  return(bytes);
-}
-
-static void usage(void){
-  printf("Usage: splayer ogg_file\n\n"
-         "or drag and drop an ogg file over the .exe\n\n");
-  exit(1);
-}
-
 static int open_audio(){
-    /* this will open one circular audio stream*/
-    /*build on top of portaudio routines*/
-    /*implementation on fille pastreamio.c*/
+    /* this will open one circular audio stream */
+    /* build on top of portaudio routines */
+    /* implementation based on file pastreamio.c */
 
-    int        numSamples;
-    int        numBytes;
+    int numSamples;
+    int numBytes;
 
     int minNumBuffers;
     int numFrames;
@@ -592,7 +571,7 @@ static int open_audio(){
 
     samples = (SAMPLE *) malloc( numBytes );
 
-    /*store our latency calculation here*/
+    /* store our latency calculation here */
     latency_sec =  (double) numFrames / vi.rate / vi.channels;
     printf( "Latency: %.04f\n", latency_sec );
 
@@ -628,7 +607,6 @@ static int audio_close(void){
 
     free(samples);
     return err;
-
 error:
     Pa_Terminate();
     printf( "An error occured while closing the portaudio stream\n" );
@@ -638,36 +616,36 @@ error:
 }
 
 
-double get_time(){
+double get_time() {
     static Uint32 startticks = 0;
     double curtime;
-    if (vorbis_p){
+    if (vorbis_p) {
       /* not entirely accurate with the WAVE OUT device, but good enough
          at this stage. Needs to be reworked to account for blank audio
          data written to the stream... */
-      curtime = (double) (GetAudioStreamTime( aOutStream ) / vi.rate) -  latency_sec;
-      if (curtime<0) curtime = 0;
+      curtime = (double) (GetAudioStreamTime( aOutStream ) / vi.rate) - latency_sec;
+      if (curtime<0.0) curtime = 0.0;
     } else {
       /* initialize timer variable if not set yet */
       if (startticks==0)
         startticks = SDL_GetTicks();
-        curtime = 1.0e-3 * (double)(SDL_GetTicks() - startticks);
+      curtime = 1.0e-3 * (double)(SDL_GetTicks() - startticks);
     }
     return curtime;
 }
 
 
 static void open_video(void){
-  /*taken from player_sample.c test file for theora alpha*/
+  /* taken from player_sample.c test file for theora alpha */
 
   if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
-    printf("Unable to init SDL: %s\n", SDL_GetError());
+    printf("Unable to initialize SDL: %s\n", SDL_GetError());
     exit(1);
   }
   
   screen = SDL_SetVideoMode(ti.frame_width, ti.frame_height, 0, SDL_SWSURFACE);
   if ( screen == NULL ) {
-    printf("Unable to set %dx%d video: %s\n", 
+    printf("Unable to set %dx%d video mode: %s\n", 
            ti.frame_width,ti.frame_height,SDL_GetError());
     exit(1);
   }
@@ -689,7 +667,7 @@ static void open_video(void){
 }
 
 static void video_write(void){
-  /*taken from player_sample.c test file for theora alpha*/
+  /* taken from player_sample.c test file for theora alpha */
   int i;
   yuv_buffer yuv;
   int crop_offset;
@@ -721,15 +699,22 @@ static void video_write(void){
   }
 
   /* Unlock SDL_yuv_overlay */
+  SDL_UnlockYUVOverlay(yuv_overlay);
   if ( SDL_MUSTLOCK(screen) ) {
     SDL_UnlockSurface(screen);
   }
-  SDL_UnlockYUVOverlay(yuv_overlay);
-
 
   /* Show, baby, show! */
-  SDL_DisplayYUVOverlay(yuv_overlay, &rect);
-  
+  SDL_DisplayYUVOverlay(yuv_overlay, &rect);  
+}
+
+static void usage(void){
+  printf("Usage: splayer <ogg_file>\n"
+#ifdef WIN32  
+    "\n"
+    "or drag and drop an ogg file over the .exe\n\n"
+#endif
+  );
 }
 
 /* dump the theora (or vorbis) comment header */
@@ -777,18 +762,26 @@ static void report_colorspace(theora_info *ti)
     }
 }
 
-/* helper: push a page into the appropriate steam */
+/* Helper; just grab some more compressed bitstream and sync it for
+   page extraction */
+int buffer_data(ogg_sync_state *oy){
+  char *buffer=ogg_sync_buffer(oy,4096);
+  int bytes=fread(buffer,1,4096,infile);
+  ogg_sync_wrote(oy,bytes);
+  return(bytes);
+}
+
+/* helper: push a page into the appropriate stream */
 /* this can be done blindly; a stream won't accept a page
                 that doesn't belong to it */
 static int queue_page(ogg_page *page){
-  if(theora_p)ogg_stream_pagein(&to,&og);
-  if(vorbis_p)ogg_stream_pagein(&vo,&og);
+  if(theora_p)ogg_stream_pagein(&to,page);
+  if(vorbis_p)ogg_stream_pagein(&vo,page);
   return 0;
 }                                   
 
-
 void parseHeaders(){
-  /*extracted from player_sample.c test file for theora alpha*/
+  /* extracted from player_sample.c test file for theora alpha */
   ogg_packet op;
   /* Parse the headers */
   /* Only interested in Vorbis/Theora streams */
@@ -818,7 +811,6 @@ void parseHeaders(){
       }else if(!vorbis_p && vorbis_synthesis_headerin(&vi,&vc,&op)>=0){
 	/* it is vorbis */
 	memcpy(&vo,&test,sizeof(test));
-	/* there will be more vorbis headers later... */
 	vorbis_p=1;
       }else{
 	/* whatever it is, we don't care about it */
@@ -827,7 +819,7 @@ void parseHeaders(){
     }
   }
 
-  /* we're expecting more header packets. */
+  /* we've now identified all the bitstreams. parse the secondary header packets. */
   while((theora_p && theora_p<3) || (vorbis_p && vorbis_p<3)){
     int ret;
 
@@ -867,12 +859,11 @@ void parseHeaders(){
     }else{
       int ret=buffer_data(&oy);
       if(ret==0){
-	fprintf(stderr,"End of file while searching for Vorbis headers.\n");
+	fprintf(stderr,"End of file while searching for codec headers.\n");
 	exit(1);
       }
     }
   }
-
 }
 
 int main( int argc, char* argv[] ){
@@ -882,13 +873,14 @@ int main( int argc, char* argv[] ){
   SDL_Event event;
   int hasdatatobuffer = 1;
   int playbackdone = 0;
-  double delay, lastframetime = 0;
+  double delay, last_frame_time = 0;
 
   int frameNum=0;
+  int skipNum=0;
 
-  /*takes first argument as file to play*/
-  /*this works better on Windows and is more convenient
-  for drag and drop ogg files over the .exe*/
+  /* takes first argument as file to play */
+  /* this works better on Windows and is more convenient
+     for drag and drop ogg files over the .exe */
 
   if( argc != 2 )
   {
@@ -910,6 +902,9 @@ int main( int argc, char* argv[] ){
   theora_info_init(&ti);
 
   parseHeaders();
+
+  /* force audio off */
+  /* vorbis_p = 0; */
 
   /* initialize decoders */
   if(theora_p){
@@ -939,38 +934,31 @@ int main( int argc, char* argv[] ){
   if(vorbis_p)open_audio();
   /* open video */
   if(theora_p)open_video();
+  
+  /* our main loop */
+  while(!playbackdone){
 
-  /*our main loop*/
-  while(hasdatatobuffer){
-
-    SDL_Delay(5);
-
-    if ( playbackdone == 1 ) break;
-
-    /*break out on SDL quit event*/
+    /* break out on SDL quit event */
     if ( SDL_PollEvent ( &event ) )
     {
       if ( event.type == SDL_QUIT ) break ;
     }
 
-    /*get some audio data*/
+    /* get some audio data */
     while(vorbis_p && !audiobuf_ready){
       int ret;
       float **pcm;
       int count = 0;
       int maxBytesToWrite;
 
-      /* is there pending audio? does it fit 
-         out circular buffer without blocking? */
+      /* is there pending audio? does it fit our circular buffer without blocking? */
       ret=vorbis_synthesis_pcmout(&vd,&pcm);
       maxBytesToWrite = GetAudioStreamWriteable(aOutStream);
 
-      if (maxBytesToWrite<=FRAMES_PER_BUFFER)
-      {
-	/*break out until there is a significant amount of
-	data to avoid a series of small write operations*/
-	audiobuf_ready = 0;
-	break;
+      if (maxBytesToWrite<=FRAMES_PER_BUFFER){
+        /* break out until there is a significant amount of
+           data to avoid a series of small write operations. */
+        break;
       }
       /* if there's pending, decoded audio, grab it */
       if((ret>0)&&(maxBytesToWrite>0)){
@@ -1004,12 +992,13 @@ int main( int argc, char* argv[] ){
 	}else	/* we need more data; break out to suck in another page */
 	  break;
       }
-    }/*end audio cycle*/
+    } /* end audio cycle */
 
     while(theora_p && !videobuf_ready){
       /* get one video packet... */
       if(ogg_stream_packetout(&to,&op)>0){
-	  theora_decode_packetin(&td,&op);
+      
+        theora_decode_packetin(&td,&op);
 
 	  videobuf_granulepos=td.granulepos;
 	  videobuf_time=theora_granule_time(&td,videobuf_granulepos);
@@ -1024,7 +1013,7 @@ int main( int argc, char* argv[] ){
 	  if(delay>=0.0){
 		/* got a good frame, not late, ready to break out */
 		videobuf_ready=1;
-	  }else if(videobuf_time-lastframetime>=1.0){
+	  }else if(videobuf_time-last_frame_time>=1.0){
 		/* display at least one frame per second, regardless */
 		videobuf_ready=1;
 	  }else{
@@ -1032,47 +1021,68 @@ int main( int argc, char* argv[] ){
 			frameNum, -delay);
 	   }
       }else{
-	/* already have a good frame in the buffer */
+	/* need more data */
 	break;
       }
     }
+
+    if(!hasdatatobuffer && !videobuf_ready && !audiobuf_ready){
+      isPlaying = 0;
+      playbackdone = 1;
+    }
+
+    /* if we're set for the next frame, sleep */
+    if((!theora_p || videobuf_ready) && 
+       (!vorbis_p || audiobuf_ready)){
+	double now = get_time();
+        int ticks = 1.0e3*(videobuf_time-now);
+	fprintf(stderr, "delay ticks %d from %f - %f = %f\n",
+		ticks, videobuf_time, now, videobuf_time-now);
+	if(ticks>0){
+	  fprintf(stderr, "  Calling SDL_Delay(%d)\n", ticks);
+          SDL_Delay(ticks);
+        }
+    }
  
-    if(stateflag && audiobuf_ready && videobuf_ready){
-      /*time to write our cached frame*/
+    if(videobuf_ready){
+      /* time to write our cached frame */
       video_write();
       videobuf_ready=0;
-      lastframetime=get_time();
+      last_frame_time=videobuf_time;
 
-      /*if audio has not started (first frame) then start it*/
+      /* if audio has not started (first frame) then start it */
       if ((!isPlaying)&&(vorbis_p)){
-	start_audio();
-	isPlaying = 1;
-      }
-    } else if (hasdatatobuffer)
-    {
-      hasdatatobuffer=buffer_data(&oy);
-      if(hasdatatobuffer==0){
-	printf("Ogg buffering stopped, end of file reached.\n");
+        start_audio();
+        isPlaying = 1;
       }
     }
-    
+
     /* HACK: always look for more audio data */
     audiobuf_ready=0;
 
-    if (ogg_sync_pageout(&oy,&og)>0)
+    /* buffer compressed data every loop */
+    if(hasdatatobuffer){
+      hasdatatobuffer=buffer_data(&oy);
+      if(hasdatatobuffer==0){
+        printf("Ogg buffering stopped, end of file reached.\n");
+      }
+    }
+    
+    if (ogg_sync_pageout(&oy,&og)>0){
       queue_page(&og);
+    }
 
-  }
+  } /* playbackdone */
 
-  /*show number of video frames decoded*/
-  printf( "Frames decoded: %d\n", frameNum );
-  /*printf( "Milliseconds: %d\n", endticks-initialticks);
-  printf("Average fps (%.02f)\n", ((float) frameNum)/((endticks-initialticks)/1000.0f));*/
+  /* show number of video frames decoded */
+  printf( "\n");
+  printf( "Frames decoded: %d", frameNum );
+  if(skipNum)
+    printf( " (only %d shown)", frameNum-skipNum);
+  printf( "\n" );
 
   /* tear it all down */
   fclose( infile );
-
-  SDL_Quit();
 
   if(vorbis_p){
     audio_close();
@@ -1093,6 +1103,9 @@ int main( int argc, char* argv[] ){
 
   printf("\r                                                              "
 	 "\nDone.\n");
+	 
+  SDL_Quit();
+
   return(0);
 
 }
