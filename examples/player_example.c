@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.13 2003/05/19 19:31:37 giles Exp $
+  last mod: $Id: player_example.c,v 1.14 2003/05/21 10:41:43 giles Exp $
 
  ********************************************************************/
 
@@ -49,7 +49,13 @@
    give us any way to determine hardware timing, and since the
    hard/kernel buffer is going to be most of or > a second, that's
    just a little bit important */
+#if defined(__FreeBSD__)
+#include <machine/soundcard.h>
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
+#include <soundcard.h>
+#else
 #include <sys/soundcard.h>
+#endif
 #include <sys/ioctl.h>
 
 /* Helper; just grab some more compressed bitstream and sync it for
