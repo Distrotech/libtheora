@@ -639,22 +639,21 @@ error:
 
 
 double get_time(){
+    static Uint32 startticks = 0;
     double curtime;
     if (vorbis_p){
-     /*not entirely accurate with the WAVE OUT device, but good enough
-     at this stage. Needs to be reworked to account for blank audio
-     data written to the stream...*/
+      /* not entirely accurate with the WAVE OUT device, but good enough
+         at this stage. Needs to be reworked to account for blank audio
+         data written to the stream... */
       curtime = (double) (GetAudioStreamTime( aOutStream ) / vi.rate) -  latency_sec;
       if (curtime<0) curtime = 0;
-	} else {
-        /*initialize timer variable if not set yet*/
-        if (currentTicks==-1) {
-            currentTicks = SDL_GetTicks();
-            return currentTicks;
-        }
-		curtime = (double) (SDL_GetTicks() - currentTicks)/1000.0F;
-	}
-    return  curtime  ;
+    } else {
+      /* initialize timer variable if not set yet */
+      if (startticks==0)
+        startticks = SDL_GetTicks();
+        curtime = 1.0e-3 * (double)(SDL_GetTicks() - startticks);
+    }
+    return curtime;
 }
 
 
@@ -883,6 +882,7 @@ int main( int argc, char* argv[] ){
   SDL_Event event;
   int hasdatatobuffer = 1;
   int playbackdone = 0;
+  double delay;
 
   int frameNum=0;
 
@@ -940,7 +940,6 @@ int main( int argc, char* argv[] ){
   /* open video */
   if(theora_p)open_video();
 
-  /*initialticks = GetTickCount();*/
   /*our main loop*/
   while(hasdatatobuffer){
 
@@ -952,7 +951,6 @@ int main( int argc, char* argv[] ){
     if ( SDL_PollEvent ( &event ) )
     {
       if ( event.type == SDL_QUIT ) break ;
-
     }
 
     /*get some audio data*/
@@ -1019,20 +1017,21 @@ int main( int argc, char* argv[] ){
 	  //printf("Frame\n");
 	  frameNum++;
 
-	  /*check if this frame time has not passed yet.
-	  If the frame is late we need to decode additonal
-	  ones and keep looping, since theora at
-	  this stage needs to decode all frames*/
-
-	   if(videobuf_time>=get_time()){
-		/*got a good frame, not late, ready to break out*/
+	  /* check if this frame time has not passed yet.
+	     If the frame is late we need to decode additonal
+	     ones and keep looping, since theora at this stage
+	     needs to decode all frames */
+	  delay = videobuf_time-get_time();
+	  fprintf(stderr, "frame %d delay %.3f\n", frameNum, delay);
+	  if(delay>0.0){
+		/* got a good frame, not late, ready to break out */
 		videobuf_ready=1;
-	   }else{
+	  }else{
 		fprintf(stderr, "dropping frame %d (%.3fs behind)\n",
-			frameNum, get_time() - videobuf_time);
+			frameNum, -delay);
 	   }
       }else{
-	/*already have a good frame in the buffer*/
+	/* already have a good frame in the buffer */
 	break;
       }
     }
@@ -1055,7 +1054,7 @@ int main( int argc, char* argv[] ){
       }
     }
     
-    /* HACK: look for more audio data */
+    /* HACK: always look for more audio data */
     audiobuf_ready=0;
 
     if (ogg_sync_pageout(&oy,&og)>0)
