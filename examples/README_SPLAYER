@@ -14,7 +14,8 @@ properly installed. Follow these steps to install Portaudio:
 4) Run 'make install'
 
 This will install Portaudio libraries in /usr/local/lib, and the Portaudio 
-include file at /usr/local/include.
+include file at /usr/local/include. On linux you man need to manually 
+execute 'ldconfig' to rebuild the library cache.
 
 Switch to theora's directory, re-run theora's autogen.sh script to 
 re-generate the appropriate makefiles, and 'make install' to build.
