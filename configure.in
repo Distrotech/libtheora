@@ -27,6 +27,9 @@ AC_PROG_CC
 AC_PROG_CPP
 CFLAGS="$cflags_save"
 
+dnl no shared linking for us
+AM_DISABLE_SHARED
+AM_ENABLE_STATIC
 AM_PROG_LIBTOOL
 
 dnl --------------------------------------------------
@@ -74,7 +77,11 @@ dnl --------------------------------------------------
 dnl Check for library functions
 dnl --------------------------------------------------
 
-dnl none
+AM_PATH_SDL(,[
+	HAVE_SDL=yes
+	SDL_LIBS=`$SDL_CONFIG --static-libs`
+],AC_MSG_WARN([*** Unable to find SDL -- Not compiling player_example ***]))
+AM_CONDITIONAL(HAVE_SDL, test "$HAVE_SDL" = "yes")
 
 dnl --------------------------------------------------
 dnl Do substitutions
