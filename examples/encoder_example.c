@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.6 2002/09/25 10:01:52 xiphmont Exp $
+  last mod: $Id: encoder_example.c,v 1.7 2003/05/10 22:02:32 giles Exp $
 
  ********************************************************************/
 
@@ -227,7 +227,7 @@ static void id_file(char *f){
       return;
     }
   }
-  fprintf(stderr,"Input file %s is niether a WAV nor YUV4MPEG2 file.\n",f);
+  fprintf(stderr,"Input file %s is neither a WAV nor YUV4MPEG2 file.\n",f);
   exit(1);
 
  riff_err:
@@ -425,7 +425,7 @@ int main(int argc,char *argv[]){
 
   theora_state     td;
   theora_info      ti;
-  
+
   vorbis_info      vi; /* struct that stores all the static vorbis bitstream
                           settings */
   vorbis_comment   vc; /* struct that stores all the user comments */
@@ -552,18 +552,22 @@ int main(int argc,char *argv[]){
     vorbis_block_init(&vd,&vb);
   }
 
-  /* get the bitstream header pages; one for theora, three for vorbis */
+  /* write the bitstream header packets with proper page interleave */
+
+  /* first packet will get its own page automatically */
   theora_encode_header(&td,&op);
-  ogg_stream_packetin(&to,&op); /* first packet, so it's flushed
-                                   immediately */
+  ogg_stream_packetin(&to,&op);
   if(ogg_stream_pageout(&to,&og)!=1){
-    /*can't get here unless Ogg is borked */
     fprintf(stderr,"Internal Ogg library error.\n");
     exit(1);
-  }
+  }  
   fwrite(og.header,1,og.header_len,stdout);
   fwrite(og.body,1,og.body_len,stdout);
 
+  /* create the remaining theora headers */
+  theora_encode_tables(&td,&op);
+  ogg_stream_packetin(&to,&op); 
+  
   if(audio){
     ogg_packet header;
     ogg_packet header_comm;
@@ -572,12 +576,33 @@ int main(int argc,char *argv[]){
     vorbis_analysis_headerout(&vd,&vc,&header,&header_comm,&header_code);
     ogg_stream_packetin(&vo,&header); /* automatically placed in its own
                                          page */
+    if(ogg_stream_pageout(&vo,&og)!=1){
+      fprintf(stderr,"Internal Ogg library error.\n");
+      exit(1);
+    }
+    fwrite(og.header,1,og.header_len,stdout);
+    fwrite(og.body,1,og.body_len,stdout);
+    
+    /* remaining vorbis header packets */
     ogg_stream_packetin(&vo,&header_comm);
     ogg_stream_packetin(&vo,&header_code);
-    
-    /* This ensures the actual
-     * audio data will start on a new page, as per spec
-     */
+  }
+  
+  /* Flush the rest of our headers. This ensures
+     the actual data in each stream will start 
+     on a new page, as per spec. */
+  while(1){
+    int result = ogg_stream_flush(&to,&og);
+      if(result<0){
+        /* can't get here */
+        fprintf(stderr,"Internal Ogg library error.\n");
+        exit(1);
+      }
+    if(result==0)break;
+    fwrite(og.header,1,og.header_len,stdout);
+    fwrite(og.body,1,og.body_len,stdout);
+  }
+  if(audio){
     while(1){
       int result=ogg_stream_flush(&vo,&og);
       if(result<0){

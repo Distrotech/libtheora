@@ -5,14 +5,14 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2002             *
+ * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2003             *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.9 2002/09/25 10:01:52 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.10 2003/05/10 22:02:32 giles Exp $
 
  ********************************************************************/
 
@@ -101,13 +101,12 @@ search for how to do this, a quick rundown of a practical A/V sync
 strategy under Linux [the UNIX where Everything Is Hard].  Naturally,
 this works on other platforms using OSS for sound as well.
 
-In OSS, we don't have reliable access to any information that gives us
-precise information on the exact current playback position (that, of
-course would have been too easy; the kernel folks like to keep us app
-people working hard doing simple things that should have been solved
-once and abstracted long ago).  Hopefully ALSA solves this a little
-better; we'll probably use that once ALSA is the standard in the
-stable kernel.
+In OSS, we don't have reliable access to any precise information on 
+the exact current playback position (that, of course would have been
+too easy; the kernel folks like to keep us app people working hard 
+doing simple things that should have been solved once and abstracted
+long ago).  Hopefully ALSA solves this a little better; we'll probably
+use that once ALSA is the standard in the stable kernel.
 
 We can't use the system clock for a/v sync because audio is hard
 synced to its own clock, and both the system and audio clocks suffer
@@ -123,7 +122,7 @@ it.  We assume at that point that we know the exact number of bytes in
 the kernel buffer that have not been played (total fragments minus
 one) and calculate clock drift between audio and system then (and only
 then).  Damp the sync correction fraction, apply, and walla: A
-reliable A/V clock that even works if its interrupted. */
+reliable A/V clock that even works if it's interrupted. */
 
 long         audiofd_totalsize=-1;
 int          audiofd_fragsize;      /* read and write only complete fragments
@@ -152,7 +151,7 @@ static void open_audio(){
     exit(1);
   }
   
-  ret=ioctl(audiofd,SNDCTL_DSP_CHANNELS,&vi.channels);
+  ret=ioctl(audiofd,SNDCTL_DSP_CHANNELS,&channels);
   if(ret){
     fprintf(stderr,"Could not set %d channel playback\n",channels);
     exit(1);
@@ -169,7 +168,6 @@ static void open_audio(){
   audiofd_totalsize=info.fragstotal*info.fragsize;
   
   audiobuf=malloc(audiofd_fragsize);
-
 }
 
 static void audio_close(void){
@@ -348,6 +346,14 @@ static void video_write(void){
   
 }
 
+/* helper: push a page into the appropriate steam */
+/* this can be done blindly; a stream won't accept a page
+                that doesn't belong to it */
+static int queue_page(ogg_page *page){
+  if(theora_p)ogg_stream_pagein(&to,&og);
+  if(vorbis_p)ogg_stream_pagein(&vo,&og);
+  return 0;
+}                                   
 
 int main(void){
   
@@ -378,10 +384,7 @@ int main(void){
       /* is this a mandated initial header? If not, stop parsing */
       if(!ogg_page_bos(&og)){
 	/* don't leak the page; get it into the appropriate stream */
-	/* this can be done blindly; a stream won't accept a page
-             that doesn't bewlong to it */
-	if(theora_p)ogg_stream_pagein(&to,&og);
-	if(vorbis_p)ogg_stream_pagein(&vo,&og);
+	queue_page(&og);
 	stateflag=1;
 	break;
       }
@@ -398,43 +401,56 @@ int main(void){
       }else if(!vorbis_p && vorbis_synthesis_headerin(&vi,&vc,&op)>=0){
 	/* it is vorbis */
 	memcpy(&vo,&test,sizeof(test));
-	/* there will be more vorbis headers later... */
 	vorbis_p=1;
       }else{
 	/* whatever it is, we don't care about it */
 	ogg_stream_clear(&test);
       }
     }
+    /* fall through to non-bos page parsing */
   }
   
-  /* we're expecting more vorbis header packets. */
-  while(vorbis_p && vorbis_p<3){
+  /* we're expecting more header packets. */
+  while((theora_p && theora_p<2) || (vorbis_p && vorbis_p<3)){
     int ret;
-    while((ret=ogg_stream_packetout(&vo,&op))){
+    
+    /* look for further theora headers */
+    while(theora_p && (theora_p<2) && (ret=ogg_stream_packetout(&to,&op))){
+      if(ret<0){
+      	fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
+      	exit(1);
+      }
+      if(theora_decode_tables(&ti,&op)){
+        fprintf(stderr,"Error parsing Theora stream headers; corrupt stream?\n");
+        exit(1);
+      }
+      theora_p++;
+      if(theora_p==2) break;
+    }
+
+    /* look for more vorbis header packets */  
+    while(vorbis_p && (vorbis_p<3) && (ret=ogg_stream_packetout(&vo,&op))){
       if(ret<0){
 	fprintf(stderr,"Error parsing Vorbis stream headers; corrupt stream?\n");
 	exit(1);
       }
-      
       if(vorbis_synthesis_headerin(&vi,&vc,&op)){
 	fprintf(stderr,"Error parsing Vorbis stream headers; corrupt stream?\n");
 	exit(1);
       }
       vorbis_p++;
       if(vorbis_p==3)break;
-      
     }
     
     /* The header pages/packets will arrive before anything else we
        care about, or the stream is not obeying spec */
     
     if(ogg_sync_pageout(&oy,&og)>0){
-      ogg_stream_pagein(&vo,&og); /* the vorbis stream will accept
-                                     only its own */
+      queue_page(&og); /* demux into the appropriate stream */
     }else{
-      int ret=buffer_data(&oy);
+      int ret=buffer_data(&oy); /* someone needs more data */
       if(ret==0){
-	fprintf(stderr,"End of file while searching for Vorbis headers.\n");
+	fprintf(stderr,"End of file while searching for codec headers.\n");
 	exit(1);
       }
     }
@@ -541,8 +557,7 @@ int main(void){
       /* no data yet for somebody.  Grab another page */
       int ret=buffer_data(&oy);
       while(ogg_sync_pageout(&oy,&og)>0){
-	if(ogg_stream_pagein(&to,&og))
-	  if(vorbis_p)ogg_stream_pagein(&vo,&og);
+      	queue_page(&og);
       }
     }
 
@@ -591,8 +606,11 @@ int main(void){
       }
     }
 
+    /* if our buffers either don't exist or are ready to go,
+       we can begin playback */
     if((!theora_p || videobuf_ready) && 
        (!vorbis_p || audiobuf_ready))stateflag=1;
+    /* same if we've run out of input */
     if(feof(stdin))stateflag=1; 
 
   }
@@ -621,5 +639,3 @@ int main(void){
   return(0);
 
 }
-
-

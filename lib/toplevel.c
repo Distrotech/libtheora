@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.14 2003/02/26 21:16:58 giles Exp $
+  last mod: $Id: toplevel.c,v 1.15 2003/05/10 22:02:32 giles Exp $
 
  ********************************************************************/
 
@@ -1007,6 +1007,7 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   return 1;
 }
 
+/* build the initial short header for stream recognition and format */
 int theora_encode_header(theora_state *t, ogg_packet *op){
   CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
@@ -1035,15 +1036,41 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
 
-  /* dbm -- added functions to write important data (qtables + huff stuff) into header
-     TODO: split this into a separate packet */
+  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+  op->bytes=oggpackB_bytes(&cpi->oggbuffer);
+
+  op->b_o_s=1;
+  op->e_o_s=0;
+  
+  op->packetno=0;
+  
+  op->granulepos=0;
+  cpi->packetflag=0;
+
+  return(0);
+}
+
+/* build the final header packet with the tables required
+   for decode */
+int theora_encode_tables(theora_state *t, ogg_packet *op){
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
+
+  oggpackB_reset(&cpi->oggbuffer);
+  oggpackB_write(&cpi->oggbuffer,0x82,8);
+  oggpackB_write(&cpi->oggbuffer,'t',8);
+  oggpackB_write(&cpi->oggbuffer,'h',8);
+  oggpackB_write(&cpi->oggbuffer,'e',8);
+  oggpackB_write(&cpi->oggbuffer,'o',8);
+  oggpackB_write(&cpi->oggbuffer,'r',8);
+  oggpackB_write(&cpi->oggbuffer,'a',8);
+  
   write_Qtables(&cpi->oggbuffer);
   write_FrequencyCounts(&cpi->oggbuffer);
 
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
 
-  op->b_o_s=1;
+  op->b_o_s=0;
   op->e_o_s=0;
   
   op->packetno=0;
@@ -1124,11 +1151,31 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
   c->target_bitrate=oggpackB_read(&opb,24);
   c->quality=ret=oggpackB_read(&opb,6);
 
-  /* dbm -- read important stuff from the stream header: */
+  if(ret==-1)return(OC_BADHEADER);
+
+  return(0);
+}
+
+int theora_decode_tables(theora_info *c, ogg_packet *op){
+  oggpack_buffer opb;
+  oggpackB_readinit(&opb,op->packet,op->bytes);
+
+  {  
+    char id[6];
+    int i;
+    int typeflag=oggpackB_read(&opb,8);
+
+    if(typeflag!=0x82)return(OC_NOTFORMAT);
+    
+    for(i=0;i<6;i++)
+      id[i]=(char)oggpackB_read(&opb,8);
+    
+    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+  }
+  
+  /* todo: check for error */
   read_Qtables(&opb);
   read_FrequencyCounts(&opb);
-
-  if(ret==-1)return(OC_BADHEADER);
 
   return(0);
 }
