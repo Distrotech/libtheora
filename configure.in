@@ -65,8 +65,7 @@ dnl --------------------------------------------------
 dnl Check for headers
 dnl --------------------------------------------------
 
-AC_CHECK_FILE(/usr/local/include/portaudio.h,HAVE_PORTAUDIO=yes)
-AM_CONDITIONAL(HAVE_PORTAUDIO, test "$HAVE_PORTAUDIO" = "yes")
+dnl none here
 
 dnl --------------------------------------------------
 dnl Check for typedefs, structures, etc
@@ -83,6 +82,16 @@ AM_PATH_SDL(,[
 	SDL_LIBS=`$SDL_CONFIG --static-libs`
 ],AC_MSG_WARN([*** Unable to find SDL -- Not compiling player_example ***]))
 AM_CONDITIONAL(HAVE_SDL, test "$HAVE_SDL" = "yes")
+
+HAVE_PORTAUDIO=no
+AC_CHECK_LIB(portaudio, Pa_OpenStream, [
+  AC_CHECK_HEADER(portaudio.h, [HAVE_PORTAUDIO=yes])
+  ],,[-lpthread]
+)
+if test "$HAVE_PORTAUDIO" = "no"; then
+  AC_MSG_WARN([portaudio not found -- not compiling splayer example])
+fi
+AM_CONDITIONAL(HAVE_PORTAUDIO, test "$HAVE_PORTAUDIO" = "yes")
 
 dnl --------------------------------------------------
 dnl Do substitutions
