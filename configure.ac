@@ -64,14 +64,6 @@ fi
 CFLAGS="$CFLAGS $cflags_save"
 LDFLAGS="$LDFLAGS $ldflags_save"
 
-dnl We like threads
-AH_VERBATIM([_REENTRANT],
-[/* define to mark the code thread-safe, and to
-   request thread-safe code from others. */
-#ifndef _REENTRANT
-#define _REENTRANT
-#endif])
-
 dnl --------------------------------------------------
 dnl Check for headers
 dnl --------------------------------------------------
