@@ -7,10 +7,10 @@ SUBDIRS = lib include examples
 EXTRA_DIST = COPYING autogen.sh 
 
 dist-hook:
-        rm -rf `find $(distdir)/macos -name CVS`
+	rm -rf `find $(distdir)/macos -name CVS`
 
 debug:
-        $(MAKE) all CFLAGS="@DEBUG@"
+	$(MAKE) all CFLAGS="@DEBUG@"
 
 profile:
-        $(MAKE) all CFLAGS="@PROFILE@"
+	$(MAKE) all CFLAGS="@PROFILE@"

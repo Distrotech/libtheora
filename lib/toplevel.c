@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.8 2002/09/23 09:15:04 xiphmont Exp $
 
  ********************************************************************/
 
@@ -406,8 +406,8 @@ static void CompressFirstFrame(CP_INSTANCE *cpi) {
   /* set up context of key frame sizes and distances for more local
      datarate control */
   for( i = 0 ; i < KEY_FRAME_CONTEXT ; i ++ ) {
-    cpi->PriorKeyFrameSize[i] = cpi->KeyFrameDataTarget;
-    cpi->PriorKeyFrameDistance[i] = cpi->ForceKeyFrameEvery;
+    cpi->PriorKeyFrameSize[i] = cpi->Configuration.KeyFrameDataTarget;
+    cpi->PriorKeyFrameDistance[i] = cpi->pb.info.keyframe_frequency_force;
   }
   
   /* Keep track of the total number of Key Frames Coded. */
@@ -424,14 +424,15 @@ static void CompressFirstFrame(CP_INSTANCE *cpi) {
   /* Calculate a new target rate per frame allowing for average key
      frame frequency and size thus far. */
   if ( cpi->Configuration.TargetBandwidth > 
-       ((cpi->KeyFrameDataTarget * cpi->Configuration.OutputFrameRate)/
-	cpi->KeyFrameFrequency) ) {
+       ((cpi->Configuration.KeyFrameDataTarget * 
+	 cpi->Configuration.OutputFrameRate)/
+	cpi->pb.info.keyframe_frequency) ) {
 
     cpi->frame_target_rate =  
       (ogg_int32_t)((cpi->Configuration.TargetBandwidth - 
-		     ((cpi->KeyFrameDataTarget * 
+		     ((cpi->Configuration.KeyFrameDataTarget * 
 		       cpi->Configuration.OutputFrameRate)/
-		      cpi->KeyFrameFrequency)) / 
+		      cpi->pb.info.keyframe_frequency)) / 
 		    cpi->Configuration.OutputFrameRate);
   }else 
     cpi->frame_target_rate = 1;
@@ -448,7 +449,7 @@ static void CompressFirstFrame(CP_INSTANCE *cpi) {
 
   /* Set a target size for this key frame based upon the baseline
      target and frequency */
-  cpi->ThisFrameTargetBytes = cpi->KeyFrameDataTarget;
+  cpi->ThisFrameTargetBytes = cpi->Configuration.KeyFrameDataTarget;
   
   /* Get a DCT quantizer level for the key frame. */
   cpi->MotionScore = cpi->pb.UnitFragments;
@@ -493,11 +494,11 @@ static void CompressKeyFrame(CP_INSTANCE *cpi){
   
   /* set a target size for this frame */
   cpi->ThisFrameTargetBytes = (ogg_int32_t) cpi->frame_target_rate + 
-    ( (cpi->KeyFrameDataTarget - cpi->frame_target_rate) * 
-      cpi->LastKeyFrame / cpi->ForceKeyFrameEvery );
+    ( (cpi->Configuration.KeyFrameDataTarget - cpi->frame_target_rate) * 
+      cpi->LastKeyFrame / cpi->pb.info.keyframe_frequency_force );
    
-  if ( cpi->ThisFrameTargetBytes > cpi->KeyFrameDataTarget )
-    cpi->ThisFrameTargetBytes = cpi->KeyFrameDataTarget;
+  if ( cpi->ThisFrameTargetBytes > cpi->Configuration.KeyFrameDataTarget )
+    cpi->ThisFrameTargetBytes = cpi->Configuration.KeyFrameDataTarget;
   
   /* Get a DCT quantizer level for the key frame. */
   cpi->MotionScore = cpi->pb.UnitFragments;
@@ -599,7 +600,7 @@ static void CompressFrame( CP_INSTANCE *cpi) {
   
   /* if we are allowed to drop frames and are falling behind (eg more
      than x frames worth of bandwidth) */
-  if ( cpi->DropFramesAllowed && 
+  if ( cpi->pb.info.dropframes_p && 
        ( cpi->DropCount < cpi->MaxConsDroppedFrames) && 
        ( cpi->CarryOver < 
 	 -((ogg_int32_t)cpi->Configuration.TargetBandwidth)) &&
@@ -642,7 +643,7 @@ static void CompressFrame( CP_INSTANCE *cpi) {
     
     
     /* Set Baseline filter level. */
-    ConfigurePP( &cpi->pp, cpi->PreProcFilterLevel );
+    ConfigurePP( &cpi->pp, cpi->pb.info.noise_sensitivity);
     
     /* Score / analyses the fragments. */ 
     cpi->MotionScore = YUVAnalyseFrame(&cpi->pp, &KFIndicator );
@@ -718,12 +719,14 @@ static void CompressFrame( CP_INSTANCE *cpi) {
 
     /* decide whether we really should have made this frame a key frame */
 
-    if( cpi->AutoKeyFrameEnabled ) {
+    if( cpi->pb.info.keyframe_auto_p){
       if( ( ( 2* IntraError < 5 * InterError ) 
-	    && ( KFIndicator >= (ogg_uint32_t) cpi->AutoKeyFrameThreshold) 
-	    && ( cpi->LastKeyFrame > cpi->MinimumDistanceToKeyFrame) 
+	    && ( KFIndicator >= (ogg_uint32_t) 
+		 cpi->pb.info.keyframe_auto_threshold)
+	    && ( cpi->LastKeyFrame > cpi->pb.info.keyframe_mindistance)
 	    ) ||
-	  (cpi->LastKeyFrame >= (ogg_uint32_t)cpi->ForceKeyFrameEvery) ) {
+	  (cpi->LastKeyFrame >= (ogg_uint32_t)
+	   cpi->pb.info.keyframe_frequency_force) ){
 	
 	CompressKeyFrame(cpi);  // Code a key frame
 	return;
@@ -749,9 +752,10 @@ static void CompressFrame( CP_INSTANCE *cpi) {
       
     }
   }else{
-    if (cpi->NoDrops == 1){
-      UpdateFrame(cpi);
-    }
+    /* even if we 'drop' a frame, a placeholder must be written as we
+       currently assume fixed frame rate timebase as Ogg mapping
+       invariant */
+    UpdateFrame(cpi);
   }
 }
  
@@ -814,12 +818,10 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->MotionCompensation = 1;
   cpi->ThreshMapThreshold = 5;
   cpi->MaxConsDroppedFrames = 1;
-  cpi->Sharpness = c->sharpness;
 
   /* Set encoder flags. */
   /* if not AutoKeyframing cpi->ForceKeyFrameEvery = is frequency */
-  cpi->AutoKeyFrameEnabled = c->keyframe_auto_p;
-  if(!cpi->AutoKeyFrameEnabled) 
+  if(!c->keyframe_auto_p)
     c->keyframe_frequency_force = c->keyframe_frequency;
 
   /* Set the frame rate variables. */
@@ -828,31 +830,26 @@ int theora_encode_init(theora_state *th, theora_info *c){
   if ( c->fps_denominator < 1 )
     c->fps_denominator = 1;
 
+  /* don't go too nuts on keyframe spacing; impose a high limit to
+     make certain the granulepos encoding strategy works */
+  if(c->keyframe_frequency_force>32768)c->keyframe_frequency_force=32768;
+  if(c->keyframe_mindistance>32768)c->keyframe_mindistance=32768;
+  if(c->keyframe_mindistance>c->keyframe_frequency_force)
+    c->keyframe_mindistance=c->keyframe_frequency_force;
+  cpi->pb.keyframe_granule_shift=_ilog(c->keyframe_frequency_force-1);
+
   /* copy in config */
   memcpy(&cpi->pb.info,c,sizeof(*c));
 
-  cpi->ForceKeyFrameEvery = c->keyframe_frequency_force;
-  cpi->KeyFrameFrequency = c->keyframe_frequency;  
-  cpi->DropFramesAllowed = c->droppedframes_p;
-  cpi->QuickCompress = c->quickcompress_p;
-  cpi->MinimumDistanceToKeyFrame = c->keyframe_mindistance;
-  cpi->PreProcFilterLevel = c->noise_sensitivity;
-  cpi->AutoKeyFrameThreshold = c->keyframe_auto_threshold;
-
-  
   /* Set up default values for QTargetModifier[Q_TABLE_SIZE] table */
   for ( i = 0; i < Q_TABLE_SIZE; i++ ) 
     cpi->QTargetModifier[i] = 1.0;
  
   /* Set up an encode buffer */
-  oggpackB_writeinit(&cpi->oggbuffer);
-  
+  oggpackB_writeinit(&cpi->oggbuffer);  
 
   /* Set data rate related variables. */
   cpi->Configuration.TargetBandwidth = (c->target_bitrate) / 8;
-  
-  /* Set key frame data rate target */
-  cpi->KeyFrameDataTarget = (c->keyframe_data_target_bitrate) / 8;
   
   cpi->Configuration.OutputFrameRate =
     (double)( c->fps_numerator /
@@ -862,10 +859,9 @@ int theora_encode_init(theora_state *th, theora_info *c){
     cpi->Configuration.OutputFrameRate; 
   
   /* Set key frame data rate target; this is nominal keyframe size */
-  cpi->KeyFrameDataTarget = (c->keyframe_data_target_bitrate * 
-			     c->fps_numerator /
-			     c->fps_denominator ) / 8;
-
+  cpi->Configuration.KeyFrameDataTarget = (c->keyframe_data_target_bitrate * 
+					   c->fps_numerator /
+					   c->fps_denominator ) / 8;
 
   /* Note the height and width in the pre-processor control structure. */
   cpi->ScanConfig.VideoFrameHeight = cpi->pb.info.height;
@@ -884,18 +880,6 @@ int theora_encode_init(theora_state *th, theora_info *c){
 
   /* Initialise the pre-processor module. */
   ScanYUVInit(&cpi->pp, &(cpi->ScanConfig));
-
-  /* don't go too nuts on keyframe spacing; impose a high limit to
-     make certain the granulepos encoding strategy works */
-  if(cpi->ForceKeyFrameEvery>32768)cpi->ForceKeyFrameEvery=32768;
-  if(cpi->MinimumDistanceToKeyFrame>32768)cpi->MinimumDistanceToKeyFrame=32768;
-
-  {
-    long maxPframes=(int)cpi->ForceKeyFrameEvery > 
-      (int)cpi->MinimumDistanceToKeyFrame ?
-      cpi->ForceKeyFrameEvery : cpi->MinimumDistanceToKeyFrame ;
-    cpi->pb.keyframe_granule_shift=_ilog(maxPframes-1);
-  }  
 
   /* Initialise Motion compensation */
   InitMotionCompensation(cpi);

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.8 2002/09/23 09:15:04 xiphmont Exp $
 
  ********************************************************************/
 
@@ -63,6 +63,7 @@
 typedef struct CONFIG_TYPE2{
   double       OutputFrameRate;
   ogg_uint32_t TargetBandwidth;
+  ogg_uint32_t KeyFrameDataTarget ;  /* Data rate target for key frames */
 
   ogg_uint32_t FirstFrameQ;
   ogg_uint32_t BaseQ;
@@ -460,22 +461,12 @@ typedef struct CP_INSTANCE {
   int              GoldenFrameEnabled;
   int              InterPrediction;
   int              MotionCompensation;
-  int              AutoKeyFrameEnabled ;
-  ogg_int32_t      ForceKeyFrameEvery ;
-  ogg_int32_t      AutoKeyFrameThreshold ;
+
   ogg_uint32_t     LastKeyFrame ;
-  ogg_uint32_t     MinimumDistanceToKeyFrame ;
-  ogg_uint32_t     KeyFrameDataTarget ;  /* Data rate target for key frames */
-  ogg_uint32_t     KeyFrameFrequency ;
-  int              DropFramesAllowed ; 
   ogg_int32_t      DropCount ;
   ogg_int32_t      MaxConsDroppedFrames ;
   ogg_int32_t      DropFrameTriggerBytes;
   int              DropFrameCandidate;
-  ogg_uint32_t     QualitySetting;
-  ogg_uint32_t     Sharpness;
-  ogg_uint32_t     PreProcFilterLevel;
-  int              NoDrops;
 
   /* Compressor Statistics */
   double           TotErrScore;

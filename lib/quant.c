@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.3 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: quant.c,v 1.4 2002/09/23 09:15:04 xiphmont Exp $
 
  ********************************************************************/
 
@@ -121,7 +121,7 @@ static void init_quantizer ( CP_INSTANCE *cpi,
     UVDcScaleFactorTable = DcScaleFactorTableV1;
     ZBinFactor = 0.9;
     
-    switch(cpi->Sharpness){
+    switch(cpi->pb.info.sharpness){
     case 0:
       ZBinFactor = 0.65;
       if ( scale_factor <= 50 )

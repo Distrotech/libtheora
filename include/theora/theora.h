@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.1 2002/09/23 03:02:07 xiphmont Exp $
+  last mod: $Id: theora.h,v 1.2 2002/09/23 09:15:03 xiphmont Exp $
 
  ********************************************************************/
 
@@ -44,6 +44,8 @@ typedef struct{
   ogg_uint32_t  height;
   ogg_uint32_t  fps_numerator;
   ogg_uint32_t  fps_denominator;
+  ogg_uint32_t  aspect_numerator;
+  ogg_uint32_t  aspect_denominator;
   int           target_bitrate;
   int           quality;
 
@@ -53,7 +55,7 @@ typedef struct{
   unsigned char version_subminor;
 
   /* encode only */
-  int           droppedframes_p;
+  int           dropframes_p;
   int           quickcompress_p;
   int           keyframe_auto_p;
   ogg_uint32_t  keyframe_frequency;
@@ -88,6 +90,7 @@ extern int theora_decode_init(theora_state *th, theora_info *c);
 extern void theora_decode_clear(theora_state *th);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
+extern double theora_packet_time(theora_state *th,ogg_packet *op);
 
 
 
