@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: theora.h,v 1.13 2003/06/10 11:50:28 giles Exp $
+  last mod: $Id: theora.h,v 1.14 2003/09/26 15:03:48 tterribe Exp $
 
  ********************************************************************/
 
@@ -35,9 +35,9 @@ typedef struct {
 } yuv_buffer;
 
 typedef enum {
-    not_specified = 0,
-    ITU_Rec_601 = 1,
-    CIE_Rec_709 = 2
+  OC_CS_UNSPECIFIED,
+  OC_CS_ITU_REC_470M,
+  OC_CS_ITU_REC_470BG,
 } theora_colorspace;
 
 typedef struct {

@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.25 2003/07/15 13:21:21 giles Exp $
+  last mod: $Id: player_example.c,v 1.26 2003/09/26 15:03:48 tterribe Exp $
 
  ********************************************************************/
 
@@ -582,7 +582,7 @@ int main(int argc,char *argv[]){
      and video start roughly together, and don't begin playback until
      we have a start frame for both.  This is not necessarily a valid
      assumption in Ogg A/V streams! It will always be true of the
-     enxample_encoder (and most streams) though. */
+     example_encoder (and most streams) though. */
 
   stateflag=0; /* playback has not begun */
   while(!got_sigint){

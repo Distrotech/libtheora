@@ -757,14 +757,14 @@ static int dump_comments(theora_comment *tc){
 static void report_colorspace(theora_info *ti)
 {
     switch(ti->colorspace){
-      case not_specified:
+      case OC_CS_UNSPECIFIED:
         /* nothing to report */
         break;;
-      case ITU_Rec_601:
-        fprintf(stderr,"  encoder specified ITU Rec 601 color.\n");
+      case OC_CS_ITU_REC_470M:
+        fprintf(stderr,"  encoder specified ITU Rec 470M color.\n");
         break;;
-      case CIE_Rec_709:
-        fprintf(stderr,"  encoder specified CIE Rec 709 color.\n");
+      case OC_CS_ITU_REC_470BG:
+        fprintf(stderr,"  encoder specified ITU Rec 470BG color.\n");
         break;;
       default:
         fprintf(stderr,"warning: encoder specified unknown colorspace (%d).\n",
