@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.9 2002/09/23 23:18:07 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.10 2002/09/24 05:06:14 xiphmont Exp $
 
  ********************************************************************/
 
@@ -1080,7 +1080,6 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
   int ret;
   oggpack_buffer opb;
   oggpackB_readinit(&opb,op->packet,op->bytes);
-  memset(c,0,sizeof(*c));
   
   if(!op->b_o_s)return(OC_BADHEADER);
   {
@@ -1094,6 +1093,8 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
       id[i]=(char)oggpackB_read(&opb,8);
     
     if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+
+    memset(c,0,sizeof(*c));
 
     c->version_major=oggpackB_read(&opb,8);
     c->version_minor=oggpackB_read(&opb,8);
