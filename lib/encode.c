@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.13 2003/06/15 04:29:04 tterribe Exp $
+  last mod: $Id: encode.c,v 1.14 2003/11/06 23:44:57 giles Exp $
 
  ********************************************************************/
 
@@ -1472,6 +1472,9 @@ void WriteFrameHeader( CP_INSTANCE *cpi) {
     /*IssueWarning( "Invalid Q Multiplier" );*/
     oggpackB_write( opb, 31, 6 );
   }
+
+  /* we only support on Q index per frame */
+  oggpackB_write( opb, 0, 1 );
 
   /* If the frame was a base frame then write out the frame dimensions. */
   if ( cpi->pb.FrameType == BASE_FRAME ) {

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: decode.c,v 1.7 2003/10/21 22:12:36 giles Exp $
+  last mod: $Id: decode.c,v 1.8 2003/11/06 23:44:57 giles Exp $
 
  ********************************************************************/
 
@@ -70,8 +70,9 @@ static int LoadFrameHeader(PB_INSTANCE *pbi){
   /* Quality (Q) index */
   DctQMask = (unsigned char)oggpackB_read( &pbi->opb, 6 );
 
-  /* If the frame was a base frame then read the frame dimensions and
-     build a bitmap structure. */
+  /* spare bit for possible additional Q indicies - should be 0 */
+  SpareBits = (unsigned char)oggpackB_read(&pbi->opb,1);
+
   if ( (pbi->FrameType == BASE_FRAME) ){
     /* Read the type / coding method for the key frame. */
     pbi->KeyFrameType = (unsigned char)oggpackB_read( &pbi->opb, 1 );
