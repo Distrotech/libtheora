@@ -28,8 +28,8 @@ encoder_example_LDADD = $(GETOPT_OBJS) $(LDADD) -lvorbisenc -lvorbis -lm
 encoder_example_DEPENDENCIES = $(GETOPT_OBJS)
 
 debug:
-	$(MAKE) all CFLAGS="@DEBUG@"
+	$(MAKE) all CFLAGS="@DEBUG@ $(CFLAGS)"
 
 profile:
-	$(MAKE) all CFLAGS="@PROFILE@"
+	$(MAKE) all CFLAGS="@PROFILE@ $(CFLAGS)"
 

@@ -42,7 +42,7 @@
 #include <portaudio.h>
 #include <SDL.h>
 
-/*for portaudio  */
+/* for portaudio  */
 #define FRAMES_PER_BUFFER (256)
 
 /*start of portaudio helper functions, extracted from pablio directory*/
