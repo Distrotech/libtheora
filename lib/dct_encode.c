@@ -11,9 +11,13 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_encode.c,v 1.1 2002/09/16 07:10:02 xiphmont Exp $
+  last mod: $Id: dct_encode.c,v 1.2 2002/09/18 08:56:56 xiphmont Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
+
+int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
 
 void SUB8 (unsigned char *FiltPtr, unsigned char *ReconPtr, 
 	   ogg_int16_t *DctInputPtr, unsigned char *old_ptr1, 
@@ -115,110 +119,7 @@ void SUB8AV2 (unsigned char *FiltPtr, unsigned char *ReconPtr1,
   }
 }
 
-ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex, 
-				ogg_uint32_t PixelsPerLine ) {
-  ogg_uint32_t  token_count;
-  Q_LIST_ENTRY  TempLastDC = 0;
-  
-  
-  if ( GetFrameType(&cpi->pb) == BASE_FRAME ){
-    /* Key frame so code block in INTRA mode. */
-    cpi->pb.CodingMode = CODE_INTRA;
-  }else{
-    /* Get Motion vector and mode for this block. */
-    cpi->pb.CodingMode = cpi->pb.FragCodingMethod[FragIndex];
-  }
-  
-  /* Tokenise the dct data. */
-  token_count = TokenizeDctBlock( cpi->pb.QFragData[FragIndex], 
-				  cpi->pb.TokenList[FragIndex] );
-    
-  cpi->FragTokenCounts[FragIndex] = token_count;
-  cpi->TotTokenCount += token_count;
-  
-  /* Return number of pixels coded (i.e. 8x8). */
-  return BLOCK_SIZE;
-}
-
-int AllZeroDctData( Q_LIST_ENTRY * QuantList ){
-  ogg_uint32_t i;
-
-  for ( i = 0; i < 64; i ++ )
-    if ( QuantList[i] != 0 )
-      return 0;
-  
-  return 1;
-}
-
-unsigned char TokenizeDctBlock (ogg_int16_t * RawData, 
-				ogg_uint32_t * TokenListPtr ) {
-  ogg_uint32_t i;  
-  unsigned char  run_count;    
-  unsigned char  token_count = 0;     /* Number of tokens crated. */
-  ogg_uint32_t AbsData;
-  
-  
-  /* Tokenize the block */
-  for( i = 0; i < BLOCK_SIZE; i++ ){   
-    run_count = 0;  
-    
-    /* Look for a zero run.  */
-    /* NOTE the use of & instead of && which is faster (and
-       equivalent) in this instance. */
-    while( (i < BLOCK_SIZE) & (!RawData[i]) ){
-      run_count++; 
-      i++;
-    }
-    
-    /* If we have reached the end of the block then code EOB */
-    if ( i == BLOCK_SIZE ){
-      TokenListPtr[token_count] = DCT_EOB_TOKEN;    
-      token_count++;
-    }else{
-      /* If we have a short zero run followed by a low data value code
-         the two as a composite token. */
-      if ( run_count ){
-	AbsData = abs(RawData[i]);
-	
-	if ( ((AbsData == 1) && (run_count <= 17)) || 
-	     ((AbsData <= 3) && (run_count <= 3)) ) {
-	  /* Tokenise the run and subsequent value combination value */
-	  token_count += TokenizeDctRunValue( run_count, 
-					      RawData[i], 
-					      &TokenListPtr[token_count] );
-	}else{
-
-	/* Else if we have a long non-EOB run or a run followed by a
-	   value token > MAX_RUN_VAL then code the run and token
-	   seperately */
-	  if ( run_count <= 8 )
-	    TokenListPtr[token_count] = DCT_SHORT_ZRL_TOKEN;
-	  else
-	    TokenListPtr[token_count] = DCT_ZRL_TOKEN;
-	  
-	  token_count++;
-	  TokenListPtr[token_count] = run_count - 1;    
-	  token_count++;
-	  
-	  /* Now tokenize the value */
-	  token_count += TokenizeDctValue( RawData[i], 
-					   &TokenListPtr[token_count] );
-	}
-      }else{
-	/* Else there was NO zero run. */
-	/* Tokenise the value  */
-	token_count += TokenizeDctValue( RawData[i], 
-					 &TokenListPtr[token_count] );
-      }
-    }
-  }
-
-  /* Return the total number of tokens (including additional bits
-     tokens) used. */
-  return token_count;
-}
-
-unsigned char  TokenizeDctValue (ogg_int16_t DataValue, 
+unsigned char TokenizeDctValue (ogg_int16_t DataValue, 
 				 ogg_uint32_t * TokenListPtr ){
   unsigned char tokens_added = 0;
   ogg_uint32_t AbsDataVal = abs( (ogg_int32_t)DataValue );
@@ -374,6 +275,109 @@ unsigned char TokenizeDctRunValue (unsigned char RunLength,
   
   /* Return the total number of tokens added */
   return tokens_added;
+}
+
+unsigned char TokenizeDctBlock (ogg_int16_t * RawData, 
+				ogg_uint32_t * TokenListPtr ) {
+  ogg_uint32_t i;  
+  unsigned char  run_count;    
+  unsigned char  token_count = 0;     /* Number of tokens crated. */
+  ogg_uint32_t AbsData;
+  
+  
+  /* Tokenize the block */
+  for( i = 0; i < BLOCK_SIZE; i++ ){   
+    run_count = 0;  
+    
+    /* Look for a zero run.  */
+    /* NOTE the use of & instead of && which is faster (and
+       equivalent) in this instance. */
+    while( (i < BLOCK_SIZE) & (!RawData[i]) ){
+      run_count++; 
+      i++;
+    }
+    
+    /* If we have reached the end of the block then code EOB */
+    if ( i == BLOCK_SIZE ){
+      TokenListPtr[token_count] = DCT_EOB_TOKEN;    
+      token_count++;
+    }else{
+      /* If we have a short zero run followed by a low data value code
+         the two as a composite token. */
+      if ( run_count ){
+	AbsData = abs(RawData[i]);
+	
+	if ( ((AbsData == 1) && (run_count <= 17)) || 
+	     ((AbsData <= 3) && (run_count <= 3)) ) {
+	  /* Tokenise the run and subsequent value combination value */
+	  token_count += TokenizeDctRunValue( run_count, 
+					      RawData[i], 
+					      &TokenListPtr[token_count] );
+	}else{
+
+	/* Else if we have a long non-EOB run or a run followed by a
+	   value token > MAX_RUN_VAL then code the run and token
+	   seperately */
+	  if ( run_count <= 8 )
+	    TokenListPtr[token_count] = DCT_SHORT_ZRL_TOKEN;
+	  else
+	    TokenListPtr[token_count] = DCT_ZRL_TOKEN;
+	  
+	  token_count++;
+	  TokenListPtr[token_count] = run_count - 1;    
+	  token_count++;
+	  
+	  /* Now tokenize the value */
+	  token_count += TokenizeDctValue( RawData[i], 
+					   &TokenListPtr[token_count] );
+	}
+      }else{
+	/* Else there was NO zero run. */
+	/* Tokenise the value  */
+	token_count += TokenizeDctValue( RawData[i], 
+					 &TokenListPtr[token_count] );
+      }
+    }
+  }
+
+  /* Return the total number of tokens (including additional bits
+     tokens) used. */
+  return token_count;
+}
+
+ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex, 
+				ogg_uint32_t PixelsPerLine ) {
+  ogg_uint32_t  token_count;
+  Q_LIST_ENTRY  TempLastDC = 0;
+  
+  
+  if ( GetFrameType(&cpi->pb) == BASE_FRAME ){
+    /* Key frame so code block in INTRA mode. */
+    cpi->pb.CodingMode = CODE_INTRA;
+  }else{
+    /* Get Motion vector and mode for this block. */
+    cpi->pb.CodingMode = cpi->pb.FragCodingMethod[FragIndex];
+  }
+  
+  /* Tokenise the dct data. */
+  token_count = TokenizeDctBlock( cpi->pb.QFragData[FragIndex], 
+				  cpi->pb.TokenList[FragIndex] );
+    
+  cpi->FragTokenCounts[FragIndex] = token_count;
+  cpi->TotTokenCount += token_count;
+  
+  /* Return number of pixels coded (i.e. 8x8). */
+  return BLOCK_SIZE;
+}
+
+int AllZeroDctData( Q_LIST_ENTRY * QuantList ){
+  ogg_uint32_t i;
+
+  for ( i = 0; i < 64; i ++ )
+    if ( QuantList[i] != 0 )
+      return 0;
+  
+  return 1;
 }
 
 void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr, 
@@ -570,4 +574,3 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   }
 
 }
-

@@ -11,19 +11,25 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.2 2002/09/17 07:01:33 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.3 2002/09/18 08:56:57 xiphmont Exp $
 
  ********************************************************************/
 
+#include <stdlib.h>
+#include <ogg/ogg.h>
+#include <theora/theora.h>
+#include "encoder_internal.h"
+#include "encoder_lookup.h"
+
 #define A_TABLE_SIZE	    29
 #define DF_CANDIDATE_WINDOW 5
-#define VERSION_MAJOR 0
-#define VERSION_MINOR 0
+#define VERSION_MAJOR 3
+#define VERSION_MINOR 1
 #define VERSION_SUB 0
 
 #define CommentString "Xiph.Org libTheora I 20020916 0 0 0"
 
-static void EDeleteFragmentInfo(CP_INSTANCE * cpi){
+static void EClearFragmentInfo(CP_INSTANCE * cpi){
   if(cpi->extra_fragments)
     _ogg_free(cpi->extra_fragments);
   if(cpi->FragmentLastQ)
@@ -151,7 +157,7 @@ static void EAllocateFragmentInfo(CP_INSTANCE * cpi){
 
 }
 
-void EDeleteFrameInfo(CP_INSTANCE * cpi) {
+void EClearFrameInfo(CP_INSTANCE * cpi) {
   if(cpi->ConvDestBuffer )
     _ogg_free(cpi->ConvDestBuffer );
   cpi->ConvDestBuffer = 0;
@@ -238,7 +244,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
   ogg_int32_t MinFrameTargetRate;
   
   /* Update the frame carry over. */
-  cpi->TotKeyFrameBytes += oggpackB_bytes(&cpi->opb);
+  cpi->TotKeyFrameBytes += oggpackB_bytes(&cpi->oggbuffer);
   
   /* reset keyframe context and calculate weighted average of last
      KEY_FRAME_CONTEXT keyframes */
@@ -248,7 +254,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
       cpi->PriorKeyFrameDistance[i] = cpi->PriorKeyFrameDistance[i+1];
     } else {
       cpi->PriorKeyFrameSize[KEY_FRAME_CONTEXT - 1] = 
-	oggpackB_bytes(&cpi->opb);
+	oggpackB_bytes(&cpi->oggbuffer);
       cpi->PriorKeyFrameDistance[KEY_FRAME_CONTEXT - 1] = 
 	cpi->LastKeyFrame;
     }
@@ -287,12 +293,121 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
   }
 
   cpi->LastKeyFrame = 1;
-  cpi->LastKeyFrameSize=oggpackB_bytes(&cpi->opb);
+  cpi->LastKeyFrameSize=oggpackB_bytes(&cpi->oggbuffer);
 
 }
 
+void UpdateFrame(CP_INSTANCE *cpi){
+  ogg_int32_t AvKeyFrameFrequency = 
+    (ogg_int32_t) (cpi->CurrentFrame / cpi->KeyFrameCount);  
+  ogg_int32_t AvKeyFrameBytes = 
+    (ogg_int32_t) (cpi->TotKeyFrameBytes / cpi->KeyFrameCount);
+  ogg_int32_t TotalWeight = 0;
+  
+  double CorrectionFactor;
+  ogg_uint32_t  fragment_count = 0;                               
+  
+  ogg_uint32_t diff_tokens = 0;                  
+  ogg_uint32_t  bits_per_token = 0;
+  
+  /* Reset the DC predictors. */
+  cpi->pb.LastIntraDC = 0;
+  cpi->pb.InvLastIntraDC = 0;
+  cpi->pb.LastInterDC = 0;
+  cpi->pb.InvLastInterDC = 0;
+    
+  /* Initialise bit packing mechanism. */
+  oggpackB_reset(&cpi->oggbuffer);
+  
+  /* Write out the frame header information including size. */
+  WriteFrameHeader(cpi);
+  
+  /* Copy back any extra frags that are to be updated by the codec 
+     as part of the background cleanup task */
+  CopyBackExtraFrags(cpi);
+  
+  /* Encode the data.  */
+  EncodeData(cpi); 
+
+  /* Adjust drop frame trigger. */
+  if ( GetFrameType(&cpi->pb) != BASE_FRAME ) {
+    /* Apply decay factor then add in the last frame size. */
+    cpi->DropFrameTriggerBytes = 
+      ((cpi->DropFrameTriggerBytes * (DF_CANDIDATE_WINDOW-1)) / 
+       DF_CANDIDATE_WINDOW) + oggpackB_bytes(&cpi->oggbuffer);
+  }else{
+    /* Increase cpi->DropFrameTriggerBytes a little. Just after a key
+       frame may actually be a good time to drop a frame. */
+    cpi->DropFrameTriggerBytes = 
+      (cpi->DropFrameTriggerBytes * DF_CANDIDATE_WINDOW) / 
+      (DF_CANDIDATE_WINDOW-1);
+  }
+
+  /* Test for overshoot which may require a dropped frame next time
+     around.  If we are already in a drop frame condition but the
+     previous frame was not dropped then the threshold for continuing
+     to allow dropped frames is reduced. */
+  if ( cpi->DropFrameCandidate ) {
+    if ( cpi->DropFrameTriggerBytes > 
+	 (cpi->frame_target_rate * (DF_CANDIDATE_WINDOW+1)) )
+      cpi->DropFrameCandidate = 1;
+    else
+      cpi->DropFrameCandidate = 0;
+  } else {
+    if ( cpi->DropFrameTriggerBytes > 
+	 (cpi->frame_target_rate * ((DF_CANDIDATE_WINDOW*2)-2)) )
+      cpi->DropFrameCandidate = 1;
+    else
+      cpi->DropFrameCandidate = 0;
+  }
+  
+  /* Update the BpbCorrectionFactor variable according to whether or
+     not we were close enough with our selection of DCT quantiser.  */
+  if ( GetFrameType(&cpi->pb) != BASE_FRAME ) {
+    /* Work out a size correction factor. */
+    CorrectionFactor = (double)oggpackB_bytes(&cpi->oggbuffer) / 
+      (double)cpi->ThisFrameTargetBytes;
+  
+    if ( (CorrectionFactor > 1.05) && 
+	 (cpi->pb.ThisFrameQualityValue < 
+	  cpi->pb.QThreshTable[cpi->Configuration.ActiveMaxQ]) ) {
+      CorrectionFactor = 1.0 + ((CorrectionFactor - 1.0)/2);
+      if ( CorrectionFactor > 1.5 )
+	cpi->BpbCorrectionFactor *= 1.5;
+      else
+	cpi->BpbCorrectionFactor *= CorrectionFactor;
+      
+      /* Keep BpbCorrectionFactor within limits */
+      if ( cpi->BpbCorrectionFactor > MAX_BPB_FACTOR )
+	cpi->BpbCorrectionFactor = MAX_BPB_FACTOR;
+    } else if ( (CorrectionFactor < 0.95) &&
+		(cpi->pb.ThisFrameQualityValue > VERY_BEST_Q) ){
+      CorrectionFactor = 1.0 - ((1.0 - CorrectionFactor)/2);
+      if ( CorrectionFactor < 0.75 )
+	cpi->BpbCorrectionFactor *= 0.75;
+      else
+	cpi->BpbCorrectionFactor *= CorrectionFactor;
+      
+      /* Keep BpbCorrectionFactor within limits */
+      if ( cpi->BpbCorrectionFactor < MIN_BPB_FACTOR )
+	cpi->BpbCorrectionFactor = MIN_BPB_FACTOR;
+    }
+  }
+
+  /* Adjust carry over and or key frame context. */
+  if ( GetFrameType(&cpi->pb) == BASE_FRAME ) {
+    /* Adjust the key frame context unless the key frame was very small */
+    AdjustKeyFrameContext(cpi);
+  } else {
+    /* Update the frame carry over */
+    cpi->CarryOver += ((ogg_int32_t)cpi->frame_target_rate - 
+		       (ogg_int32_t)oggpackB_bytes(&cpi->oggbuffer));
+  }
+  cpi->TotalByteCount += oggpackB_bytes(&cpi->oggbuffer);
+}
+
 static void CompressFirstFrame(CP_INSTANCE *cpi) {                  
-  ogg_uint32_t  register i; 
+  ogg_uint32_t i; 
 
   /* if not AutoKeyframing cpi->ForceKeyFrameEvery = is frequency */
   if(!cpi->AutoKeyFrameEnabled) 
@@ -545,10 +660,10 @@ static void CompressFrame( CP_INSTANCE *cpi, ogg_uint32_t FrameNumber ) {
     
     
     /* Set Baseline filter level. */
-    SetScanParam( cpi->pp, SCP_CONFIGURE_PP, cpi->PreProcFilterLevel );
+    SetScanParam( &cpi->pp, SCP_CONFIGURE_PP, cpi->PreProcFilterLevel );
     
     /* Score / analyses the fragments. */ 
-    cpi->MotionScore = YUVAnalyseFrame(cpi->pp, &KFIndicator );
+    cpi->MotionScore = YUVAnalyseFrame(&cpi->pp, &KFIndicator );
     
     /* Get the baseline Q value */
     RegulateQ( cpi, cpi->MotionScore );
@@ -658,115 +773,6 @@ static void CompressFrame( CP_INSTANCE *cpi, ogg_uint32_t FrameNumber ) {
   }
 }
   
-void UpdateFrame(CP_INSTANCE *cpi){
-  ogg_int32_t AvKeyFrameFrequency = 
-    (ogg_int32_t) (cpi->CurrentFrame / cpi->KeyFrameCount);  
-  ogg_int32_t AvKeyFrameBytes = 
-    (ogg_int32_t) (cpi->TotKeyFrameBytes / cpi->KeyFrameCount);
-  ogg_int32_t TotalWeight = 0;
-  
-  double CorrectionFactor;
-  ogg_uint32_t  fragment_count = 0;                               
-  
-  ogg_uint32_t diff_tokens = 0;                  
-  ogg_uint32_t  bits_per_token = 0;
-  
-  /* Reset the DC predictors. */
-  cpi->pb.LastIntraDC = 0;
-  cpi->pb.InvLastIntraDC = 0;
-  cpi->pb.LastInterDC = 0;
-  cpi->pb.InvLastInterDC = 0;
-    
-  /* Initialise bit packing mechanism. */
-  oggpackB_reset(&cpi->opb);
-  
-  /* Write out the frame header information including size. */
-  WriteFrameHeader(cpi);
-  
-  /* Copy back any extra frags that are to be updated by the codec 
-     as part of the background cleanup task */
-  CopyBackExtraFrags(cpi);
-  
-  /* Encode the data.  */
-  EncodeData(cpi); 
-
-  /* Adjust drop frame trigger. */
-  if ( GetFrameType(&cpi->pb) != BASE_FRAME ) {
-    /* Apply decay factor then add in the last frame size. */
-    cpi->DropFrameTriggerBytes = 
-      ((cpi->DropFrameTriggerBytes * (DF_CANDIDATE_WINDOW-1)) / 
-       DF_CANDIDATE_WINDOW) + oggpackB_bytes(&cpi->opb);
-  }else{
-    /* Increase cpi->DropFrameTriggerBytes a little. Just after a key
-       frame may actually be a good time to drop a frame. */
-    cpi->DropFrameTriggerBytes = 
-      (cpi->DropFrameTriggerBytes * DF_CANDIDATE_WINDOW) / 
-      (DF_CANDIDATE_WINDOW-1);
-  }
-
-  /* Test for overshoot which may require a dropped frame next time
-     around.  If we are already in a drop frame condition but the
-     previous frame was not dropped then the threshold for continuing
-     to allow dropped frames is reduced. */
-  if ( cpi->DropFrameCandidate ) {
-    if ( cpi->DropFrameTriggerBytes > 
-	 (cpi->frame_target_rate * (DF_CANDIDATE_WINDOW+1)) )
-      cpi->DropFrameCandidate = 1;
-    else
-      cpi->DropFrameCandidate = 0;
-  } else {
-    if ( cpi->DropFrameTriggerBytes > 
-	 (cpi->frame_target_rate * ((DF_CANDIDATE_WINDOW*2)-2)) )
-      cpi->DropFrameCandidate = 1;
-    else
-      cpi->DropFrameCandidate = 0;
-  }
-  
-  /* Update the BpbCorrectionFactor variable according to whether or
-     not we were close enough with our selection of DCT quantiser.  */
-  if ( GetFrameType(&cpi->pb) != BASE_FRAME ) {
-    /* Work out a size correction factor. */
-    CorrectionFactor = (double)oggpackB_bytes(&cpi->opb) / 
-      (double)cpi->ThisFrameTargetBytes;
-  
-    if ( (CorrectionFactor > 1.05) && 
-	 (cpi->pb.ThisFrameQualityValue < 
-	  cpi->pb.QThreshTable[cpi->Configuration.ActiveMaxQ]) ) {
-      CorrectionFactor = 1.0 + ((CorrectionFactor - 1.0)/2);
-      if ( CorrectionFactor > 1.5 )
-	cpi->BpbCorrectionFactor *= 1.5;
-      else
-	cpi->BpbCorrectionFactor *= CorrectionFactor;
-      
-      /* Keep BpbCorrectionFactor within limits */
-      if ( cpi->BpbCorrectionFactor > MAX_BPB_FACTOR )
-	cpi->BpbCorrectionFactor = MAX_BPB_FACTOR;
-    } else if ( (CorrectionFactor < 0.95) &&
-		(cpi->pb.ThisFrameQualityValue > VERY_BEST_Q) ){
-      CorrectionFactor = 1.0 - ((1.0 - CorrectionFactor)/2);
-      if ( CorrectionFactor < 0.75 )
-	cpi->BpbCorrectionFactor *= 0.75;
-      else
-	cpi->BpbCorrectionFactor *= CorrectionFactor;
-      
-      /* Keep BpbCorrectionFactor within limits */
-      if ( cpi->BpbCorrectionFactor < MIN_BPB_FACTOR )
-	cpi->BpbCorrectionFactor = MIN_BPB_FACTOR;
-    }
-  }
-
-  /* Adjust carry over and or key frame context. */
-  if ( GetFrameType(&cpi->pb) == BASE_FRAME ) {
-    /* Adjust the key frame context unless the key frame was very small */
-    AdjustKeyFrameContext(cpi);
-  } else {
-    /* Update the frame carry over */
-    cpi->CarryOver += ((ogg_int32_t)cpi->frame_target_rate - 
-		       (ogg_int32_t)oggpackB_bytes(&cpi->opb));
-  }
-  cpi->TotalByteCount += oggpackB_bytes(&cpi->opb);
-}
-
 /********************** The toplevel ***********************/
 
 const char *theora_encode_version(void){
@@ -782,7 +788,7 @@ static int _ilog(unsigned int v){
   return(ret);
 }
 
-int theora_encode_init(theora_state *th, theora_encode_config *c){
+int theora_encode_init(theora_state *th, theora_info *c){
   int i;
   
   CP_INSTANCE *cpi;
@@ -795,7 +801,7 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
   c->version_subminor=VERSION_SUB;
 
   AllocateTmpBuffers(&cpi->pb);
-  cpi->pp = CreatePPInstance();
+  CreatePPInstance(&cpi->pp);
 
   /* Initialise Configuration structure to legal values */
   cpi->Configuration.BaseQ = 32;
@@ -829,13 +835,8 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
     cpi->QTargetModifier[Q_TABLE_SIZE] = 1.0;
  
   /* Set up an encode buffer */
-  oggpackB_writeinit(&cpi->opb);
+  oggpackB_writeinit(&cpi->oggbuffer);
   
-  for(i=0;i<=64;i++) {
-    if(i<=1)cpi->pb.idct[i]=IDct1;
-    else if(i<=10)cpi->pb.idct[i]=IDct10;
-    else cpi->pb.idct[i]=IDctSlow;
-  }
   cpi->pb.Configuration.HFragPixels = 8;
   cpi->pb.Configuration.VFragPixels = 8;
   
@@ -880,21 +881,9 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
     cpi->Configuration.OutputFrameRate; 
   
   /* Initialise image format details */
-  if(!InitFrameDetails(&cpi->pb)){
-    return -1;
-  }
-  if(!EAllocateFragmentInfo(cpi)){
-    DeleteFragmentInfo(&cpi->pb);
-    DeleteFrameInfo(&cpi->pb);
-    return -1;
-  }
-
-  if(!EAllocateFrameInfo(cpi)){
-    DeleteFragmentInfo(&cpi->pb);
-    DeleteFrameInfo(&cpi->pb);
-    EDeleteFragmentInfo(cpi);
-    return -1;
-  }
+  InitFrameDetails(&cpi->pb);
+  EAllocateFragmentInfo(cpi);
+  EAllocateFrameInfo(cpi);
 
   /* Set up pre-processor config pointers. */
   cpi->ScanConfig.Yuv0ptr = cpi->yuv0ptr;
@@ -908,13 +897,7 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
     (unsigned char)cpi->pb.Configuration.VFragPixels;
 
   /* Initialise the pre-processor module. */
-  if(!ScanYUVInit(cpi->pp, &(cpi->ScanConfig))) {
-    DeleteFragmentInfo(&cpi->pb);
-    DeleteFrameInfo(&cpi->pb);
-    EDeleteFragmentInfo(cpi);
-    EDeleteFrameInfo(cpi);
-    return -1;
-  }
+  ScanYUVInit(&cpi->pp, &(cpi->ScanConfig));
 
   /* Set encoder flags. */
   cpi->DropFramesAllowed = c->droppedframes_p;
@@ -928,13 +911,14 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
 
   /* don't go too nuts on keyframe spacing; impose a high limit to
      make certain the granulepos encoding strategy works */
-  if(c->ForceKeyFrameEvery>32768)c->ForceKeyFrameEvery=32768;
-  if(c->MinimumDistanceToKeyFrame>32768)c->MinimumDistanceToKeyFrame=32768;
+  if(cpi->ForceKeyFrameEvery>32768)cpi->ForceKeyFrameEvery=32768;
+  if(cpi->MinimumDistanceToKeyFrame>32768)cpi->MinimumDistanceToKeyFrame=32768;
 
   {
-    long maxPframes=c->ForceKeyFrameEvery > c->MinimumDistanceToKeyFrame ?
-      c->ForceKeyFrameEvery ; c->MinimumDistanceToKeyFrame ;
-    c->keyframe_granule_shift=_ilog(maxPframes-1);
+    long maxPframes=(int)cpi->ForceKeyFrameEvery > 
+      (int)cpi->MinimumDistanceToKeyFrame ?
+      cpi->ForceKeyFrameEvery : cpi->MinimumDistanceToKeyFrame ;
+    cpi->keyframe_granule_shift=_ilog(maxPframes-1);
   }  
 
   /* Initialise Motion compensation */
@@ -965,13 +949,13 @@ int theora_encode_init(theora_state *th, theora_encode_config *c){
   /* Indicate that the next frame to be compressed is the first in the
      current clip. */
   cpi->ThisIsFirstFrame = 1;
-  int readyflag = 1;
+  cpi->readyflag = 1;
   
   return 0;
 }
 
 int theora_encode_YUVin( CP_INSTANCE *cpi, 
-			   YUV_INPUT_BUFFER_CONFIG *YuvInputData){
+			 YUV_INPUT_BUFFER_CONFIG *YuvInputData){
   ogg_int32_t i;
   unsigned char *LocalDataPtr;
   unsigned char *InputDataPtr;
@@ -980,8 +964,8 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
   if(cpi->doneflag)return -1;
 
   /* If frame size has changed, abort out for now */
-  if (YuvInputData->YHeight != (INT32)cpi->pb.Configuration.VideoFrameHeight ||
-      YuvInputData->YWidth != (INT32)cpi->pb.Configuration.VideoFrameWidth )
+  if (YuvInputData->YHeight != (int)cpi->pb.Configuration.VideoFrameHeight ||
+      YuvInputData->YWidth != (int)cpi->pb.Configuration.VideoFrameWidth )
     return(-1);
 
 
@@ -1015,7 +999,7 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
   }
 
   /* Mark this as a video frame */
-  oggpackB_write(&cpi->opb,0,1);
+  oggpackB_write(&cpi->oggbuffer,0,1);
 
   /* Special case for first frame */
   if ( cpi->ThisIsFirstFrame ){
@@ -1031,7 +1015,7 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
   }
 
   /* Update stats variables. */
-  cpi->LastFrameSize = oggpackB_bytes(&cpi->opb);
+  cpi->LastFrameSize = oggpackB_bytes(&cpi->oggbuffer);
   cpi->CurrentFrame++;
   cpi->packetflag=1;
   
@@ -1039,20 +1023,19 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
 }
 
 int theora_encode_packetout( CP_INSTANCE *cpi, int last_p, ogg_packet *op){
-  long bytes=oggpackB_bytes(&cpi->opb);
-
+  long bytes=oggpackB_bytes(&cpi->oggbuffer);
+  
   if(!bytes)return(0);
   if(!cpi->packetflag)return(0);
   if(cpi->doneflag)return(-1);
 
-  op->packet=oggpackB_buffer(&cpi->opb);
+  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=bytes;
   op->b_o_s=0;
   op->e_o_s=last_p;
   
   op->packetno=cpi->CurrentFrame;
 
-  
   op->granulepos=
     ((cpi->CurrentFrame-cpi->LastKeyFrame+1)<<cpi->keyframe_granule_shift)+ 
     cpi->LastKeyFrame-1;
@@ -1066,38 +1049,49 @@ int theora_encode_packetout( CP_INSTANCE *cpi, int last_p, ogg_packet *op){
 int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
   /* width, height, fps, granule_shift, version */
 
-  oggpackB_reset(&cpi->opb);
-  oggpackB_write(&cpi->opb,0x80,8);
-  oggpackB_write(&cpi->opb,'t',8);
-  oggpackB_write(&cpi->opb,'h',8);
-  oggpackB_write(&cpi->opb,'e',8);
-  oggpackB_write(&cpi->opb,'o',8);
-  oggpackB_write(&cpi->opb,'r',8);
-  oggpackB_write(&cpi->opb,'a',8);
+  oggpackB_reset(&cpi->oggbuffer);
+  oggpackB_write(&cpi->oggbuffer,0x80,8);
+  oggpackB_write(&cpi->oggbuffer,'t',8);
+  oggpackB_write(&cpi->oggbuffer,'h',8);
+  oggpackB_write(&cpi->oggbuffer,'e',8);
+  oggpackB_write(&cpi->oggbuffer,'o',8);
+  oggpackB_write(&cpi->oggbuffer,'r',8);
+  oggpackB_write(&cpi->oggbuffer,'a',8);
   
-  oggpackB_write(&cpi->opb,cpi->ScanConfig.VideoFrameWidth,16);
-  oggpackB_write(&cpi->opb,cpi->ScanConfig.VideoFrameHeight,16);
-  oggpackB_write(&cpi->opb,cpi->Configuration.OutputFrameN,32);
-  oggpackB_write(&cpi->opb,cpi->Configuration.OutputFrameD,32);
+  oggpackB_write(&cpi->oggbuffer,cpi->ScanConfig.VideoFrameWidth,16);
+  oggpackB_write(&cpi->oggbuffer,cpi->ScanConfig.VideoFrameHeight,16);
+  oggpackB_write(&cpi->oggbuffer,cpi->Configuration.OutputFrameRateN,32);
+  oggpackB_write(&cpi->oggbuffer,cpi->Configuration.OutputFrameRateD,32);
 
-  oggpackB_write(&cpi->opb,cpi->keyframe_granule_shift,5);
+  oggpackB_write(&cpi->oggbuffer,cpi->keyframe_granule_shift,5);
 
-  oggpackB_write(&cpi->opb,cpi->version_major,8);
-  oggpackB_write(&cpi->opb,cpi->version_minor,8);
-  oggpackB_write(&cpi->opb,cpi->version_subminor,8);
+  oggpackB_write(&cpi->oggbuffer,VERSION_MAJOR,8);
+  oggpackB_write(&cpi->oggbuffer,VERSION_MINOR,8);
+  oggpackB_write(&cpi->oggbuffer,VERSION_SUB,8);
+
+  op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+  op->bytes=oggpackB_bytes(&cpi->oggbuffer);
+
+  op->b_o_s=1;
+  op->e_o_s=0;
   
+  op->packetno=0;
+  
+  op->granulepos=0;
+  cpi->packetflag=0;
+
   return(0);
 }
 
 void theora_encode_clear(CP_INSTANCE *cpi){
   if(cpi){
     
-    DeleteFragmentInfo(&cpi->pb);
-    DeleteFrameInfo(&cpi->pb);
-    EDeleteFragmentInfo(cpi);
-    EDeleteFrameInfo(cpi);		
-    DeleteTmpBuffers(cpi->pb);
-    DeletePPInstance(cpi->pp);
+    ClearFragmentInfo(&cpi->pb);
+    ClearFrameInfo(&cpi->pb);
+    EClearFragmentInfo(cpi);
+    ECleadFrameInfo(cpi);		
+    ClearTmpBuffers(&cpi->pb);
+    ClearPPInstance(&cpi->pp);
     
   }
 }

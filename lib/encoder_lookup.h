@@ -11,9 +11,11 @@
  ********************************************************************
 
   function: simple static lookups for VP3 frame encoder
-  last mod: $Id: encoder_lookup.h,v 1.1 2002/09/16 07:10:02 xiphmont Exp $
+  last mod: $Id: encoder_lookup.h,v 1.2 2002/09/18 08:56:57 xiphmont Exp $
 
  ********************************************************************/
+
+#define MAX_MV_EXTENT 31  /* Max search distance in half pixel increments */
 
 ogg_uint32_t MvPattern[(MAX_MV_EXTENT * 2) + 1] = {   
   0x000000ff, 0x000000fd, 0x000000fb, 0x000000f9, 
@@ -143,3 +145,14 @@ ogg_uint32_t ResidueBlockFactor[Q_TABLE_SIZE] =  {
   2,   2,   2,   2,   2,   2,   2,   2,
   2,   2,   2,   2,   2,   2,   2,   2 };
 
+/* Quantization zigzag pattern */
+ogg_uint32_t dequant_index[64] = {
+  0,  1,  8,  16,  9,  2,  3, 10,
+  17, 24, 32, 25, 18, 11,  4,  5,
+  12, 19, 26, 33, 40, 48, 41, 34,
+  27, 20, 13,  6,  7, 14, 21, 28,
+  35, 42, 49, 56, 57, 50, 43, 36, 
+  29, 22, 15, 23, 30, 37, 44, 51,
+  58, 59, 52, 45, 38, 31, 39, 46,
+  53, 60, 61, 54, 47, 55, 62, 63
+};

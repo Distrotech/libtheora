@@ -11,12 +11,97 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frarray.c,v 1.1 2002/09/16 07:10:02 xiphmont Exp $
+  last mod: $Id: frarray.c,v 1.2 2002/09/18 08:56:57 xiphmont Exp $
 
  ********************************************************************/
 
-#include "ogg/ogg.h"
+#include <ogg/ogg.h>
 #include "encoder_internal.h"
+
+ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
+  ogg_uint32_t CodedVal = 0;
+  ogg_uint32_t CodedBits = 0;
+  
+  // Coding scheme:
+  //	Codeword	      RunLength
+  //  0                       1
+  //  10x		      2-3
+  //  110x		      4-5
+  //  1110xx		      6-9
+  //  11110xxx                10-17
+  //  111110xxxx              18-33
+  //  111111xxxxxxxxxxxx      34-4129
+
+  if ( value == 1 ){
+    CodedVal = 0;    
+    CodedBits = 1;   
+  } else if ( value <= 3 ) {
+    CodedVal = 0x0004 + (value - 2);    
+    CodedBits = 3;   
+  } else if ( value <= 5 ) {
+    CodedVal = 0x000C + (value - 4);    
+    CodedBits = 4;   
+  } else if ( value <= 9 ) {
+    CodedVal = 0x0038 + (value - 6);    
+    CodedBits = 6;   
+  } else if ( value <= 17 ) { 
+    CodedVal = 0x00F0 + (value - 10);    
+    CodedBits = 8;   
+  } else if ( value <= 33 ) {
+    CodedVal = 0x03E0 + (value - 18);    
+    CodedBits = 10;   
+  } else {
+    CodedVal = 0x3F000 + (value - 34);    
+    CodedBits = 18;
+  }
+  
+  /* Add the bits to the encode holding buffer. */    
+  AddBitsToBuffer( cpi, CodedVal, (ogg_uint32_t)CodedBits );
+  
+  return CodedBits;
+}
+
+ogg_uint32_t FrArrayCodeBlockRun( CP_INSTANCE *cpi, ogg_uint32_t value ) {
+  ogg_uint32_t CodedVal = 0;
+  ogg_uint32_t CodedBits = 0;
+  
+  // Coding scheme:
+  //	Codeword				RunLength
+  //	0x					1-2
+  //	10x					3-4
+  //	110x					5-6
+  //	1110xx					7-10
+  //	11110xx					11-14
+  //	11111xxxx				15-30 	
+
+  if ( value <= 2 ) {
+    CodedVal = value - 1;    
+    CodedBits = 2;   
+  } else if ( value <= 4 ) {
+    CodedVal = 0x0004 + (value - 3);    
+    CodedBits = 3;   
+    
+  } else if ( value <= 6 ) {
+    CodedVal = 0x000C + (value - 5);    
+    CodedBits = 4;   
+    
+  } else if ( value <= 10 ) {
+    CodedVal = 0x0038 + (value - 7);    
+    CodedBits = 6;   
+    
+  } else if ( value <= 14 ) {
+    CodedVal = 0x0078 + (value - 11);    
+    CodedBits = 7;   
+  } else {
+    CodedVal = 0x01F0 + (value - 15);    
+    CodedBits = 9;   
+ }
+
+  /* Add the bits to the encode holding buffer. */    
+  AddBitsToBuffer( cpi, CodedVal, (ogg_uint32_t)CodedBits );
+
+  return CodedBits;
+}
 
 void PackAndWriteDFArray( CP_INSTANCE *cpi ){
   ogg_uint32_t  i;
@@ -134,90 +219,5 @@ void PackAndWriteDFArray( CP_INSTANCE *cpi ){
       
     }
   }
-}
-
-ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
-  ogg_uint32_t CodedVal = 0;
-  ogg_uint32_t CodedBits = 0;
-  
-  // Coding scheme:
-  //	Codeword	      RunLength
-  //  0                       1
-  //  10x		      2-3
-  //  110x		      4-5
-  //  1110xx		      6-9
-  //  11110xxx                10-17
-  //  111110xxxx              18-33
-  //  111111xxxxxxxxxxxx      34-4129
-
-  if ( value == 1 ){
-    CodedVal = 0;    
-    CodedBits = 1;   
-  } else if ( value <= 3 ) {
-    CodedVal = 0x0004 + (value - 2);    
-    CodedBits = 3;   
-  } else if ( value <= 5 ) {
-    CodedVal = 0x000C + (value - 4);    
-    CodedBits = 4;   
-  } else if ( value <= 9 ) {
-    CodedVal = 0x0038 + (value - 6);    
-    CodedBits = 6;   
-  } else if ( value <= 17 ) { 
-    CodedVal = 0x00F0 + (value - 10);    
-    CodedBits = 8;   
-  } else if ( value <= 33 ) {
-    CodedVal = 0x03E0 + (value - 18);    
-    CodedBits = 10;   
-  } else {
-    CodedVal = 0x3F000 + (value - 34);    
-    CodedBits = 18;
-  }
-  
-  /* Add the bits to the encode holding buffer. */    
-  AddBitsToBuffer( cpi, CodedVal, (ogg_uint32_t)CodedBits );
-  
-  return CodedBits;
-}
-
-ogg_uint32_t FrArrayCodeBlockRun( CP_INSTANCE *cpi, ogg_uint32_t value ) {
-  ogg_uint32_t CodedVal = 0;
-  ogg_uint32_t CodedBits = 0;
-  
-  // Coding scheme:
-  //	Codeword				RunLength
-  //	0x					1-2
-  //	10x					3-4
-  //	110x					5-6
-  //	1110xx					7-10
-  //	11110xx					11-14
-  //	11111xxxx				15-30 	
-
-  if ( value <= 2 ) {
-    CodedVal = value - 1;    
-    CodedBits = 2;   
-  } else if ( value <= 4 ) {
-    CodedVal = 0x0004 + (value - 3);    
-    CodedBits = 3;   
-    
-  } else if ( value <= 6 ) {
-    CodedVal = 0x000C + (value - 5);    
-    CodedBits = 4;   
-    
-  } else if ( value <= 10 ) {
-    CodedVal = 0x0038 + (value - 7);    
-    CodedBits = 6;   
-    
-  } else if ( value <= 14 ) {
-    CodedVal = 0x0078 + (value - 11);    
-    CodedBits = 7;   
-  } else {
-    CodedVal = 0x01F0 + (value - 15);    
-    CodedBits = 9;   
- }
-
-  /* Add the bits to the encode holding buffer. */    
-  AddBitsToBuffer( cpi, CodedVal, (ogg_uint32_t)CodedBits );
-
-  return CodedBits;
 }
 

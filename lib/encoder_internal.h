@@ -11,11 +11,66 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.2 2002/09/17 07:01:33 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.3 2002/09/18 08:56:56 xiphmont Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
+#include "huffman.h"
+
+#define CURRENT_ENCODE_VERSION   1
+#define HUGE_ERROR              (1<<28)  /*  Out of range test value */
+
+/* Baseline dct height and width. */
+#define BLOCK_HEIGHT_WIDTH          8
+
+/* Baseline dct block size */
+#define BLOCK_SIZE              (BLOCK_HEIGHT_WIDTH * BLOCK_HEIGHT_WIDTH)
+
+/* Border is for unrestricted mv's */
+#define UMV_BORDER              16
+#define STRIDE_EXTRA            (UMV_BORDER * 2)
+#define Q_TABLE_SIZE            64
+
+#define BASE_FRAME              0
+#define NORMAL_FRAME            1
+
+#define MAX_MODES               8 
+#define MODE_BITS               3
+#define MODE_METHODS            8
+#define MODE_METHOD_BITS        3
+
+/* Different key frame types/methods */
+#define DCT_KEY_FRAME           0
+
+#define KEY_FRAME_CONTEXT       5
+
+/* Preprocessor defines */
+#define MAX_PREV_FRAMES        16
+
+/* Number of search sites for a 4-step search (at pixel accuracy) */
+#define MAX_SEARCH_SITES       33             
+
+#define VERY_BEST_Q            10
+#define MIN_BPB_FACTOR        0.3
+#define MAX_BPB_FACTOR        3.0
+
+typedef enum{       
+        SCP_CONFIGURE_PP
+} SCP_SETTINGS;
+
+typedef struct CONFIG_TYPE{
+  /* The size of the surface we want to draw to */
+  ogg_uint32_t VideoFrameWidth;
+  ogg_uint32_t VideoFrameHeight; 
+  
+  ogg_uint32_t YStride;
+  ogg_uint32_t UVStride;
+  
+  /* The number of horizontal and vertical blocks encoded */
+  ogg_uint32_t HFragPixels;
+  ogg_uint32_t VFragPixels;  
+} CONFIG_TYPE;
 
 typedef struct CONFIG_TYPE2{
   ogg_uint32_t TargetBandwidth;
@@ -29,6 +84,11 @@ typedef struct CONFIG_TYPE2{
   ogg_uint32_t ActiveMaxQ;      /* Currently active Max Q */
   
 } CONFIG_TYPE2;
+
+typedef struct coeffNode{
+  int i;
+  struct coeffNode *next;
+} COEFFNODE;
 
 typedef struct{
   unsigned char * Yuv0ptr;
@@ -52,29 +112,13 @@ typedef struct{
   ogg_int32_t   y;
 } MOTION_VECTOR;
 
+typedef MOTION_VECTOR COORDINATE;
+
 typedef ogg_int16_t     Q_LIST_ENTRY;
 typedef Q_LIST_ENTRY    Q_LIST[64];
 
 typedef struct PP_INSTANCE {
   ogg_uint32_t  PrevFrameLimit;
-  ogg_uint32_t *ScanPixelIndexTableAlloc;          
-  signed char  *ScanDisplayFragmentsAlloc;
-  
-  signed char  *PrevFragmentsAlloc[MAX_PREV_FRAMES];
-  
-  ogg_uint32_t *FragScoresAlloc; /* The individual frame difference ratings. */
-  signed char  *SameGreyDirPixelsAlloc;
-  signed char  *BarBlockMapAlloc;
-  
-  /* Number of pixels changed by diff threshold in row of a fragment. */
-  unsigned char  *FragDiffPixelsAlloc;  
-  
-  unsigned char  *PixelScoresAlloc;  
-  unsigned char  *PixelChangedMapAlloc;
-  unsigned char  *ChLocalsAlloc;
-  ogg_int16_t    *yuv_differencesAlloc;  
-  ogg_int32_t    *RowChangedPixelsAlloc;
-  signed char    *TmpCodedMapAlloc;
   
   ogg_uint32_t   *ScanPixelIndexTable;               
   signed char    *ScanDisplayFragments;
@@ -187,6 +231,259 @@ typedef struct PP_INSTANCE {
   ogg_int32_t PixelMapCircularBufferSize;
   
 } PP_INSTANCE;
+
+
+typedef struct {
+  int bitsinremainder;    /* # of bits still used in remainder */
+  ogg_uint32_t remainder; /* remaining bits from original long */
+  unsigned char *position;/* character pointer position within data */
+  unsigned char *origin;  /* starting point of original data */
+} BITREADER;
+
+typedef enum{
+  CODE_INTER_NO_MV        = 0x0, /* INTER prediction, (0,0) motion
+                                    vector implied.  */
+    CODE_INTRA            = 0x1, /* INTRA i.e. no prediction. */
+    CODE_INTER_PLUS_MV    = 0x2, /* INTER prediction, non zero motion
+                                    vector. */
+    CODE_INTER_LAST_MV    = 0x3, /* Use Last Motion vector */
+    CODE_INTER_PRIOR_LAST = 0x4, /* Prior last motion vector */
+    CODE_USING_GOLDEN     = 0x5, /* 'Golden frame' prediction (no MV). */
+    CODE_GOLDEN_MV        = 0x6, /* 'Golden frame' prediction plus MV. */
+    CODE_INTER_FOURMV     = 0x7  /* Inter prediction 4MV per macro block. */
+} CODING_MODE;
+
+typedef struct HUFF_ENTRY {            
+  struct HUFF_ENTRY *ZeroChild;
+  struct HUFF_ENTRY *OneChild;
+  struct HUFF_ENTRY *Previous;
+  struct HUFF_ENTRY *Next;
+  ogg_int32_t        Value;
+  ogg_uint32_t       Frequency;
+    
+} HUFF_ENTRY; 
+
+typedef struct PB_INSTANCE {
+  /***********************************************************************
+   Bitstream input and Output Pointers
+  ************************************************************************/
+
+  /* Current access points for input and output buffers */
+  BITREADER br;
+
+  /***********************************************************************/
+  /* Decoder and Frame Type Information */
+  unsigned char Vp3VersionNo;
+  
+  int           DecoderErrorCode;
+  int           FramesHaveBeenSkipped;
+  int           SkipYUVtoRGB;            /* Skip conversion */
+  int           OutputRGB;               /* Output To RGB */
+  
+  int           PostProcessEnabled;
+  
+  ogg_uint32_t  PostProcessingLevel;    /* Perform post processing */
+  ogg_uint32_t  ProcessorFrequency;     /* CPU frequency     */
+  ogg_uint32_t  CPUFree;
+  
+  
+  /* Frame Info */
+  CODING_MODE   CodingMode;
+  unsigned char FrameType;       
+  unsigned char KeyFrameType;
+  ogg_uint32_t  QualitySetting;
+  ogg_uint32_t  FrameQIndex;            /* Quality specified as a
+                                           table index */
+  ogg_uint32_t  ThisFrameQualityValue;  /* Quality value for this frame  */
+  ogg_uint32_t  LastFrameQualityValue;  /* Last Frame's Quality */
+  ogg_int32_t   CodedBlockIndex;        /* Number of Coded Blocks */
+  ogg_uint32_t  CodedBlocksThisFrame;   /* Index into coded blocks */
+  ogg_uint32_t  FrameSize;              /* The number of bytes in the frame. */
+
+  /**********************************************************************/
+  /* Frame Size & Index Information */
+  CONFIG_TYPE   Configuration;     /* frame configuration */
+  
+  ogg_uint32_t  YPlaneSize;  
+  ogg_uint32_t  UVPlaneSize;  
+  ogg_uint32_t  VFragments;
+  ogg_uint32_t  HFragments;
+  ogg_uint32_t  UnitFragments;
+  ogg_uint32_t  YPlaneFragments;
+  ogg_uint32_t  UVPlaneFragments;
+  
+  ogg_uint32_t  ReconYPlaneSize;
+  ogg_uint32_t  ReconUVPlaneSize;
+  
+  ogg_uint32_t  YDataOffset;
+  ogg_uint32_t  UDataOffset;
+  ogg_uint32_t  VDataOffset;
+  ogg_uint32_t  ReconYDataOffset;
+  ogg_uint32_t  ReconUDataOffset;
+  ogg_uint32_t  ReconVDataOffset;
+  ogg_uint32_t  YSuperBlocks;   /* Number of SuperBlocks in a Y frame */
+  ogg_uint32_t  UVSuperBlocks;  /* Number of SuperBlocks in a U or V frame */
+  ogg_uint32_t  SuperBlocks;    /* Total number of SuperBlocks in a
+                                   Y,U,V frame */
+  
+  ogg_uint32_t  YSBRows;        /* Number of rows of SuperBlocks in a
+                                   Y frame */
+  ogg_uint32_t  YSBCols;        /* Number of cols of SuperBlocks in a
+                                   Y frame */
+  ogg_uint32_t  UVSBRows;       /* Number of rows of SuperBlocks in a
+                                   U or V frame */
+  ogg_uint32_t  UVSBCols;       /* Number of cols of SuperBlocks in a
+                                   U or V frame */
+  
+  ogg_uint32_t  YMacroBlocks;   /* Number of Macro-Blocks in Y component */
+  ogg_uint32_t  UVMacroBlocks;  /* Number of Macro-Blocks in U/V component */
+  ogg_uint32_t  MacroBlocks;    /* Total number of Macro-Blocks */
+
+  /**********************************************************************/
+  /* Frames  */
+  YUV_BUFFER_ENTRY *ThisFrameRecon;
+  YUV_BUFFER_ENTRY *GoldenFrame; 
+  YUV_BUFFER_ENTRY *LastFrameRecon;
+  YUV_BUFFER_ENTRY *PostProcessBuffer;
+  YUV_BUFFER_ENTRY *ScaleBuffer;     /* new buffer for testing new loop fi
+					ltering scheme */
+  
+  unsigned char *bmp_dptr0;
+  
+  ogg_int32_t   *BoundingValuePtr;
+
+  /**********************************************************************/
+  /* Fragment Information */
+  ogg_uint32_t  *pixel_index_table;        /* start address of first
+					      pixel of fragment in
+					      source */
+  ogg_uint32_t  *recon_pixel_index_table;  /* start address of first
+					      pixel in recon buffer */
+
+  unsigned char *display_fragments;        /* Fragment update map */
+  unsigned char *skipped_display_fragments;/* whether fragment YUV
+					      Conversion and update is to be
+					      skipped */
+  ogg_int32_t   *CodedBlockList;           /* A list of fragment indices for
+					      coded blocks. */
+  MOTION_VECTOR *FragMVect;                /* fragment motion vectors */
+  
+  ogg_uint32_t  *FragTokenCounts;          /* Number of tokens per fragment */
+  ogg_uint32_t  (*TokenList)[128];         /* Fragment Token Pointers */
+
+  ogg_int32_t   *FragmentVariances;
+  ogg_uint32_t  *FragQIndex;               /* Fragment Quality used in
+                                              PostProcess */
+  Q_LIST_ENTRY (*PPCoefBuffer)[64];        /* PostProcess Buffer for
+                                              coefficients data */
+
+  unsigned char *FragCoeffs;                /* # of coeffs decoded so far for
+					       fragment */
+  unsigned char *FragCoefEOB;               /* Position of last non 0 coef
+						within QFragData */
+  Q_LIST_ENTRY (*QFragData)[64];            /* Fragment Coefficients
+                                               Array Pointers */
+  CODING_MODE   *FragCodingMethod;          /* coding method for the
+                                               fragment */
+
+  //**********************************************************************/
+  /* pointers to addresses used for allocation and deallocation the
+      others are rounded up to the nearest 32 bytes */
+
+  COEFFNODE     *_Nodes;
+  ogg_uint32_t  *transIndex;                    /* ptr to table of
+						   transposed indexes */
+  
+  /**********************************************************************/
+  ogg_int32_t    bumpLast;
+  
+  /* Macro Block and SuperBlock Information */
+  ogg_int32_t  (*BlockMap)[4][4];               /* super block + sub macro
+						   block + sub frag ->
+						   FragIndex */
+
+  /* Coded flag arrays and counters for them */
+  unsigned char *SBCodedFlags;
+  unsigned char *SBFullyFlags;
+  unsigned char *MBCodedFlags;
+  unsigned char *MBFullyFlags;
+
+  /**********************************************************************/
+  ogg_uint32_t   EOB_Run;
+  
+  COORDINATE    *FragCoordinates;
+  MOTION_VECTOR  MVector;
+  ogg_int32_t    ReconPtr2Offset;       /* Offset for second reconstruction
+					   in half pixel MC */
+  Q_LIST_ENTRY  *quantized_list;  
+  ogg_int16_t   *ReconDataBuffer;
+  Q_LIST_ENTRY   InvLastIntraDC;
+  Q_LIST_ENTRY   InvLastInterDC;
+  Q_LIST_ENTRY   LastIntraDC;
+  Q_LIST_ENTRY   LastInterDC;
+  
+  ogg_uint32_t   BlocksToDecode;        /* Blocks to be decoded this frame */
+  ogg_uint32_t   DcHuffChoice;          /* Huffman table selection variables */
+  unsigned char  ACHuffChoice; 
+  ogg_uint32_t   QuadMBListIndex;
+  
+  ogg_int32_t    ByteCount;
+  
+  ogg_uint32_t   bit_pattern;
+  unsigned char  bits_so_far; 
+  unsigned char  NextBit;
+  ogg_int32_t    BitsLeft;
+  
+  ogg_int16_t   *DequantBuffer;
+  
+  ogg_int32_t    fp_quant_InterUV_coeffs[64];
+  ogg_int32_t    fp_quant_InterUV_round[64];
+  ogg_int32_t    fp_ZeroBinSize_InterUV[64];
+  
+  ogg_int16_t   *TmpReconBuffer;
+  ogg_int16_t   *TmpDataBuffer;
+  
+  /* Loop filter bounding values */
+  ogg_int32_t    FiltBoundingValue[512];
+  
+  /* Dequantiser and rounding tables */
+  ogg_uint32_t QThreshTable[Q_TABLE_SIZE];
+  Q_LIST_ENTRY  *dequant_InterUV_coeffs;
+  unsigned int   quant_index[64];
+  ogg_int32_t    quant_Y_coeffs[64];
+  ogg_int32_t    quant_UV_coeffs[64];
+  ogg_int32_t    fp_quant_Y_coeffs[64]; /* used in reiniting quantizers */
+  
+  HUFF_ENTRY   **HuffRoot_VP3x;
+  ogg_uint32_t **HuffCodeArray_VP3x;
+  unsigned char **HuffCodeLengthArray_VP3x;
+  
+  /* Quantiser and rounding tables */
+  ogg_int32_t    fp_quant_UV_coeffs[64];
+  ogg_int32_t    fp_quant_Inter_coeffs[64];
+  ogg_int32_t    fp_quant_Y_round[64];
+  ogg_int32_t    fp_quant_UV_round[64];
+  ogg_int32_t    fp_quant_Inter_round[64];
+  ogg_int32_t    fp_ZeroBinSize_Y[64];
+  ogg_int32_t    fp_ZeroBinSize_UV[64];
+  ogg_int32_t    fp_ZeroBinSize_Inter[64];
+  ogg_int32_t   *fquant_coeffs;
+  ogg_int32_t   *fquant_round;
+  ogg_int32_t   *fquant_ZbSize;
+  Q_LIST_ENTRY  *dequant_Y_coeffs;
+  Q_LIST_ENTRY  *dequant_UV_coeffs;
+  Q_LIST_ENTRY  *dequant_Inter_coeffs;
+  Q_LIST_ENTRY  *dequant_coeffs;
+
+  /* Predictor used in choosing entropy table for decoding block patterns. */
+  unsigned char  BlockPatternPredictor;
+  
+  short          Modifier[4][512];
+  short         *ModifierPointer[4];
+        
+  unsigned char *DataOutputInPtr;                 
+  
+} PB_INSTANCE;
 
 typedef struct CP_INSTANCE {
 
@@ -357,7 +654,6 @@ typedef struct CP_INSTANCE {
   ogg_uint32_t      lastrun ;
   
   Q_LIST_ENTRY     *quantized_list;  
-  Q_LIST_ENTRY	   *quantized_listAlloc;
   
   MOTION_VECTOR     MVector;
   ogg_uint32_t      TempBitCount;
@@ -371,7 +667,7 @@ typedef struct CP_INSTANCE {
   double            QTargetModifier[Q_TABLE_SIZE];
 
   /* instances (used for reconstructing buffers and to hold tokens etc.) */
-  PP_INSTANCE      *pp;   /* preprocessor */
+  PP_INSTANCE       pp;   /* preprocessor */
   PB_INSTANCE       pb;   /* playback */
 
   /* ogg bitpacker for use in packet coding, other API state */
@@ -384,3 +680,22 @@ typedef struct CP_INSTANCE {
   int               keyframe_granule_shift;
 	
 } CP_INSTANCE;
+
+typedef struct{
+    int     YWidth;
+    int     YHeight;
+    int     YStride;
+
+    int     UVWidth;
+    int     UVHeight;
+    int     UVStride;
+
+    char *  YBuffer;
+    char *  UBuffer;
+    char *  VBuffer;
+
+} YUV_INPUT_BUFFER_CONFIG;
+
+
+extern void ClearPPInstance(PP_INSTANCE *ppi);
+extern void InitPPInstance(PP_INSTANCE *ppi);
