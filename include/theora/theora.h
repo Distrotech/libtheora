@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.5 2003/05/12 00:20:05 giles Exp $
+  last mod: $Id: theora.h,v 1.6 2003/06/02 19:07:08 mauricio Exp $
 
  ********************************************************************/
 
@@ -100,6 +100,7 @@ extern int theora_encode_header(theora_state *t, ogg_packet *op);
 extern int theora_encode_comment(theora_comment *tc, ogg_packet *op);
 extern int theora_decode_header(theora_info *c, ogg_packet *op);
 extern int theora_decode_comment(theora_comment *tc, ogg_packet *op); 
+extern int theora_decode_tables(theora_info *c, ogg_packet *op);
 extern int theora_decode_init(theora_state *th, theora_info *c);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);

@@ -10,13 +10,16 @@ else
 player_example = 
 endif
 
-noinst_PROGRAMS = encoder_example $(player_example)
+noinst_PROGRAMS = encoder_example dump_video $(player_example)
 
 LDFLAGS = -all-static 
-LDADD = ../lib/libtheora.la -logg -lvorbis -lm
+LDADD = ../lib/libtheora.la -logg -lm
+
+dump_video_SOURCES = dump_video.c
+dump_video_LDADD = $(LDADD)
 
 player_example_SOURCES = player_example.c
-player_example_LDADD = $(LDADD) $(SDL_LIBS) -lpthread
+player_example_LDADD = $(LDADD) $(SDL_LIBS)  -lvorbis -lpthread
 
 encoder_example_SOURCES = encoder_example.c
 encoder_example_LDADD = $(LDADD) -lvorbisenc
@@ -27,4 +30,4 @@ debug:
 profile:
 	$(MAKE) all CFLAGS="@PROFILE@"
 
-EXTRA_DIST = $(player_example_SOURCES)
+EXTRA_DIST = $(encoder_example_SOURCES)
