@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.20 2003/06/09 01:45:19 tterribe Exp $
+  last mod: $Id: player_example.c,v 1.21 2003/06/09 12:11:02 giles Exp $
 
  ********************************************************************/
 
@@ -335,15 +335,15 @@ static void video_write(void){
   /* and crop input properly, respecting the encoded frame rect */
   crop_offset=ti.offset_x+yuv.y_stride*ti.offset_y;
   for(i=0;i<yuv_overlay->h;i++)
-    memcpy(yuv_overlay->pixels[0]+yuv_overlay->w*i, 
+    memcpy(yuv_overlay->pixels[0]+yuv_overlay->pitches[0]*i, 
 	   yuv.y+crop_offset+yuv.y_stride*i, 
 	   yuv_overlay->w);
   crop_offset=(ti.offset_x/2)+(yuv.uv_stride)*(ti.offset_y/2);
   for(i=0;i<yuv_overlay->h/2;i++){
-    memcpy(yuv_overlay->pixels[1]+yuv_overlay->w/2*i, 
+    memcpy(yuv_overlay->pixels[1]+yuv_overlay->pitches[1]*i, 
 	   yuv.v+crop_offset+yuv.uv_stride*i, 
 	   yuv_overlay->w/2);
-    memcpy(yuv_overlay->pixels[2]+yuv_overlay->w/2*i, 
+    memcpy(yuv_overlay->pixels[2]+yuv_overlay->pitches[2]*i, 
 	   yuv.u+crop_offset+yuv.uv_stride*i, 
 	   yuv_overlay->w/2);
   }
