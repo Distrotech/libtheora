@@ -1021,7 +1021,7 @@ int main( int argc, char* argv[] ){
 	     ones and keep looping, since theora at this stage
 	     needs to decode all frames */
 	  delay = videobuf_time-get_time();
-	  if(delay>0.0){
+	  if(delay>=0.0){
 		/* got a good frame, not late, ready to break out */
 		videobuf_ready=1;
 	  }else if(videobuf_time-lastframetime>=1.0){
