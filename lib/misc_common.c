@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: misc_common.c,v 1.10 2003/12/03 08:59:41 arc Exp $
+  last mod: $Id: misc_common.c,v 1.11 2004/03/18 14:25:25 tterribe Exp $
 
  ********************************************************************/
 
@@ -279,7 +279,7 @@ void RegulateQ( CP_INSTANCE *cpi, ogg_int32_t UpdateScore ) {
     }
   }
 
-  /* If th quantiser value has changed then re-initialise it */
+  /* If the quantizer value has changed then re-initialise it */
   if ( cpi->pb.ThisFrameQualityValue != cpi->pb.LastFrameQualityValue ) {
     /* Initialise quality tables. */
     UpdateQC( cpi, cpi->pb.ThisFrameQualityValue );

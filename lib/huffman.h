@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: huffman.h,v 1.3 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: huffman.h,v 1.4 2004/03/18 14:25:25 tterribe Exp $
 
  ********************************************************************/
 
@@ -70,5 +70,5 @@
 #define DCT_RUN_CATEGORY1C      (DCT_RUN_CATEGORY1B + 1)
 #define DCT_RUN_CATEGORY2       (DCT_RUN_CATEGORY1C + 1)
 
-/* 35 */
+/* 32 */
 #define MAX_ENTROPY_TOKENS      (DCT_RUN_CATEGORY2 + 2)

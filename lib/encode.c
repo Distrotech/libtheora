@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.18 2004/02/28 18:25:29 giles Exp $
+  last mod: $Id: encode.c,v 1.19 2004/03/18 14:25:25 tterribe Exp $
 
  ********************************************************************/
 
@@ -715,7 +715,8 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
     0
   };
 
-  /* value left value up-left, value up, value up-right */
+  /* value left value up-left, value up, value up-right, missing
+      values skipped. */
   int v[4];
 
   /* fragment number left, up-left, up, up-right */
@@ -737,7 +738,7 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
   int WhichFrame;
   int WhichCase;
 
-  ogg_int16_t Mode2Frame[] = {
+  static const ogg_int16_t Mode2Frame[] = {
     1,  /* CODE_INTER_NO_MV     0 => Encoded diff from same MB last frame  */
     0,  /* CODE_INTRA           1 => DCT Encoded Block */
     1,  /* CODE_INTER_PLUS_MV   2 => Encoded diff from included MV MB last frame */
