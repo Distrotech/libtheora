@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: scan.c,v 1.7 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: scan.c,v 1.8 2003/10/31 14:25:51 giles Exp $
 
  ********************************************************************/
 
@@ -279,7 +279,7 @@ void ScanYUVInit( PP_INSTANCE *  ppi, SCAN_CONFIG_DATA * ScanConfigPtr){
   ppi->VideoUVPlaneWidth = ScanConfigPtr->VideoFrameWidth / 2;
   ppi->VideoUVPlaneHeight = ScanConfigPtr->VideoFrameHeight / 2;
 
-  /* Note the size of the entire frame and plaes in pixels. */
+  /* Note the size of each plane in pixels. */
   ppi->YFramePixels = ppi->ScanConfig.VideoFrameWidth *
     ppi->ScanConfig.VideoFrameHeight;
   ppi->UVFramePixels = ppi->VideoUVPlaneWidth * ppi->VideoUVPlaneHeight;
@@ -374,7 +374,7 @@ static void CreateOutputDisplayMap( PP_INSTANCE *ppi,
   ppi->OutputBlocksUpdated += (HistoryBlocksAdded / HISTORY_BLOCK_FACTOR);
 
   /* Now calculate a key frame candidate indicator.  This is based
-     upon Y data only and only ignores the top and bottom 1/8 of the
+     upon Y data only and ignores the top and bottom 1/8 of the
      image.  Also ignore history blocks and BAR blocks. */
   ppi->KFIndicator = 0;
   for ( i = YBand; i < (ppi->ScanYPlaneFragments - YBand); i++ )
