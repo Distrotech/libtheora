@@ -271,6 +271,29 @@ static int dump_comments(theora_comment *tc){
   return(0);
 }
 
+/* Report the encoder-specified colorspace for the video, if any.
+   We don't actually make use of the information in this example;
+   a real player should attempt to perform color correction for
+   whatever display device it supports. */
+static void report_colorspace(theora_info *ti)
+{
+    switch(ti->colorspace){
+      case not_specified:
+        /* nothing to report */
+        break;;
+      case ITU_Rec_601:
+        fprintf(stderr,"  encoder specified ITU Rec 601 color.\n");
+        break;;
+      case CIE_Rec_709:
+        fprintf(stderr,"  encoder specified CIE Rec 709 color.\n");
+        break;;
+      default:
+        fprintf(stderr,"warning: encoder specified unknown colorspace (%d).\n",
+            ti->colorspace);
+        break;;
+    }
+}
+
 /* helper: push a page into the appropriate steam */
 /* this can be done blindly; a stream won't accept a page
                 that doesn't belong to it */
@@ -425,9 +448,10 @@ int main( int argc, char* argv[] ){
   /* initialize decoders */
   if(theora_p){
     theora_decode_init(&td,&ti);
-    printf("Ogg logical stream %x is Theora %dx%d %.02f fps video.\n",
-	    to.serialno,ti.width,ti.height,
-	    (double)ti.fps_numerator/ti.fps_denominator);
+    printf("Ogg logical stream %x is Theora %dx%d %.02f fps video\nEncoded frame content is %dx%d with %dx%d offset\n",
+	    to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
+		ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
+	report_colorspace(&ti);
   }
   if(vorbis_p){
     vorbis_synthesis_init(&vd,&vi);

@@ -11,11 +11,12 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.5 2003/02/26 21:04:33 giles Exp $
+  last mod: $Id: huffman.c,v 1.6 2003/06/04 01:25:35 mauricio Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "hufftables.h"
@@ -95,6 +96,67 @@ static void CreateCodeArray( HUFF_ENTRY * HuffRoot,
     CreateCodeArray(HuffRoot->OneChild, HuffCodeArray, HuffCodeLengthArray, 
 		    ((CodeValue << 1) + 1), CodeLength + 1);
   }
+}
+
+/*TODO note: not reentrant, scheduled for cleanup/optimization before beta1 */
+static int huff_x;								///	rude!
+static unsigned char huffset_bits[2230];		///	totally rude!
+
+static void write_root(oggpack_buffer* opb, HUFF_ENTRY * HuffRoot) {
+	if(HuffRoot->Value >= 0) {						///	if we have a leaf,
+		oggpackB_write(opb, 1, 1);
+		oggpackB_write(opb, HuffRoot->Value, 5);
+	} else {
+		oggpackB_write(opb, 0, 1);
+		if(HuffRoot->ZeroChild) {
+			write_root(opb, HuffRoot->ZeroChild);
+		}
+		if(HuffRoot->OneChild) {
+			write_root(opb, HuffRoot->OneChild);
+		}
+	}
+}
+
+
+static int read_root_bit() {
+	int i = huff_x >> 3;
+	int r = huff_x & 7;
+	int m = 0x80 >> r;
+	int b = huffset_bits[i];
+	huff_x++;
+	if(b & m) b = 1;
+	else b = 0;
+	return b;
+}
+
+static int read_root_(int cnt) {
+	int v=0;
+	int x;
+	for(x=0; x< cnt; x++) {
+		v <<= 1;
+		v += read_root_bit();
+	}
+	return v;
+}
+
+static void read_root( HUFF_ENTRY * HuffRoot) {
+	if(!read_root_bit()) {
+//    entry_ptr = (HUFF_ENTRY *)_ogg_calloc(1,sizeof(*entry_ptr));
+		HuffRoot->ZeroChild = (HUFF_ENTRY *)_ogg_calloc(1,sizeof(HUFF_ENTRY));
+		read_root(HuffRoot->ZeroChild);
+		HuffRoot->OneChild = (HUFF_ENTRY *)_ogg_calloc(1,sizeof(HUFF_ENTRY));
+		read_root(HuffRoot->OneChild);
+		HuffRoot->Value = -1;
+	} else {
+		HuffRoot->ZeroChild = NULL;
+		HuffRoot->OneChild = NULL;
+		HuffRoot->Value = read_root_(5);
+	}
+}
+
+static void read_hufftree(HUFF_ENTRY ** huffarray, int index) {
+    huffarray[index] = (HUFF_ENTRY *)_ogg_calloc(1,sizeof(HUFF_ENTRY));
+	read_root(huffarray[index]);
 }
 
 static void  BuildHuffmanTree( HUFF_ENTRY **HuffRoot, 
@@ -241,20 +303,36 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
   }
 }
 
-void write_FrequencyCounts(oggpack_buffer* opb) {
-  int x, y;
-  for(x=0; x<NUM_HUFF_TABLES; x++) {
-    for(y=0; y<MAX_ENTROPY_TOKENS; y++) {
-	  oggpackB_write(opb, FrequencyCounts_VP3[x][y], 16);
-	}
+void InitHuffmanSetPlay( PB_INSTANCE *pbi ){
+  int i;
+
+  ClearHuffmanSet(pbi);
+
+  pbi->HuffRoot_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffRoot_VP3x));
+  pbi->HuffCodeArray_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeArray_VP3x));
+  pbi->HuffCodeLengthArray_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeLengthArray_VP3x));
+  pbi->ExtraBitLengths_VP3x = ExtraBitLengths_VP31;
+  
+  huff_x = 0;
+  for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
+	read_hufftree(pbi->HuffRoot_VP3x,i);
   }
 }
 
-void read_FrequencyCounts(oggpack_buffer* opb) {
-  int x, y;
+void write_HuffmanSet(oggpack_buffer* opb, HUFF_ENTRY **hroot) {
+  int x;
+
   for(x=0; x<NUM_HUFF_TABLES; x++) {
-    for(y=0; y<MAX_ENTROPY_TOKENS; y++) {
-	  FrequencyCounts_VP3[x][y]=oggpackB_read(opb, 16);
-	}
+    write_root(opb, hroot[x]);
+  }
+}
+
+void read_HuffmanSet(oggpack_buffer* opb) {
+  int x;
+  for(x=0; x<2230; x++) {
+    huffset_bits[x]=oggpackB_read(opb, 8);
   }
 }

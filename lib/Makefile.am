@@ -9,7 +9,7 @@ libtheora_la_SOURCES = encode.c hufftables.h quant_lookup.h \
 	encoder_lookup.h mcomp.c scan.c blockmap.c misc_common.c \
 	dct.c frarray.c pb.c dct_decode.c frinit.c pp.c dct_encode.c \
 	huffman.c pp.h toplevel.c decode.c huffman.h quant.c \
-	comment.c toplevel_lookup.h
+	comment.c toplevel_lookup.h toplevel.h
 
 libtheora_la_LDFLAGS = -version-info @V_LIB_CURRENT@:@V_LIB_REVISION@:@V_LIB_AGE@
 

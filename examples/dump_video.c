@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams 
-  last mod: $Id: dump_video.c,v 1.1 2003/06/02 19:07:08 mauricio Exp $
+  last mod: $Id: dump_video.c,v 1.2 2003/06/04 01:25:34 mauricio Exp $
 
  ********************************************************************/
 
@@ -249,9 +249,9 @@ int main(int argc,char *argv[]){
   /* and now we have it all.  initialize decoders */
   if(theora_p){
     theora_decode_init(&td,&ti);
-    fprintf(stderr,"Ogg logical stream %x is Theora %dx%d %.02f fps video.\n",
-	    to.serialno,ti.width,ti.height,
-	    (double)ti.fps_numerator/ti.fps_denominator);
+    fprintf(stderr,"Ogg logical stream %x is Theora %dx%d %.02f fps video\nEncoded frame content is %dx%d with %dx%d offset\n",
+	    to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
+		ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
   }
   
 

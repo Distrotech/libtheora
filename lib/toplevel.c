@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.21 2003/06/04 00:04:29 giles Exp $
+  last mod: $Id: toplevel.c,v 1.22 2003/06/04 01:25:35 mauricio Exp $
 
  ********************************************************************/
 
@@ -20,6 +20,7 @@
 #include <theora/theora.h>
 #include "encoder_internal.h"
 #include "toplevel_lookup.h"
+#include "toplevel.h"
 
 #define VERSION_MAJOR 3
 #define VERSION_MINOR 1
@@ -1074,7 +1075,7 @@ int theora_encode_comment(theora_comment *tc, ogg_packet *op)
   const char *vendor = theora_version_string();
   const int vendor_length = strlen(vendor);
   oggpack_buffer opb;
-  
+
   oggpack_writeinit(&opb);
   oggpack_write(&opb, 0x81, 8);
   _tp_writebuffer(&opb, "theora", 6);
@@ -1121,7 +1122,7 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
   _tp_writebuffer(&cpi->oggbuffer,"theora",6);
   
   write_Qtables(&cpi->oggbuffer);
-  write_FrequencyCounts(&cpi->oggbuffer);
+  write_HuffmanSet(&cpi->oggbuffer,cpi->pb.HuffRoot_VP3x);
 
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
@@ -1285,7 +1286,7 @@ int theora_decode_tables(theora_info *c, ogg_packet *op){
   
   /* todo: check for error */
   read_Qtables(&opb);
-  read_FrequencyCounts(&opb);
+  read_HuffmanSet(&opb);
 
   return(0);
 }
@@ -1314,7 +1315,7 @@ int theora_decode_init(theora_state *th, theora_info *c){
   InitQTables( pbi );
 
   /* Huffman setup */
-  InitHuffmanSet( pbi );
+  InitHuffmanSetPlay( pbi );
     
 
   return(0);
