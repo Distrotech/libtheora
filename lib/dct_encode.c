@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_encode.c,v 1.5 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: dct_encode.c,v 1.6 2002/09/25 11:11:42 xiphmont Exp $
 
  ********************************************************************/
 
@@ -289,7 +289,8 @@ static unsigned char TokenizeDctBlock (ogg_int16_t * RawData,
     /* Look for a zero run.  */
     /* NOTE the use of & instead of && which is faster (and
        equivalent) in this instance. */
-    while( (i < BLOCK_SIZE) & (!RawData[i]) ){
+    /* NO, NO IT ISN'T --Monty */
+    while( (i < BLOCK_SIZE) && (!RawData[i]) ){
       run_count++; 
       i++;
     }

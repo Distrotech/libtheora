@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frinit.c,v 1.4 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: frinit.c,v 1.5 2002/09/25 11:11:42 xiphmont Exp $
 
  ********************************************************************/
 
@@ -234,10 +234,10 @@ void InitFragmentInfo(PB_INSTANCE * pbi){
     _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->skipped_display_fragments));
     
   pbi->QFragData = 
-    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->QFragData) * 64);
+    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->QFragData));
     
   pbi->TokenList = 
-    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->TokenList) * 128);
+    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->TokenList));
     
   pbi->FragCodingMethod = 
     _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->FragCodingMethod));
@@ -249,7 +249,7 @@ void InitFragmentInfo(PB_INSTANCE * pbi){
     _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->FragQIndex));
 
   pbi->PPCoefBuffer = 
-    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->PPCoefBuffer) * 64);
+    _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->PPCoefBuffer));
 
   pbi->FragmentVariances = 
     _ogg_malloc(pbi->UnitFragments * sizeof(*pbi->FragmentVariances));
@@ -272,7 +272,7 @@ void InitFragmentInfo(PB_INSTANCE * pbi){
     _ogg_malloc(pbi->MacroBlocks * sizeof(*pbi->MBFullyFlags));
 
   pbi->BlockMap = 
-    _ogg_malloc(pbi->SuperBlocks * sizeof(*pbi->BlockMap) * 4 * 4);
+    _ogg_malloc(pbi->SuperBlocks * sizeof(*pbi->BlockMap));
 
 }
 

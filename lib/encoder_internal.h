@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.10 2002/09/25 10:01:52 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.11 2002/09/25 11:11:42 xiphmont Exp $
 
  ********************************************************************/
 
@@ -100,7 +100,6 @@ typedef struct{
 typedef MOTION_VECTOR COORDINATE;
 
 typedef ogg_int16_t     Q_LIST_ENTRY;
-typedef Q_LIST_ENTRY    Q_LIST[64];
 
 typedef struct PP_INSTANCE {
   ogg_uint32_t  PrevFrameLimit;
