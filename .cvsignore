@@ -13,3 +13,6 @@ depcomp
 install-sh
 ltmain.sh
 missing
+stamp-h1
+config.h.in
+config.h
