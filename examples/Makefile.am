@@ -4,19 +4,10 @@ AUTOMAKE_OPTIONS = foreign
 
 INCLUDES = -I$(top_srcdir)/include 
 
-if HAVE_SDL
-player_example = player_example
-else
-player_example = 
-endif
+noinst_PROGRAMS = encoder_example dump_video $(BUILDABLE_EXAMPLES)
 
-if HAVE_PORTAUDIO
-splayer = splayer
-else
-splayer =
-endif
-
-noinst_PROGRAMS = encoder_example dump_video $(player_example) $(splayer)
+# possible contents of BUILDABLE_EXAMPLES:
+EXTRA_PROGRAMS = player_example splayer
 
 CFLAGS = $(SDL_CFLAGS)
 LDFLAGS = -all-static 

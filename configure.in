@@ -90,10 +90,13 @@ AC_CHECK_FUNC(oggpackB_read, , [
 AM_PATH_SDL(,[
 	HAVE_SDL=yes
 	SDL_LIBS=`$SDL_CONFIG --static-libs`
-],AC_MSG_WARN([*** Unable to find SDL -- Not compiling player_example ***]))
-AM_CONDITIONAL(HAVE_SDL, test "$HAVE_SDL" = "yes")
+],AC_MSG_WARN([*** Unable to find SDL -- Not compiling example players ***]))
 
-HAVE_PORTAUDIO=no
+AC_CHECK_HEADERS([sys/soundcard.h soundcard.h machine/soundcard.h],[
+  HAVE_OSS=yes
+  break
+])
+
 AC_CHECK_LIB(portaudio, Pa_OpenStream, [
   AC_CHECK_HEADER(portaudio.h, [HAVE_PORTAUDIO=yes])
   ],,[-lpthread]
@@ -101,7 +104,14 @@ AC_CHECK_LIB(portaudio, Pa_OpenStream, [
 if test "$HAVE_PORTAUDIO" = "no"; then
   AC_MSG_WARN([portaudio not found -- not compiling splayer example])
 fi
-AM_CONDITIONAL(HAVE_PORTAUDIO, test "$HAVE_PORTAUDIO" = "yes")
+
+if test x$HAVE_SDL = xyes -a x$HAVE_OSS = xyes; then
+  BUILDABLE_EXAMPLES="$BUILDABLE_EXAMPLES player_example"
+fi
+if test x$HAVE_SDL = xyes -a x$HAVE_PORTAUDIO = xyes; then
+  BUILDABLE_EXAMPLES="$BUILDABLE_EXAMPLES splayer"
+fi
+AC_SUBST(BUILDABLE_EXAMPLES)
 
 dnl --------------------------------------------------
 dnl Do substitutions
