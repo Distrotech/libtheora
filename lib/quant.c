@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.13 2004/03/07 01:31:35 giles Exp $
+  last mod: $Id: quant.c,v 1.14 2004/03/07 02:27:04 giles Exp $
 
  ********************************************************************/
 
@@ -180,7 +180,6 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
     ci->DcScaleFactorTable[x]=(Q_LIST_ENTRY)bits;
   }
   /* base matricies */
-  //N=(unsigned int)oggpackB_read(opb, 9) + 1;
   theora_read(opb,9,&N);
   N++;
   if(N!=3)return OC_BADHEADER; /* we only support the VP3 config */
@@ -188,7 +187,6 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   ci->MaxQMatrixIndex = N;
   for(y=0; y<N; y++) {
     for(x=0; x<64; x++) {
-      //bits=oggpackB_read(opb, 8);
       theora_read(opb,8,&bits);
       if(bits<0)return OC_BADHEADER;
       ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)bits;
@@ -199,18 +197,14 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
     int index, range, flag;
     int qi = 0;
     /* intra Y */
-    //index=oggpackB_read(opb, _ilog(N-1)); /* qi=0 index */
-    theora_read(opb,_ilog(N-1),&index);
+    theora_read(opb,_ilog(N-1),&index); /* qi=0 index */
     while(qi<63) {
-      //range=oggpackB_read(opb,_ilog(63-qi));
-      theora_read(opb,_ilog(63-qi),&range);
+      theora_read(opb,_ilog(63-qi),&range); /* range to next code q matrix */
       if(range<=0) return OC_BADHEADER;
       qi+=range;
-      //index=oggpackB_read(opb, _ilog(N-1));
       theora_read(opb,_ilog(N-1),&index); /* next index */
     }
     /* intra U */
-    //flag=oggpackB_read(opb, 1);
     theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
@@ -227,36 +221,36 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
       /* same as previous */
     }
     /* intra V */
-    flag=oggpackB_read(opb, 1);
+    theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
       qi=0;
-      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      theora_read(opb,_ilog(N-1),&index); /* first index */
       while(qi<63) {
-        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        theora_read(opb,_ilog(63-qi),&range); /* range */
         if(range<=0) return OC_BADHEADER;
         qi+=range;
-        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+        theora_read(opb,_ilog(N-1),&index); /* next index */
       }
     } else {
        /* same as previous */
     }
     /* inter Y */
-    flag=oggpackB_read(opb, 1);
+    theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
       qi=0;
-      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      theora_read(opb,_ilog(N-1),&index); /* first index */
       while(qi<63) {
-        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        theora_read(opb,_ilog(63-qi),&range); /* range */
         if(range<=0) return OC_BADHEADER;
         qi+=range;
-        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+        theora_read(opb,_ilog(N-1),&index); /* next index */
       }
     } else {
-      flag=oggpackB_read(opb, 1);
+      theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
@@ -265,20 +259,20 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
       }
     }
     /* inter U */
-    flag=oggpackB_read(opb, 1);
+    theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
       qi=0;
-      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      theora_read(opb,_ilog(N-1),&index); /* first index */
       while(qi<63) {
-        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        theora_read(opb,_ilog(63-qi),&range); /* range */
         if(range<=0) return OC_BADHEADER;
         qi+=range;
-        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+        theora_read(opb,_ilog(N-1),&index); /* next index */
       }
     } else {
-      flag=oggpackB_read(opb, 1);
+      theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
@@ -287,20 +281,20 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
       }
     }
     /* inter V */
-    flag=oggpackB_read(opb, 1);
+    theora_read(opb,1,&flag);
     if(flag<0) return OC_BADHEADER;
     if(flag) {
       /* explicitly coded */
       qi=0;
-      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      theora_read(opb,_ilog(N-1),&index); /* first index */
       while(qi<63) {
-        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        theora_read(opb,_ilog(63-qi),&range); /* range */
         if(range<=0) return OC_BADHEADER;
         qi+=range;
-        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+        theora_read(opb,_ilog(N-1),&index); /* next index */
       }
     } else {
-      flag=oggpackB_read(opb, 1);
+      theora_read(opb,1,&flag);
       if(flag<0) return OC_BADHEADER;
       if(flag) {
         /* same as corresponding intra */
@@ -311,10 +305,16 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   }
   
   /* ignore the range table and reference the matricies we use */
+#if 0
   ci->Y_coeffs=&(ci->qmats[0]);
   ci->UV_coeffs=&(ci->qmats[64]);
   ci->Inter_coeffs=&(ci->qmats[2*64]);
-  
+#else
+  memcpy(ci->Y_coeffs, &ci->qmats[0], sizeof(ci->Y_coeffs));
+  memcpy(ci->UV_coeffs, &ci->qmats[64], sizeof(ci->UV_coeffs));
+  memcpy(ci->Inter_coeffs, &ci->qmats[2*64], sizeof(ci->Inter_coeffs));
+#endif
+
   return 0;
 }
 
@@ -322,9 +322,9 @@ void CopyQTables(PB_INSTANCE *pbi, codec_setup_info *ci) {
   memcpy(pbi->QThreshTable, ci->QThreshTable, sizeof(pbi->QThreshTable));
   memcpy(pbi->DcScaleFactorTable, ci->DcScaleFactorTable,
          sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, ci->Y_coeffs, 64 * sizeof(*ci->Y_coeffs));
-  memcpy(pbi->UV_coeffs, ci->UV_coeffs, 64 * sizeof(*ci->UV_coeffs));
-  memcpy(pbi->Inter_coeffs, ci->Inter_coeffs, 64 * sizeof(*ci->Inter_coeffs));
+  memcpy(pbi->Y_coeffs, ci->Y_coeffs, sizeof(pbi->Y_coeffs));
+  memcpy(pbi->UV_coeffs, ci->UV_coeffs, sizeof(pbi->UV_coeffs));
+  memcpy(pbi->Inter_coeffs, ci->Inter_coeffs, sizeof(pbi->Inter_coeffs));
 }
 
 /* Initialize custom qtables using the VP31 values.
@@ -334,9 +334,9 @@ void InitQTables( PB_INSTANCE *pbi ){
   memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
   memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1,
          sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, Y_coeffsV1, 64 * sizeof(*Y_coeffsV1));
-  memcpy(pbi->UV_coeffs, UV_coeffsV1, 64 * sizeof(*UV_coeffsV1));
-  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, 64 * sizeof(*Inter_coeffsV1));
+  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(Y_coeffsV1));
+  memcpy(pbi->UV_coeffs, UV_coeffsV1, sizeof(UV_coeffsV1));
+  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, sizeof(Inter_coeffsV1));
 }
 
 static void BuildQuantIndex_Generic(PB_INSTANCE *pbi){

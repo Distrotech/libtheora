@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.18 2004/03/05 17:44:28 giles Exp $
+  last mod: $Id: encoder_internal.h,v 1.19 2004/03/07 02:27:04 giles Exp $
 
  ********************************************************************/
 
@@ -251,9 +251,9 @@ typedef struct codec_setup_info {
   Q_LIST_ENTRY DcScaleFactorTable[Q_TABLE_SIZE];
   int MaxQMatrixIndex;
   Q_LIST_ENTRY *qmats;
-  Q_LIST_ENTRY *Y_coeffs;
-  Q_LIST_ENTRY *UV_coeffs;
-  Q_LIST_ENTRY *Inter_coeffs;
+  Q_LIST_ENTRY Y_coeffs[64];
+  Q_LIST_ENTRY UV_coeffs[64];
+  Q_LIST_ENTRY Inter_coeffs[64];
 
   HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES];
 } codec_setup_info;
