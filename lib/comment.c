@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.7 2003/06/10 11:34:52 giles Exp $
+  last mod: $Id: comment.c,v 1.8 2003/09/27 22:25:15 tterribe Exp $
 
  ********************************************************************/
 
@@ -70,9 +70,11 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
 
   for(i=0;i<tc->comments;i++){
     if(!tagcompare(tc->user_comments[i], fulltag, taglen)){
-      if(count == found)
+      if(count == found){
+        _ogg_free(fulltag);
         /* We return a pointer to the data, not a copy */
         return tc->user_comments[i] + taglen;
+      }
       else
         found++;
     }
