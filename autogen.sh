@@ -48,30 +48,6 @@ fi
 
 echo "Generating configuration files for $package, please wait...."
 
-test -f aclocal.m4 && rm aclocal.m4
-echo -n "looking for our m4 macros... "
-aclocaldirs="$srcdir `aclocal --print-ac-dir` \
-        /usr/local/share/aclocal* /usr/local/aclocal* \
-        /sw/share/aclocal* /usr/share/aclocal*"
-for dir in $aclocaldirs; do
-  test -d "$dir" && if ! test -z "`ls $dir | grep .m4`"; then
-    if test ! -z "`fgrep XIPH_PATH_OGG $dir/*.m4`"; then
-      echo $dir
-      ACLOCAL_FLAGS="-I $dir $ACLOCAL_FLAGS"
-      break
-    fi
-  fi
-done
-if test -z "$ACLOCAL_FLAGS"; then
-  echo "nope."
-  echo
-  echo "Please install the ogg and vorbis libraries, or add the"
-  echo "location of ogg.m4 to ACLOCAL_FLAGS in the environment."
-  echo
-  exit 1
-fi
-
-
 echo "  aclocal $ACLOCAL_FLAGS"
 aclocal $ACLOCAL_FLAGS
 echo "  autoheader"
