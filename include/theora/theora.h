@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.8 2003/06/03 22:39:26 giles Exp $
+  last mod: $Id: theora.h,v 1.9 2003/06/04 00:04:29 giles Exp $
 
  ********************************************************************/
 
@@ -28,14 +28,19 @@ typedef struct {
     int   uv_width;
     int   uv_height;
     int   uv_stride;
-
     char *y;
     char *u;
     char *v;
 
 } yuv_buffer;
 
-typedef struct{
+typedef enum {
+    not_specified = 0,
+    ITU_Rec_601 = 1,
+    CIE_Rec_709 = 2
+} theora_colorspace;
+
+typedef struct {
   ogg_uint32_t  width;
   ogg_uint32_t  height;
   ogg_uint32_t  frame_width;
@@ -46,6 +51,7 @@ typedef struct{
   ogg_uint32_t  fps_denominator;
   ogg_uint32_t  aspect_numerator;
   ogg_uint32_t  aspect_denominator;
+  theora_colorspace colorspace;
   int           target_bitrate;
   int           quality;
   int           quick_p;  /* quick encode/decode */

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.20 2003/06/03 22:39:26 giles Exp $
+  last mod: $Id: toplevel.c,v 1.21 2003/06/04 00:04:29 giles Exp $
 
  ********************************************************************/
 
@@ -1050,6 +1050,7 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
 
   oggpackB_write(&cpi->oggbuffer,cpi->pb.keyframe_granule_shift,5);
 
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.colorspace,8);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
 
@@ -1212,6 +1213,7 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
 
   c->keyframe_frequency_force=1<<oggpackB_read(&opb,5);
 
+  c->colorspace=oggpackB_read(&opb,8);
   c->target_bitrate=oggpackB_read(&opb,24);
   c->quality=ret=oggpackB_read(&opb,6);
 

@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.14 2003/06/03 22:39:26 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.15 2003/06/04 00:04:28 giles Exp $
 
  ********************************************************************/
 
@@ -585,6 +585,7 @@ int main(int argc,char *argv[]){
   ti.fps_denominator=video_hzd;
   ti.aspect_numerator=video_an;
   ti.aspect_denominator=video_ad;
+  ti.colorspace=not_specified;
   ti.target_bitrate=video_r;
   ti.quality=video_q;
   
