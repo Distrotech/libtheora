@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.10 2002/09/24 05:06:14 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.11 2002/09/24 11:18:22 xiphmont Exp $
 
  ********************************************************************/
 
@@ -995,7 +995,7 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   op->packetno=cpi->CurrentFrame;
 
   op->granulepos=
-    ((cpi->CurrentFrame-cpi->LastKeyFrame)<<cpi->pb.keyframe_granule_shift)+ 
+    ((cpi->CurrentFrame-cpi->LastKeyFrame-1)<<cpi->pb.keyframe_granule_shift)+ 
     cpi->LastKeyFrame-1;
 
   cpi->packetflag=0;
