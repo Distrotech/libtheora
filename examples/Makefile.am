@@ -25,10 +25,10 @@ dump_video_SOURCES = dump_video.c
 dump_video_LDADD = $(LDADD)
 
 player_example_SOURCES = player_example.c
-player_example_LDADD = $(LDADD) $(SDL_LIBS)  -lvorbis -lpthread
+player_example_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis
 
 splayer_SOURCES = splayer.c
-splayer_LDADD = $(LDADD) $(SDL_LIBS)  -lvorbis -lpthread /usr/local/lib/libportaudio.a
+splayer_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis -lportaudio -lpthread
 
 encoder_example_SOURCES = encoder_example.c
 encoder_example_LDADD = $(LDADD) -lvorbisenc
