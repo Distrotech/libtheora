@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.17 2003/06/08 13:13:49 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.18 2003/06/08 19:59:59 giles Exp $
 
  ********************************************************************/
 
@@ -241,7 +241,7 @@ static void id_file(char *f){
       video=test;
       
       fprintf(stderr,"File %s is %dx%d %.02f fps YUV12 video.\n",
-	      f,video_x,video_y,(double)video_hzn/video_hzd);
+	      f,frame_x,frame_y,(double)video_hzn/video_hzd);
       
       return;
     }
@@ -375,36 +375,43 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
       for(i=state;i<2;i++){
 	char frame[6];
 	int ret=fread(frame,1,6,video);
+	int count = 0;
 	
 	if(ret<6)break;
 	if(memcmp(frame,"FRAME\n",6)){
 	  fprintf(stderr,"Loss of framing in YUV input data\n");
 	  exit(1);
 	}
+	
+	fprintf(stderr,"reading frame...");
 
 	/* read the Y plane into our frame buffer with centering */
 	line=yuvframe[i]+video_x*frame_y_offset+frame_x_offset;
 	for(e=0;e<frame_y;e++){
 	  ret=fread(line,1,frame_x,video);
-	    if(ret!=video_x) break;
+	  count+=ret;
+	    if(ret!=frame_x) break;
 	  line+=video_x; 
 	}
 	/* now get U plane*/
 	line=yuvframe[i]+(video_x*video_y)
 	  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
 	for(e=0;e<frame_y/2;e++){
-	  ret=fread(line,1,video_x/2,video);
-	    if(ret!=video_x/2) break;
-	  line+=frame_x/2;
-	}
-	/* and the V plane*/
-	line=yuvframe[i]+(frame_x*frame_y*5/4)
-		  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
-	for(e=0;e<frame_y/2;e++){
-	  ret=fread(line,1,video_x/2,video);
-	    if(ret!=video_x/2) break;
+	  ret=fread(line,1,frame_x/2,video);
+	  count+=ret;
+	    if(ret!=frame_x/2) break;
 	  line+=video_x/2;
 	}
+	/* and the V plane*/
+	line=yuvframe[i]+(video_x*video_y*5/4)
+		  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
+	for(e=0;e<frame_y/2;e++){
+	  ret=fread(line,1,frame_x/2,video);
+	  count+=ret;
+	    if(ret!=frame_x/2) break;
+	  line+=video_x/2;
+	}
+        fprintf(stderr,"%d of %d bytes.\n",count,frame_x*frame_y*3/2);
 	state++;
       }
 
@@ -427,8 +434,8 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 	yuv.uv_stride=video_x/2;
 
 	yuv.y= yuvframe[0];
-	yuv.u= yuvframe[0]+ frame_x*frame_y;
-	yuv.v= yuvframe[0]+ frame_x*frame_y*5/4 ;
+	yuv.u= yuvframe[0]+ video_x*video_y;
+	yuv.v= yuvframe[0]+ video_x*video_y*5/4 ;
       }
       
       theora_encode_YUVin(td,&yuv);
@@ -567,10 +574,10 @@ int main(int argc,char *argv[]){
   frame_x_offset=(video_x-frame_x)/2;
   frame_y_offset=(video_y-frame_y)/2;
   
-  ti.width=frame_x;
-  ti.height=frame_y;
-  ti.frame_width=video_x;
-  ti.frame_height=video_y;
+  ti.width=video_x;
+  ti.height=video_y;
+  ti.frame_width=frame_x;
+  ti.frame_height=frame_y;
   ti.offset_x=frame_x_offset;
   ti.offset_y=frame_y_offset;
   ti.fps_numerator=video_hzn;
