@@ -4,7 +4,7 @@ dnl ------------------------------------------------
 dnl Initialization and Versioning
 dnl ------------------------------------------------
 
-AC_INIT(libtheora,[unreleased-snapshot])
+AC_INIT(libtheora,[1.0alpha3])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([lib/dct.c])
 AM_INIT_AUTOMAKE
