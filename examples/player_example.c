@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.12 2003/05/12 00:22:59 giles Exp $
+  last mod: $Id: player_example.c,v 1.13 2003/05/19 19:31:37 giles Exp $
 
  ********************************************************************/
 
@@ -54,9 +54,9 @@
 
 /* Helper; just grab some more compressed bitstream and sync it for
    page extraction */
-int buffer_data(ogg_sync_state *oy){
+int buffer_data(FILE *in,ogg_sync_state *oy){
   char *buffer=ogg_sync_buffer(oy,4096);
-  int bytes=fread(buffer,1,4096,stdin);
+  int bytes=fread(buffer,1,4096,in);
   ogg_sync_wrote(oy,bytes);
   return(bytes);
 }
@@ -378,10 +378,20 @@ static int queue_page(ogg_page *page){
   return 0;
 }                                   
 
-int main(void){
+static void usage(void){
+  fprintf(stderr,
+          "Usage: player_example <file.ogg>\n"
+          "input is read from stdin if no file is passed on the command line\n"
+          "\n"
+  );
+}
+
+int main(int argc,char *argv[]){
   
   int i,j;
   ogg_packet op;
+  
+  FILE *infile = stdin;
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
   /* Beware the evil ifdef. We avoid these where we can, but this one we 
@@ -389,6 +399,19 @@ int main(void){
   _setmode( _fileno( stdin ), _O_BINARY );
 #endif
 
+  /* open the input file if any */
+  if(argc==2){
+    infile=fopen(argv[1],"rb");
+    if(infile==NULL){
+      fprintf(stderr,"Unable to open '%s' for playback.\n", argv[1]);
+      exit(1);
+    }
+  }
+  if(argc>2){
+      usage();
+      exit(1);
+  }
+  
   /* start up Ogg stream synchronization layer */
   ogg_sync_init(&oy);
 
@@ -397,10 +420,10 @@ int main(void){
   vorbis_comment_init(&vc);
   theora_comment_init(&tc);
 
-  /* Ogg file on stdin; parse the headers */
+  /* Ogg file open; parse the headers */
   /* Only interested in Vorbis/Theora streams */
   while(!stateflag){
-    int ret=buffer_data(&oy);
+    int ret=buffer_data(infile,&oy);
     if(ret==0)break;
     while(ogg_sync_pageout(&oy,&og)>0){
       ogg_stream_state test;
@@ -485,7 +508,7 @@ int main(void){
     if(ogg_sync_pageout(&oy,&og)>0){
       queue_page(&og); /* demux into the appropriate stream */
     }else{
-      int ret=buffer_data(&oy); /* someone needs more data */
+      int ret=buffer_data(infile,&oy); /* someone needs more data */
       if(ret==0){
 	fprintf(stderr,"End of file while searching for codec headers.\n");
 	exit(1);
@@ -588,11 +611,11 @@ int main(void){
 	break;
     }
     
-    if(!videobuf_ready && !audiobuf_ready && feof(stdin))break;
+    if(!videobuf_ready && !audiobuf_ready && feof(infile))break;
     
     if(!videobuf_ready || !audiobuf_ready){
       /* no data yet for somebody.  Grab another page */
-      int ret=buffer_data(&oy);
+      int ret=buffer_data(infile,&oy);
       while(ogg_sync_pageout(&oy,&og)>0){
       	queue_page(&og);
       }
@@ -648,7 +671,7 @@ int main(void){
     if((!theora_p || videobuf_ready) && 
        (!vorbis_p || audiobuf_ready))stateflag=1;
     /* same if we've run out of input */
-    if(feof(stdin))stateflag=1; 
+    if(feof(infile))stateflag=1; 
 
   }
 
@@ -670,6 +693,8 @@ int main(void){
   }
   ogg_sync_clear(&oy);
 
+  if(infile && infile!=stdin)fclose(infile);
+  
   fprintf(stderr,
 	  "\r                                                              "
 	  "\nDone.\n");
