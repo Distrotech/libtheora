@@ -103,7 +103,7 @@ AM_PATH_SDL(,[
 AC_CHECK_HEADERS([sys/soundcard.h soundcard.h machine/soundcard.h],[
   HAVE_OSS=yes
   break
-])
+],AC_MSG_WARN([OSS audio support not found -- not compiling player_example]))
 
 AC_CHECK_LIB(portaudio, Pa_OpenStream, [
   AC_CHECK_HEADER(portaudio.h, [HAVE_PORTAUDIO=yes])
