@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.26 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: toplevel.c,v 1.27 2003/06/15 16:36:15 giles Exp $
 
  ********************************************************************/
 
@@ -159,7 +159,7 @@ static void EInitFragmentInfo(CP_INSTANCE * cpi){
 
 }
 
-void EClearFrameInfo(CP_INSTANCE * cpi) {
+static void EClearFrameInfo(CP_INSTANCE * cpi) {
   if(cpi->ConvDestBuffer )
     _ogg_free(cpi->ConvDestBuffer );
   cpi->ConvDestBuffer = 0;
@@ -190,7 +190,7 @@ void EClearFrameInfo(CP_INSTANCE * cpi) {
 
 }
 
-void EInitFrameInfo(CP_INSTANCE * cpi){
+static void EInitFrameInfo(CP_INSTANCE * cpi){
   int FrameSize = cpi->pb.ReconYPlaneSize + 2 * cpi->pb.ReconUVPlaneSize;
 
   /* clear any existing info */
@@ -299,7 +299,7 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
 
 }
 
-void UpdateFrame(CP_INSTANCE *cpi){
+static void UpdateFrame(CP_INSTANCE *cpi){
 
   double CorrectionFactor;
 
