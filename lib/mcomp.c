@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: mcomp.c,v 1.7 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: mcomp.c,v 1.8 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 
 /* Initialises motion compentsation. */

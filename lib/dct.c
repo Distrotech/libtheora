@@ -11,11 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct.c,v 1.5 2003/06/22 18:14:00 giles Exp $
+  last mod: $Id: dct.c,v 1.6 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
-#include <ogg/ogg.h>
+#include "encoder_internal.h"
 
 static ogg_int32_t xC1S7 = 64277;
 static ogg_int32_t xC2S6 = 60547;

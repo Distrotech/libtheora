@@ -11,15 +11,13 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.8 2003/09/27 22:25:15 tterribe Exp $
+  last mod: $Id: comment.c,v 1.9 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <ogg/ogg.h>
-#include <theora/theora.h>
 #include "encoder_internal.h"
 
 void theora_comment_init(theora_comment *tc){

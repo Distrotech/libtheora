@@ -11,9 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel_lookup.h,v 1.3 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: toplevel_lookup.h,v 1.4 2003/12/03 08:59:43 arc Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
 
 ogg_uint32_t PriorKeyFrameWeight[KEY_FRAME_CONTEXT] = { 1,2,3,4,5 };
 

@@ -11,11 +11,10 @@
  ********************************************************************
 
   function:
-  last mod: $Id: compglobals.c,v 1.3 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: compglobals.c,v 1.4 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
-#include "ogg/ogg.h"
 #include "encoder_internal.h"
 
 /* the Roundup32 silliness is dangerous on non-Intel processors and

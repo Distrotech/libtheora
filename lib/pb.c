@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: pb.c,v 1.5 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: pb.c,v 1.6 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 
 void ClearTmpBuffers(PB_INSTANCE * pbi){

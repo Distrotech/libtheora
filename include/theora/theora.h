@@ -11,14 +11,18 @@
  ********************************************************************
 
   function:
-  last mod: $Id: theora.h,v 1.15 2003/10/21 22:06:29 giles Exp $
+  last mod: $Id: theora.h,v 1.16 2003/12/03 08:59:47 arc Exp $
 
  ********************************************************************/
 
 #ifndef _O_THEORA_H_
 #define _O_THEORA_H_
 
+#ifndef LIBOGG2
 #include <ogg/ogg.h>
+#else
+#include <ogg2/ogg.h>
+#endif
 
 typedef struct {
     int   y_width;

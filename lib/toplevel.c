@@ -11,14 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.33 2003/10/31 13:53:49 giles Exp $
+  last mod: $Id: toplevel.c,v 1.34 2003/12/03 08:59:42 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
-#include <ogg/ogg.h>
-#include <theora/theora.h>
 #include "encoder_internal.h"
 #include "toplevel_lookup.h"
 
@@ -850,8 +848,11 @@ int theora_encode_init(theora_state *th, theora_info *c){
     cpi->QTargetModifier[i] = 1.0;
 
   /* Set up an encode buffer */
+#ifndef LIBOGG2
   oggpackB_writeinit(&cpi->oggbuffer);
-
+#else
+  oggpackB_writeinit(&cpi->oggbuffer, ogg_buffer_create());
+#endif 
   /* Set data rate related variables. */
   cpi->Configuration.TargetBandwidth = (c->target_bitrate) / 8;
 
@@ -998,7 +999,11 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   if(!cpi->packetflag)return(0);
   if(cpi->doneflag)return(-1);
 
+#ifndef LIBOGG2
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+#else
+  op->packet=oggpackB_writebuffer(&cpi->oggbuffer);
+#endif
   op->bytes=bytes;
   op->b_o_s=0;
   op->e_o_s=last_p;
@@ -1060,7 +1065,11 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
 
   oggpackB_write(&cpi->oggbuffer,0,5); /* spare config bits */
 
+#ifndef LIBOGG2
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
+#else
+  op->packet=oggpackB_writebuffer(&cpi->oggbuffer);
+#endif
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
 
   op->b_o_s=1;
@@ -1103,7 +1112,12 @@ int theora_encode_comment(theora_comment *tc, ogg_packet *op)
   {
     int bytes=oggpack_bytes(&opb);
     op->packet=malloc(bytes);
+#ifndef LIBOGG2
     memcpy(op->packet, oggpack_get_buffer(&opb), bytes);
+#else
+    /* I don't know why memcpy is used above, but it wont work here */
+    op->packet = oggpack_writebuffer(&opb);
+#endif
     op->bytes=bytes;
   }
   oggpack_writeclear(&opb);
@@ -1197,34 +1211,57 @@ void theora_clear(theora_state *t){
 static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
   long ret;
 
-  ci->version_major=(unsigned char)oggpackB_read(opb,8);
-  ci->version_minor=(unsigned char)oggpackB_read(opb,8);
-  ci->version_subminor=(unsigned char)oggpackB_read(opb,8);
+  theora_read(opb,8,&ret);
+  ci->version_major=(unsigned char)ret;
+  theora_read(opb,8,&ret);
+  ci->version_minor=(unsigned char)ret;
+  theora_read(opb,8,&ret);
+  ci->version_subminor=(unsigned char)ret;
 
   if(ci->version_major!=VERSION_MAJOR)return(OC_VERSION);
   if(ci->version_minor>VERSION_MINOR)return(OC_VERSION);
 
-  ci->width=oggpackB_read(opb,16)<<4;
-  ci->height=oggpackB_read(opb,16)<<4;
-  ci->frame_width=oggpackB_read(opb,24);
-  ci->frame_height=oggpackB_read(opb,24);
-  ci->offset_x=oggpackB_read(opb,8);
-  ci->offset_y=oggpackB_read(opb,8);
+  theora_read(opb,16,&ret);
+  ci->width=ret<<4;
+  theora_read(opb,16,&ret);
+  ci->height=ret<<4;
+  theora_read(opb,24,&ret);
+  ci->frame_width=ret;
+  theora_read(opb,24,&ret);
+  ci->frame_height=ret;
+  theora_read(opb,8,&ret);
+  ci->offset_x=ret;
+  theora_read(opb,8,&ret);
+  ci->offset_y=ret;
 
-  ci->fps_numerator=oggpackB_read(opb,32);
-  ci->fps_denominator=oggpackB_read(opb,32);
-  ci->aspect_numerator=oggpackB_read(opb,24);
-  ci->aspect_denominator=oggpackB_read(opb,24);
+  theora_read(opb,32,&ret);
+  ci->fps_numerator=ret;
+  theora_read(opb,32,&ret);
+  ci->fps_denominator=ret;
+  theora_read(opb,24,&ret);
+  ci->aspect_numerator=ret;
+  theora_read(opb,24,&ret);
+  ci->aspect_denominator=ret;
 
-  ci->colorspace=oggpackB_read(opb,8);
-  ci->target_bitrate=oggpackB_read(opb,24);
-  ci->quality=ret=oggpackB_read(opb,6);
+  theora_read(opb,8,&ret);
+  ci->colorspace=ret;
+  theora_read(opb,24,&ret);
+  ci->target_bitrate=ret;
+  theora_read(opb,6,&ret);
+  ci->quality=ret=ret;
 
-  ci->keyframe_frequency_force=1<<oggpackB_read(opb,5);
+  theora_read(opb,5,&ret);
+  ci->keyframe_frequency_force=1<<ret;
 
-  ret=oggpackB_read(opb,5); /* spare configuration bits */
-
-  if(ret==-1L)return(OC_BADHEADER);
+  /* spare configuration bits */
+  /* This has to be #ifdef for now since it needs to know if the packet
+     has terminated early, and this is the only place this is needed. */
+#ifndef LIBOGG2
+  if ( oggpackB_read(opb,5) < 0 )
+#else
+  if ( oggpackB_read(opb,5,&ret) < 5 ) 
+#endif
+    return (OC_BADHEADER);
 
   return(0);
 }
@@ -1271,12 +1308,16 @@ int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
   oggpack_buffer opb;
 
   if(!op)return OC_BADHEADER;
+#ifndef LIBOGG2
   oggpackB_readinit(&opb,op->packet,op->bytes);
-
+#else
+  oggpackB_readinit(&opb,op->packet);
+#endif
   {
     char id[6];
-    int typeflag=oggpackB_read(&opb,8);
+    int typeflag;
 
+    theora_read(&opb,8,&typeflag);
     if(!(typeflag&0x80))return(OC_NOTFORMAT);
 
     _tp_readbuffer(&opb,id,6);
@@ -1362,10 +1403,17 @@ int theora_decode_packetin(theora_state *th,ogg_packet *op){
   PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
 
   pbi->DecoderErrorCode = 0;
+
+#ifndef LIBOGG2
   oggpackB_readinit(&pbi->opb,op->packet,op->bytes);
+#else
+  oggpackB_readinit(&pbi->opb,op->packet);
+#endif
 
   /* verify that this is a video frame */
-  if(oggpackB_read(&pbi->opb,1)==0){
+  theora_read(&pbi->opb,1,&ret);
+
+  if (ret==0) {
     ret=LoadAndDecode(pbi);
 
     if(ret)return ret;

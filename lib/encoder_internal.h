@@ -11,13 +11,21 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.15 2003/09/29 14:36:44 giles Exp $
+  last mod: $Id: encoder_internal.h,v 1.16 2003/12/03 08:59:42 arc Exp $
 
  ********************************************************************/
 
-#include <ogg/ogg.h>
+#ifndef ENCODER_INTERNAL_H
+#define ENCODER_INTERNAL_H
+
+#include <theora/theora.h>
 #include "huffman.h"
-#include "theora/theora.h"
+
+#ifndef LIBOGG2
+#define theora_read(x,y,z) ( *z = oggpackB_read(x,y) )
+#else
+#define theora_read(x,y,z) ( oggpackB_read(x,y,z) )
+#endif
 
 #define CURRENT_ENCODE_VERSION   1
 #define HUGE_ERROR              (1<<28)  /*  Out of range test value */
@@ -786,3 +794,4 @@ extern void InitTmpBuffers(PB_INSTANCE * pbi);
 extern void ScanYUVInit( PP_INSTANCE *  ppi,
                          SCAN_CONFIG_DATA * ScanConfigPtr);
 extern int LoadAndDecode(PB_INSTANCE *pbi);
+#endif

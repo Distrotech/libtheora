@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct_decode.c,v 1.8 2003/11/10 02:46:21 giles Exp $
+  last mod: $Id: dct_decode.c,v 1.9 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 
 

@@ -11,12 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: misc_common.c,v 1.9 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: misc_common.c,v 1.10 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "block_inline.h"
 

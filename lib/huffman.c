@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: huffman.c,v 1.10 2003/10/26 21:48:11 giles Exp $
+  last mod: $Id: huffman.c,v 1.11 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "hufftables.h"
 
@@ -226,7 +225,7 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
 static int ReadHuffTree(HUFF_ENTRY * HuffRoot, int depth,
                         oggpack_buffer *opb) {
   long bit;
-  bit = oggpackB_read(opb, 1);
+  theora_read(opb,1,&bit);
   if(bit < 0) return OC_BADHEADER;
   else if(!bit) {
     int ret;
@@ -241,7 +240,7 @@ static int ReadHuffTree(HUFF_ENTRY * HuffRoot, int depth,
   } else {
     HuffRoot->ZeroChild = NULL;
     HuffRoot->OneChild = NULL;
-    HuffRoot->Value = oggpackB_read(opb, 5);
+    theora_read(opb,5,&HuffRoot->Value);
     if (HuffRoot->Value < 0) return OC_BADHEADER;
   }
   return 0;

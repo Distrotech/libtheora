@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.14 2003/11/06 23:44:57 giles Exp $
+  last mod: $Id: encode.c,v 1.15 2003/12/03 08:59:40 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "encoder_lookup.h"
 #include "block_inline.h"

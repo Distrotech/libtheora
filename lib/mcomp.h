@@ -11,9 +11,11 @@
  ********************************************************************
 
   function: simple static lookups for VP3 codec
-  last mod: $Id: mcomp.h,v 1.3 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: mcomp.h,v 1.4 2003/12/03 08:59:43 arc Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
 
 ogg_int32_t XX_LUT[511]={
   65025, 64516, 64009, 63504, 63001, 62500, 62001, 61504,

@@ -11,11 +11,10 @@
  ********************************************************************
 
   function:
-  last mod: $Id: blockmap.c,v 1.4 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: blockmap.c,v 1.5 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 
 static void CreateMapping ( ogg_int32_t (*BlockMap)[4][4],

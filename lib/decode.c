@@ -11,12 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: decode.c,v 1.8 2003/11/06 23:44:57 giles Exp $
+  last mod: $Id: decode.c,v 1.9 2003/12/03 08:59:39 arc Exp $
 
  ********************************************************************/
 
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "block_inline.h"
 
@@ -61,23 +60,29 @@ int GetFrameType(PB_INSTANCE *pbi){
 }
 
 static int LoadFrameHeader(PB_INSTANCE *pbi){
+  long ret;
   unsigned char  DctQMask;
   unsigned char  SpareBits;       /* Spare cfg bits */
 
   /* Is the frame and inter frame or a key frame */
-  pbi->FrameType = (unsigned char)oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->FrameType = (unsigned char)ret;
 
   /* Quality (Q) index */
-  DctQMask = (unsigned char)oggpackB_read( &pbi->opb, 6 );
+  theora_read(&pbi->opb,6,&ret);
+  DctQMask = (unsigned char)ret;
 
   /* spare bit for possible additional Q indicies - should be 0 */
-  SpareBits = (unsigned char)oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  SpareBits = (unsigned char)ret;
 
   if ( (pbi->FrameType == BASE_FRAME) ){
     /* Read the type / coding method for the key frame. */
-    pbi->KeyFrameType = (unsigned char)oggpackB_read( &pbi->opb, 1 );
+    theora_read(&pbi->opb,1,&ret);
+    pbi->KeyFrameType = (unsigned char)ret;
 
-    SpareBits = (unsigned char)oggpackB_read( &pbi->opb, 2 );
+    theora_read(&pbi->opb,2,&ret);
+    SpareBits = (unsigned char)ret;
 
   }
 
@@ -116,6 +121,7 @@ static int LoadFrame(PB_INSTANCE *pbi){
 static void DecodeModes (PB_INSTANCE *pbi,
                          ogg_uint32_t SBRows,
                          ogg_uint32_t SBCols){
+  long ret;
   ogg_int32_t   FragIndex;
   ogg_uint32_t  MB;
   ogg_uint32_t  SBrow;
@@ -144,14 +150,15 @@ static void DecodeModes (PB_INSTANCE *pbi,
     const CODING_MODE  *ModeList;
 
     /* Read the coding method */
-    CodingScheme = oggpackB_read( &pbi->opb,  MODE_METHOD_BITS );
+    theora_read(&pbi->opb, MODE_METHOD_BITS, &CodingScheme);
 
     /* If the coding method is method 0 then we have to read in a
        custom coding scheme */
     if ( CodingScheme == 0 ){
       /* Read the coding scheme. */
       for ( i = 0; i < MAX_MODES; i++ ){
-        CustomModeAlphabet[oggpackB_read(&pbi->opb, MODE_BITS)]=i;
+        theora_read(&pbi->opb, MODE_BITS, &ret);
+        CustomModeAlphabet[ret]=i;
       }
       ModeList=CustomModeAlphabet;
     }
@@ -176,8 +183,8 @@ static void DecodeModes (PB_INSTANCE *pbi,
               if ( CodingScheme == (MODE_METHODS-1) ){
                 /* This is the fall back coding scheme. */
                 /* Simply MODE_BITS bits per mode entry. */
-                CodingMethod = (CODING_MODE)oggpackB_read( &pbi->opb,
-                                                           MODE_BITS );
+                theora_read(&pbi->opb, MODE_BITS, &ret);
+                CodingMethod = (CODING_MODE)ret;
               }else{
                 ModeEntry = FrArrayUnpackMode(pbi);
                 CodingMethod = ModeList[ModeEntry];
@@ -213,12 +220,13 @@ static void DecodeModes (PB_INSTANCE *pbi,
 }
 
 static ogg_int32_t ExtractMVectorComponentA(PB_INSTANCE *pbi){
+  long ret;
   ogg_int32_t   MVectComponent;
   ogg_uint32_t  MVCode = 0;
   ogg_uint32_t  ExtraBits = 0;
 
   /* Get group to which coded component belongs */
-  MVCode = oggpackB_read( &pbi->opb,  3 );
+  theora_read(&pbi->opb, 3, &MVCode);
 
   /*  Now extract the appropriate number of bits to identify the component */
   switch ( MVCode ){
@@ -232,33 +240,38 @@ static ogg_int32_t ExtractMVectorComponentA(PB_INSTANCE *pbi){
     MVectComponent = -1;
     break;
   case 3:
-    if ( oggpackB_read( &pbi->opb, 1 ))
+    theora_read(&pbi->opb,1,&ret);
+    if (ret)
       MVectComponent = -2;
     else
       MVectComponent = 2;
     break;
   case 4:
-    if ( oggpackB_read( &pbi->opb, 1 ) )
+    theora_read(&pbi->opb,1,&ret);
+    if (ret)
       MVectComponent = -3;
     else
       MVectComponent = 3;
     break;
   case 5:
-    ExtraBits = oggpackB_read( &pbi->opb,  2 );
+    theora_read(&pbi->opb,2,&ExtraBits);
     MVectComponent = 4 + ExtraBits;
-    if ( oggpackB_read( &pbi->opb, 1 ) )
+    theora_read(&pbi->opb,1,&ret);
+    if (ret)
       MVectComponent = -MVectComponent;
     break;
   case 6:
-    ExtraBits = oggpackB_read( &pbi->opb,  3 );
+    theora_read(&pbi->opb,3,&ExtraBits);
     MVectComponent = 8 + ExtraBits;
-    if ( oggpackB_read( &pbi->opb, 1 ))
+    theora_read(&pbi->opb,1,&ret);
+    if (ret)
       MVectComponent = -MVectComponent;
     break;
   case 7:
-    ExtraBits = oggpackB_read( &pbi->opb,  4 );
+    theora_read(&pbi->opb,4,&ExtraBits);
     MVectComponent = 16 + ExtraBits;
-    if ( oggpackB_read( &pbi->opb, 1 ) )
+    theora_read(&pbi->opb,1,&ret);
+    if (ret)
       MVectComponent = -MVectComponent;
     break;
   }
@@ -267,11 +280,13 @@ static ogg_int32_t ExtractMVectorComponentA(PB_INSTANCE *pbi){
 }
 
 static ogg_int32_t ExtractMVectorComponentB(PB_INSTANCE *pbi){
+  long ret;
   ogg_int32_t   MVectComponent;
 
   /* Get group to which coded component belongs */
-  MVectComponent = oggpackB_read( &pbi->opb,  5 );
-  if ( oggpackB_read( &pbi->opb, 1 ) )
+  theora_read(&pbi->opb,5,&MVectComponent);
+  theora_read(&pbi->opb,1,&ret);
+  if (ret)
     MVectComponent = -MVectComponent;
 
   return MVectComponent;
@@ -280,6 +295,7 @@ static ogg_int32_t ExtractMVectorComponentB(PB_INSTANCE *pbi){
 static void DecodeMVectors ( PB_INSTANCE *pbi,
                              ogg_uint32_t SBRows,
                              ogg_uint32_t SBCols ){
+  long ret;
   ogg_int32_t   FragIndex;
   ogg_uint32_t  MB;
   ogg_uint32_t  SBrow;
@@ -313,7 +329,8 @@ static void DecodeMVectors ( PB_INSTANCE *pbi,
   PriorLastInterMV.y = 0;
 
   /* Read the entropy method used and set up the appropriate decode option */
-  if ( oggpackB_read( &pbi->opb, 1) == 0 )
+  theora_read(&pbi->opb, 1, &ret);  
+  if ( ret == 0 )
     ExtractMVectorComponent = ExtractMVectorComponentA;
   else
     ExtractMVectorComponent = ExtractMVectorComponentB;
@@ -474,13 +491,15 @@ static void DecodeMVectors ( PB_INSTANCE *pbi,
 
 static ogg_uint32_t ExtractToken(oggpack_buffer *opb,
                                  HUFF_ENTRY * CurrentRoot){
+  long ret;
   ogg_uint32_t Token;
   /* Loop searches down through tree based upon bits read from the
      bitstream */
   /* until it hits a leaf at which point we have decoded a token */
   while ( CurrentRoot->Value < 0 ){
 
-    if ( oggpackB_read(opb,1) )
+    theora_read(opb, 1, &ret);  
+    if (ret)
       CurrentRoot = CurrentRoot->OneChild;
     else
       CurrentRoot = CurrentRoot->ZeroChild;
@@ -504,7 +523,7 @@ static void UnpackAndExpandDcToken( PB_INSTANCE *pbi,
    */
   if ( pbi->ExtraBitLengths_VP3x[Token] > 0 ){
     /* Extract the appropriate number of extra bits. */
-    ExtraBits = oggpackB_read(&pbi->opb, pbi->ExtraBitLengths_VP3x[Token]);
+    theora_read(&pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ExtraBits);
 
   }
 
@@ -567,7 +586,7 @@ static void UnpackAndExpandAcToken( PB_INSTANCE *pbi,
    */
   if ( pbi->ExtraBitLengths_VP3x[Token] > 0 ){
     /* Extract the appropriate number of extra bits. */
-    ExtraBits = oggpackB_read(&pbi->opb,pbi->ExtraBitLengths_VP3x[Token]);
+    theora_read(&pbi->opb,pbi->ExtraBitLengths_VP3x[Token], &ExtraBits);
   }
 
   /* Take token dependant action */
@@ -617,6 +636,7 @@ static void UnpackAndExpandAcToken( PB_INSTANCE *pbi,
 }
 
 static void UnPackVideo (PB_INSTANCE *pbi){
+  long ret;
   ogg_int32_t       EncodedCoeffs = 1;
   ogg_int32_t       FragIndex;
   ogg_int32_t *     CodedBlockListPtr;
@@ -646,8 +666,10 @@ static void UnPackVideo (PB_INSTANCE *pbi){
   pbi->BlocksToDecode = pbi->CodedBlockIndex;
 
   /* Get the DC huffman table choice for Y and then UV */
-  DcHuffChoice1 = oggpackB_read( &pbi->opb,  DC_HUFF_CHOICE_BITS ) + DC_HUFF_OFFSET;
-  DcHuffChoice2 = oggpackB_read( &pbi->opb,  DC_HUFF_CHOICE_BITS ) + DC_HUFF_OFFSET;
+  theora_read(&pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
+  DcHuffChoice1 = ret + DC_HUFF_OFFSET;
+  theora_read(&pbi->opb,DC_HUFF_CHOICE_BITS,&ret); 
+  DcHuffChoice2 = ret + DC_HUFF_OFFSET;
 
   /* UnPack DC coefficients / tokens */
   CodedBlockListPtr = pbi->CodedBlockList;
@@ -681,8 +703,11 @@ static void UnPackVideo (PB_INSTANCE *pbi){
   }
 
   /* Get the AC huffman table choice for Y and then for UV. */
-  AcHuffIndex1 = oggpackB_read( &pbi->opb,  AC_HUFF_CHOICE_BITS ) + AC_HUFF_OFFSET;
-  AcHuffIndex2 = oggpackB_read( &pbi->opb,  AC_HUFF_CHOICE_BITS ) + AC_HUFF_OFFSET;
+
+  theora_read(&pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
+  AcHuffIndex1 = ret + AC_HUFF_OFFSET;
+  theora_read(&pbi->opb,AC_HUFF_CHOICE_BITS,&ret); 
+  AcHuffIndex2 = ret + AC_HUFF_OFFSET;
 
   /* Unpack Lower AC coefficients. */
   while ( EncodedCoeffs < 64 ) {

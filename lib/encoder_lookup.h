@@ -11,9 +11,11 @@
  ********************************************************************
 
   function: simple static lookups for VP3 frame encoder
-  last mod: $Id: encoder_lookup.h,v 1.7 2003/06/11 02:24:29 tterribe Exp $
+  last mod: $Id: encoder_lookup.h,v 1.8 2003/12/03 08:59:42 arc Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
 
 ogg_uint32_t MvPattern[(MAX_MV_EXTENT * 2) + 1] = {
   0x000000ff, 0x000000fd, 0x000000fb, 0x000000f9,

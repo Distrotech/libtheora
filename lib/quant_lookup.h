@@ -11,9 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant_lookup.h,v 1.4 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: quant_lookup.h,v 1.5 2003/12/03 08:59:43 arc Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
 
 #define MIN16 ((1<<16)-1)
 #define SHIFT16 (1<<16)

@@ -11,12 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.9 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: quant.c,v 1.10 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "quant_lookup.h"
 
@@ -143,27 +142,27 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   long bits;
   int  x;
   for(x=0; x<Q_TABLE_SIZE; x++) {
-    bits=oggpackB_read(opb, 16);
+    theora_read(opb,16,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->QThreshTable[x]=bits;
   }
   for(x=0; x<Q_TABLE_SIZE; x++) {
-    bits=oggpackB_read(opb, 16);
+    theora_read(opb,16,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->DcScaleFactorTable[x]=(Q_LIST_ENTRY)bits;
   }
   for(x=0; x<64; x++) {
-    bits=oggpackB_read(opb, 8);
+    theora_read(opb,8,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->Y_coeffs[x]=(Q_LIST_ENTRY)bits;
   }
   for(x=0; x<64; x++) {
-    bits=oggpackB_read(opb, 8);
+    theora_read(opb,8,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->UV_coeffs[x]=(Q_LIST_ENTRY)bits;
   }
   for(x=0; x<64; x++) {
-    bits=oggpackB_read(opb, 8);
+    theora_read(opb,8,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->Inter_coeffs[x]=(Q_LIST_ENTRY)bits;
   }

@@ -11,12 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: frarray.c,v 1.6 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: frarray.c,v 1.7 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "block_inline.h"
 
@@ -378,23 +377,29 @@ static int FrArrayDeCodeSBRun (PB_INSTANCE *pbi, ogg_uint32_t bit_value,
 }
 
 static void GetNextBInit(PB_INSTANCE *pbi){
-  pbi->NextBit = (unsigned char)oggpackB_read(&pbi->opb,1);
+  long ret;
+
+  theora_read(&pbi->opb,1,&ret);
+  pbi->NextBit = (unsigned char)ret;
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  while ( FrArrayDeCodeBlockRun( pbi, oggpackB_read(&pbi->opb,1),
-                                 &pbi->BitsLeft ) == 0 );
+  do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+  while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+
 }
 
 static unsigned char GetNextBBit (PB_INSTANCE *pbi){
+  long ret;
   if ( !pbi->BitsLeft ){
     /* Toggle the value.   */
     pbi->NextBit = ( pbi->NextBit == 1 ) ? 0 : 1;
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    while ( FrArrayDeCodeBlockRun( pbi,oggpackB_read(&pbi->opb,1),
-                                   &pbi->BitsLeft ) == 0 );
+    do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+    while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+
   }
 
   /* Have  read a bit */
@@ -405,23 +410,30 @@ static unsigned char GetNextBBit (PB_INSTANCE *pbi){
 }
 
 static void GetNextSbInit(PB_INSTANCE *pbi){
-  pbi->NextBit = (unsigned char)oggpackB_read(&pbi->opb,1);
+  long ret;
+
+  theora_read(&pbi->opb,1,&ret);
+  pbi->NextBit = (unsigned char)ret;
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  while ( FrArrayDeCodeSBRun( pbi,oggpackB_read(&pbi->opb,1),
-                              &pbi->BitsLeft ) == 0 );
+  do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+  while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+
 }
 
 static unsigned char GetNextSbBit (PB_INSTANCE *pbi){
+  long ret;
+
   if ( !pbi->BitsLeft ){
     /* Toggle the value.   */
     pbi->NextBit = ( pbi->NextBit == 1 ) ? 0 : 1;
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    while ( FrArrayDeCodeSBRun( pbi, oggpackB_read(&pbi->opb,1),
-                                &pbi->BitsLeft ) == 0 );
+    do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+    while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+
   }
 
   /* Have  read a bit */
@@ -531,6 +543,7 @@ void QuadDecodeDisplayFragments ( PB_INSTANCE *pbi ){
 }
 
 CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi){
+  long ret;
   /* Coding scheme:
      Token                      Codeword           Bits
      Entry   0 (most frequent)  0                   1
@@ -547,44 +560,50 @@ CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi){
   pbi->bit_pattern = 0;
   pbi->bits_so_far = 0;
 
-  pbi->bit_pattern = oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&pbi->bit_pattern);
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0 )
     return (CODING_MODE)0;
 
   /* Get the next bit */
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x0002 )
     return (CODING_MODE)1;
 
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match  */
   if ( pbi->bit_pattern == 0x0006 )
     return (CODING_MODE)2;
 
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x000E )
     return (CODING_MODE)3;
 
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x001E )
     return (CODING_MODE)4;
 
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x003E )
     return (CODING_MODE)5;
 
-  pbi->bit_pattern = (pbi->bit_pattern << 1) | oggpackB_read(&pbi->opb,1);
+  theora_read(&pbi->opb,1,&ret);
+  pbi->bit_pattern = (pbi->bit_pattern << 1) | ret;
 
   /* Do we have a match */
   if ( pbi->bit_pattern == 0x007E )

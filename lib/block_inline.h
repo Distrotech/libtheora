@@ -11,9 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: block_inline.h,v 1.5 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: block_inline.h,v 1.6 2003/12/03 08:59:42 arc Exp $
 
  ********************************************************************/
+
+#include "encoder_internal.h"
 
 static ogg_int32_t MBOrderMap[4] = { 0, 2, 3, 1 };
 static ogg_int32_t BlockOrderMap1[4][4] = {

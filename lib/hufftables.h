@@ -11,11 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: hufftables.h,v 1.5 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: hufftables.h,v 1.6 2003/12/03 08:59:42 arc Exp $
 
  ********************************************************************/
 
 #include "huffman.h"
+#include "encoder_internal.h"
 
 unsigned char ExtraBitLengths_VP31[MAX_ENTROPY_TOKENS] = {
   0, 0, 0, 2, 3, 4, 12,3, 6,                 /* EOB and Zero-run tokens. */

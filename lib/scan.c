@@ -11,14 +11,13 @@
  ********************************************************************
 
   function:
-  last mod: $Id: scan.c,v 1.8 2003/10/31 14:25:51 giles Exp $
+  last mod: $Id: scan.c,v 1.9 2003/12/03 08:59:41 arc Exp $
 
  ********************************************************************/
 
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include <ogg/ogg.h>
 #include "encoder_internal.h"
 
 #define MAX_SEARCH_LINE_LEN                   7
