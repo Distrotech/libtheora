@@ -11,13 +11,12 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct.c,v 1.4 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: dct.c,v 1.5 2003/06/22 18:14:00 giles Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
 
-#define PI 3.1415926535897
 static ogg_int32_t xC1S7 = 64277;
 static ogg_int32_t xC2S6 = 60547;
 static ogg_int32_t xC3S5 = 54491;
