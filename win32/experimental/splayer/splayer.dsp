@@ -95,24 +95,12 @@ SOURCE=.\portaudio\pa_win_wmme\pa_win_wmme.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\pastreamio.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\portaudio\pablio\ringbuffer.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\splayer.c
+SOURCE=..\..\..\examples\splayer.c
 # End Source File
 # End Group
 # Begin Group "Header Files"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
-# Begin Source File
-
-SOURCE=.\pastreamio.h
-# End Source File
 # End Group
 # Begin Group "Resource Files"
 

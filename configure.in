@@ -65,7 +65,8 @@ dnl --------------------------------------------------
 dnl Check for headers
 dnl --------------------------------------------------
 
-dnl none
+AC_CHECK_FILE(/usr/local/include/portaudio.h,HAVE_PORTAUDIO=yes)
+AM_CONDITIONAL(HAVE_PORTAUDIO, test "$HAVE_PORTAUDIO" = "yes")
 
 dnl --------------------------------------------------
 dnl Check for typedefs, structures, etc
