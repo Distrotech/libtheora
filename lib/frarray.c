@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: frarray.c,v 1.8 2003/12/04 01:35:07 arc Exp $
+  last mod: $Id: frarray.c,v 1.9 2003/12/04 05:58:31 arc Exp $
 
  ********************************************************************/
 
@@ -418,7 +418,7 @@ static void GetNextSbInit(PB_INSTANCE *pbi){
   /* Read run length */
   FrArrayDeCodeInit(pbi);
   do theora_read(&pbi->opb,1,&ret);
-  while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+  while (FrArrayDeCodeSBRun(pbi,ret,&pbi->BitsLeft)==0);
 
 }
 
@@ -432,7 +432,7 @@ static unsigned char GetNextSbBit (PB_INSTANCE *pbi){
     /* Read next run */
     FrArrayDeCodeInit(pbi);
     do theora_read(&pbi->opb,1,&ret);
-    while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
+    while (FrArrayDeCodeSBRun(pbi,ret,&pbi->BitsLeft)==0);
 
   }
 
