@@ -18,8 +18,8 @@ EXTRA_DIST = $(built_docs) $(static_docs) spec.txt \
 CLEANFILES = $(built_docs)
 
 spec.py : spec.txt txt2py.py
-	python txt2py.py spec.txt spec.py
+	python $(srcdir)/txt2py.py $(srcdir)/spec.txt spec.py
 
 spec.html : spec.txt txt2html.py
-	python txt2html.py spec.txt spec.html
+	python $(srcdir)/txt2html.py $(srcdir)/spec.txt spec.html
 
