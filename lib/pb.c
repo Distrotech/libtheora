@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pb.c,v 1.2 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: pb.c,v 1.3 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -89,15 +89,8 @@ void ClearPBInstance(PB_INSTANCE *pbi){
 }
 
 void InitPBInstance(PB_INSTANCE *pbi){
-  CONFIG_TYPE ConfigurationInit = {
-    0,0,0,0,
-    8,8,
-  };
-  
   /* initialize whole structure to 0 */
   memset(pbi, 0, sizeof(*pbi));
-  
-  memcpy(&pbi->Configuration,&ConfigurationInit, sizeof(pbi->Configuration));
   
   InitTmpBuffers(pbi);
   

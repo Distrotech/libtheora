@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_encode.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: dct_encode.c,v 1.5 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -479,10 +479,10 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   
   /* Set plane specific values */
   if (FragIndex < (ogg_int32_t)cpi->pb.YPlaneFragments){
-    ReconPixelsPerLine = cpi->pb.Configuration.YStride;
+    ReconPixelsPerLine = cpi->pb.YStride;
     MvDevisor = 2;                  /* 1/2 pixel accuracy in Y */
   }else{
-    ReconPixelsPerLine = cpi->pb.Configuration.UVStride;
+    ReconPixelsPerLine = cpi->pb.UVStride;
     MvDevisor = 4;                  /* UV planes at 1/2 resolution of Y */
   }
 

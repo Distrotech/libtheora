@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_decode.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: dct_decode.c,v 1.3 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -97,10 +97,10 @@ static void ExpandKFBlock ( PB_INSTANCE *pbi, ogg_int32_t FragmentNumber ){
 
   /* Select the appropriate inverse Q matrix and line stride */
   if ( FragmentNumber<(ogg_int32_t)pbi->YPlaneFragments ){
-    ReconPixelsPerLine = pbi->Configuration.YStride;
+    ReconPixelsPerLine = pbi->YStride;
     pbi->dequant_coeffs = pbi->dequant_Y_coeffs;
   }else{
-    ReconPixelsPerLine = pbi->Configuration.UVStride;
+    ReconPixelsPerLine = pbi->UVStride;
     pbi->dequant_coeffs = pbi->dequant_UV_coeffs;
   }
     
@@ -155,7 +155,7 @@ static void ExpandBlock ( PB_INSTANCE *pbi, ogg_int32_t FragmentNumber ){
 
   /* Select the appropriate inverse Q matrix and line stride */
   if ( FragmentNumber<(ogg_int32_t)pbi->YPlaneFragments ) {
-    ReconPixelsPerLine = pbi->Configuration.YStride;
+    ReconPixelsPerLine = pbi->YStride;
     MvShift = 1;
     MvModMask = 0x00000001;
     
@@ -165,7 +165,7 @@ static void ExpandBlock ( PB_INSTANCE *pbi, ogg_int32_t FragmentNumber ){
     else
       pbi->dequant_coeffs = pbi->dequant_Inter_coeffs;
   }else{
-    ReconPixelsPerLine = pbi->Configuration.UVStride;
+    ReconPixelsPerLine = pbi->UVStride;
     MvShift = 2;
     MvModMask = 0x00000003;
 
@@ -296,17 +296,17 @@ static void UpdateUMV_HBorders( PB_INSTANCE *pbi,
   /* Work out various plane specific values */
   if ( PlaneFragOffset == 0 ) {
     /* Y Plane */
-    BlockVStep = (pbi->Configuration.YStride * 
-		  (pbi->Configuration.VFragPixels - 1));
-    PlaneStride = pbi->Configuration.YStride;
+    BlockVStep = (pbi->YStride * 
+		  (VFRAGPIXELS - 1));
+    PlaneStride = pbi->YStride;
     PlaneBorderWidth = UMV_BORDER;
     PlaneFragments = pbi->YPlaneFragments;
     LineFragments = pbi->HFragments;
   }else{
     /* U or V plane. */
-    BlockVStep = (pbi->Configuration.UVStride * 
-		  (pbi->Configuration.VFragPixels - 1));
-    PlaneStride = pbi->Configuration.UVStride;
+    BlockVStep = (pbi->UVStride * 
+		  (VFRAGPIXELS - 1));
+    PlaneStride = pbi->UVStride;
     PlaneBorderWidth = UMV_BORDER / 2;
     PlaneFragments = pbi->UVPlaneFragments;
     LineFragments = pbi->HFragments / 2;
@@ -353,16 +353,16 @@ static void UpdateUMV_VBorders( PB_INSTANCE *pbi,
   /* Work out various plane specific values */
   if ( PlaneFragOffset == 0 ) {
     /* Y Plane */
-    PlaneStride = pbi->Configuration.YStride;
+    PlaneStride = pbi->YStride;
     PlaneBorderWidth = UMV_BORDER;
     LineFragments = pbi->HFragments;
-    PlaneHeight = pbi->Configuration.VideoFrameHeight;
+    PlaneHeight = pbi->info.height;
   }else{
     /* U or V plane. */
-    PlaneStride = pbi->Configuration.UVStride;
+    PlaneStride = pbi->UVStride;
     PlaneBorderWidth = UMV_BORDER / 2;
     LineFragments = pbi->HFragments / 2;
-    PlaneHeight = pbi->Configuration.VideoFrameHeight / 2;
+    PlaneHeight = pbi->info.height / 2;
   }
   
   /* Setup the source data values and destination pointers for the
@@ -373,7 +373,7 @@ static void UpdateUMV_VBorders( PB_INSTANCE *pbi,
   
   PixelIndex = pbi->recon_pixel_index_table[PlaneFragOffset + 
 					   LineFragments - 1] + 
-    (pbi->Configuration.HFragPixels - 1);
+    (HFRAGPIXELS - 1);
   SrcPtr2 = &DestReconPtr[ PixelIndex ];
   DestPtr2 = &DestReconPtr[ PixelIndex + 1 ];
 
@@ -420,7 +420,7 @@ static void CopyRecon( PB_INSTANCE *pbi, unsigned char * DestReconPtr,
   /* Copy over only updated blocks.*/
   
   /* First Y plane */
-  PlaneLineStep = pbi->Configuration.YStride;
+  PlaneLineStep = pbi->YStride;
   for ( i = 0; i < pbi->YPlaneFragments; i++ ) {
     if ( pbi->display_fragments[i] ) {
       PixelIndex = pbi->recon_pixel_index_table[i];
@@ -432,7 +432,7 @@ static void CopyRecon( PB_INSTANCE *pbi, unsigned char * DestReconPtr,
   }
   
   /* Then U and V */
-  PlaneLineStep = pbi->Configuration.UVStride;
+  PlaneLineStep = pbi->UVStride;
   for ( i = pbi->YPlaneFragments; i < pbi->UnitFragments; i++ ) {
     if ( pbi->display_fragments[i] ) {
       PixelIndex = pbi->recon_pixel_index_table[i];
@@ -461,7 +461,7 @@ static void CopyNotRecon( PB_INSTANCE *pbi, unsigned char * DestReconPtr,
   /* Copy over only updated blocks. */
 
   /* First Y plane */
-  PlaneLineStep = pbi->Configuration.YStride;
+  PlaneLineStep = pbi->YStride;
   for ( i = 0; i < pbi->YPlaneFragments; i++ ) {
     if ( !pbi->display_fragments[i] ) {
       PixelIndex = pbi->recon_pixel_index_table[i];
@@ -473,7 +473,7 @@ static void CopyNotRecon( PB_INSTANCE *pbi, unsigned char * DestReconPtr,
   }
   
   /* Then U and V */
-  PlaneLineStep = pbi->Configuration.UVStride;
+  PlaneLineStep = pbi->UVStride;
   for ( i = pbi->YPlaneFragments; i < pbi->UnitFragments; i++ ) {
     if ( !pbi->display_fragments[i] ) {
       PixelIndex = pbi->recon_pixel_index_table[i];
@@ -734,7 +734,7 @@ void LoopFilter(PB_INSTANCE *pbi){
       ToFragment = pbi->YPlaneFragments;
       FragsAcross = pbi->HFragments;
       FragsDown = pbi->VFragments;
-      LineLength = pbi->Configuration.YStride;
+      LineLength = pbi->YStride;
       LineFragments = pbi->HFragments;
       break;
     case 1: /* u */
@@ -742,7 +742,7 @@ void LoopFilter(PB_INSTANCE *pbi){
       ToFragment = pbi->YPlaneFragments + pbi->UVPlaneFragments ;
       FragsAcross = pbi->HFragments >> 1;
       FragsDown = pbi->VFragments >> 1;
-      LineLength = pbi->Configuration.UVStride;
+      LineLength = pbi->UVStride;
       LineFragments = pbi->HFragments / 2;
       break;
     case 2: /* v */
@@ -750,7 +750,7 @@ void LoopFilter(PB_INSTANCE *pbi){
       ToFragment = pbi->YPlaneFragments + (2 * pbi->UVPlaneFragments) ;
       FragsAcross = pbi->HFragments >> 1;
       FragsDown = pbi->VFragments >> 1;
-      LineLength = pbi->Configuration.UVStride;
+      LineLength = pbi->UVStride;
       LineFragments = pbi->HFragments / 2;
       break;
     }

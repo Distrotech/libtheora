@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -527,11 +527,11 @@ static ogg_uint32_t GetBlockReconErrorSlow( CP_INSTANCE *cpi,
   
   /* Is the block a Y block or a UV block. */
   if ( BlockIndex < (ogg_int32_t)cpi->pb.YPlaneFragments ) {
-    SrcStride = cpi->pb.Configuration.VideoFrameWidth;
-    RecStride = cpi->pb.Configuration.YStride;
+    SrcStride = cpi->pb.info.width;
+    RecStride = cpi->pb.YStride;
   }else{
-    SrcStride = cpi->pb.Configuration.VideoFrameWidth >> 1;
-    RecStride = cpi->pb.Configuration.UVStride;
+    SrcStride = cpi->pb.info.width >> 1;
+    RecStride = cpi->pb.UVStride;
   }
     
   
@@ -740,15 +740,15 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
 
   /* Encode and tokenise the Y, U and V components */
   coded_pixels = QuadCodeComponent(cpi, 0, cpi->pb.YSBRows, cpi->pb.YSBCols, 
-				   cpi->pb.Configuration.VideoFrameWidth );
+				   cpi->pb.info.width );
   coded_pixels += QuadCodeComponent(cpi, cpi->pb.YSuperBlocks, 
 				    cpi->pb.UVSBRows, 
 				    cpi->pb.UVSBCols, 
-				    cpi->pb.Configuration.VideoFrameWidth>>1 );
+				    cpi->pb.info.width>>1 );
   coded_pixels += QuadCodeComponent(cpi, 
 				    cpi->pb.YSuperBlocks+cpi->pb.UVSuperBlocks,
 				    cpi->pb.UVSBRows, cpi->pb.UVSBCols, 
-				    cpi->pb.Configuration.VideoFrameWidth>>1 );
+				    cpi->pb.info.width>>1 );
     
   /* for y,u,v */
   for ( j = 0; j < 3 ; j++) {

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frinit.c,v 1.3 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: frinit.c,v 1.4 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -74,21 +74,21 @@ static void CalcPixelIndexTable( PB_INSTANCE *pbi){
   PixelIndexTablePtr = pbi->pixel_index_table;
   for ( i = 0; i < pbi->YPlaneFragments; i++ ) {
     PixelIndexTablePtr[ i ] = 
-      ((i / pbi->HFragments) * pbi->Configuration.VFragPixels * 
-       pbi->Configuration.VideoFrameWidth);  
+      ((i / pbi->HFragments) * VFRAGPIXELS * 
+       pbi->info.width);  
     PixelIndexTablePtr[ i ] += 
-      ((i % pbi->HFragments) * pbi->Configuration.HFragPixels);
+      ((i % pbi->HFragments) * HFRAGPIXELS);
   }
   
   PixelIndexTablePtr = &pbi->pixel_index_table[pbi->YPlaneFragments];
   for ( i = 0; i < ((pbi->HFragments >> 1) * pbi->VFragments); i++ ) {
     PixelIndexTablePtr[ i ] =  
       ((i / (pbi->HFragments / 2) ) * 
-       (pbi->Configuration.VFragPixels * 
-	(pbi->Configuration.VideoFrameWidth / 2)) );   
+       (VFRAGPIXELS * 
+	(pbi->info.width / 2)) );   
     PixelIndexTablePtr[ i ] += 
       ((i % (pbi->HFragments / 2) ) * 
-       pbi->Configuration.HFragPixels) + pbi->YPlaneSize;
+       HFRAGPIXELS) + pbi->YPlaneSize;
   }
 
   /************************************************************************/
@@ -96,10 +96,10 @@ static void CalcPixelIndexTable( PB_INSTANCE *pbi){
   PixelIndexTablePtr = pbi->recon_pixel_index_table;
   for ( i = 0; i < pbi->YPlaneFragments; i++ ){
     PixelIndexTablePtr[ i ] = 
-      ((i / pbi->HFragments) * pbi->Configuration.VFragPixels *
-       pbi->Configuration.YStride);  
+      ((i / pbi->HFragments) * VFRAGPIXELS *
+       pbi->YStride);  
     PixelIndexTablePtr[ i ] += 
-      ((i % pbi->HFragments) * pbi->Configuration.HFragPixels) + 
+      ((i % pbi->HFragments) * HFRAGPIXELS) + 
       pbi->ReconYDataOffset;
   }
    
@@ -108,10 +108,10 @@ static void CalcPixelIndexTable( PB_INSTANCE *pbi){
   for ( i = 0; i < pbi->UVPlaneFragments; i++ ) {
     PixelIndexTablePtr[ i ] =  
       ((i / (pbi->HFragments / 2) ) * 
-       (pbi->Configuration.VFragPixels * (pbi->Configuration.UVStride)) );   
+       (VFRAGPIXELS * (pbi->UVStride)) );   
     PixelIndexTablePtr[ i ] += 
       ((i % (pbi->HFragments / 2) ) * 
-       pbi->Configuration.HFragPixels) + pbi->ReconUDataOffset;
+       HFRAGPIXELS) + pbi->ReconUDataOffset;
   }
   
   /* V blocks */
@@ -122,9 +122,9 @@ static void CalcPixelIndexTable( PB_INSTANCE *pbi){
   for ( i = 0; i < pbi->UVPlaneFragments; i++ ) {
     PixelIndexTablePtr[ i ] =  
       ((i / (pbi->HFragments / 2) ) * 
-       (pbi->Configuration.VFragPixels * (pbi->Configuration.UVStride)) );   
+       (VFRAGPIXELS * (pbi->UVStride)) );   
     PixelIndexTablePtr[ i ] += 
-      ((i % (pbi->HFragments / 2) ) * pbi->Configuration.HFragPixels) + 
+      ((i % (pbi->HFragments / 2) ) * HFRAGPIXELS) + 
       pbi->ReconVDataOffset;
   }
 }
@@ -333,22 +333,19 @@ void InitFrameDetails(PB_INSTANCE *pbi){
 
     /* Set the frame size etc. */                
 
-  pbi->YPlaneSize = pbi->Configuration.VideoFrameWidth * 
-    pbi->Configuration.VideoFrameHeight; 
+  pbi->YPlaneSize = pbi->info.width * 
+    pbi->info.height; 
   pbi->UVPlaneSize = pbi->YPlaneSize / 4;  
-  pbi->HFragments = pbi->Configuration.VideoFrameWidth / 
-    pbi->Configuration.HFragPixels;
-  pbi->VFragments = pbi->Configuration.VideoFrameHeight / 
-    pbi->Configuration.VFragPixels;
+  pbi->HFragments = pbi->info.width / HFRAGPIXELS;
+  pbi->VFragments = pbi->info.height / VFRAGPIXELS;
   pbi->UnitFragments = ((pbi->VFragments * pbi->HFragments)*3)/2;
   pbi->YPlaneFragments = pbi->HFragments * pbi->VFragments;
   pbi->UVPlaneFragments = pbi->YPlaneFragments / 4;
 
-  pbi->Configuration.YStride = 
-    (pbi->Configuration.VideoFrameWidth + STRIDE_EXTRA);
-  pbi->Configuration.UVStride = pbi->Configuration.YStride / 2;
-  pbi->ReconYPlaneSize = pbi->Configuration.YStride * 
-    (pbi->Configuration.VideoFrameHeight + STRIDE_EXTRA);
+  pbi->YStride = (pbi->info.width + STRIDE_EXTRA);
+  pbi->UVStride = pbi->YStride / 2;
+  pbi->ReconYPlaneSize = pbi->YStride * 
+    (pbi->info.height + STRIDE_EXTRA);
   pbi->ReconUVPlaneSize = pbi->ReconYPlaneSize / 4;
   FrameSize = pbi->ReconYPlaneSize + 2 * pbi->ReconUVPlaneSize;
   
@@ -356,21 +353,21 @@ void InitFrameDetails(PB_INSTANCE *pbi){
   pbi->UDataOffset = pbi->YPlaneSize;
   pbi->VDataOffset = pbi->YPlaneSize + pbi->UVPlaneSize;
   pbi->ReconYDataOffset = 
-    (pbi->Configuration.YStride * UMV_BORDER) + UMV_BORDER;
+    (pbi->YStride * UMV_BORDER) + UMV_BORDER;
   pbi->ReconUDataOffset = pbi->ReconYPlaneSize + 
-    (pbi->Configuration.UVStride * (UMV_BORDER/2)) + (UMV_BORDER/2);
+    (pbi->UVStride * (UMV_BORDER/2)) + (UMV_BORDER/2);
   pbi->ReconVDataOffset = pbi->ReconYPlaneSize + pbi->ReconUVPlaneSize + 
-    (pbi->Configuration.UVStride * (UMV_BORDER/2)) + (UMV_BORDER/2);
+    (pbi->UVStride * (UMV_BORDER/2)) + (UMV_BORDER/2);
   
   /* Image dimensions in Super-Blocks */
-  pbi->YSBRows = (pbi->Configuration.VideoFrameHeight/32)  + 
-    ( pbi->Configuration.VideoFrameHeight%32 ? 1 : 0 );
-  pbi->YSBCols = (pbi->Configuration.VideoFrameWidth/32)  + 
-    ( pbi->Configuration.VideoFrameWidth%32 ? 1 : 0 );
-  pbi->UVSBRows = ((pbi->Configuration.VideoFrameHeight/2)/32)  + 
-    ( (pbi->Configuration.VideoFrameHeight/2)%32 ? 1 : 0 );
-  pbi->UVSBCols = ((pbi->Configuration.VideoFrameWidth/2)/32)  + 
-    ( (pbi->Configuration.VideoFrameWidth/2)%32 ? 1 : 0 );
+  pbi->YSBRows = (pbi->info.height/32)  + 
+    ( pbi->info.height%32 ? 1 : 0 );
+  pbi->YSBCols = (pbi->info.width/32)  + 
+    ( pbi->info.width%32 ? 1 : 0 );
+  pbi->UVSBRows = ((pbi->info.height/2)/32)  + 
+    ( (pbi->info.height/2)%32 ? 1 : 0 );
+  pbi->UVSBCols = ((pbi->info.width/2)/32)  + 
+    ( (pbi->info.width/2)%32 ? 1 : 0 );
   
   /* Super-Blocks per component */
   pbi->YSuperBlocks = pbi->YSBRows * pbi->YSBCols;

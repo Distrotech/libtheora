@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pp.c,v 1.5 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: pp.c,v 1.6 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -452,7 +452,7 @@ static void DeringFrame(PB_INSTANCE *pbi,
   
   SrcPtr = Src + pbi->ReconYDataOffset;
   DestPtr = Dst + pbi->ReconYDataOffset;
-  LineLength = pbi->Configuration.YStride;
+  LineLength = pbi->YStride;
   
   Block = 0;
   
@@ -823,7 +823,7 @@ static void DeblockPlane(PB_INSTANCE *pbi,
   switch( Channel ){    
   case 0:
     /* Get the parameters */
-    PlaneLineStep = pbi->Configuration.YStride; 
+    PlaneLineStep = pbi->YStride; 
     FragsAcross = pbi->HFragments;
     FragsDown = pbi->VFragments;
     StartFrag = 0;
@@ -834,7 +834,7 @@ static void DeblockPlane(PB_INSTANCE *pbi,
     
   case 1:
     /* Get the parameters */
-    PlaneLineStep = pbi->Configuration.UVStride;    
+    PlaneLineStep = pbi->UVStride;    
     FragsAcross = pbi->HFragments / 2;
     FragsDown = pbi->VFragments / 2;
     StartFrag = pbi->YPlaneFragments;
@@ -846,7 +846,7 @@ static void DeblockPlane(PB_INSTANCE *pbi,
 
   default:
     /* Get the parameters */
-    PlaneLineStep = pbi->Configuration.UVStride;    
+    PlaneLineStep = pbi->UVStride;    
     FragsAcross = pbi->HFragments / 2;
     FragsDown = pbi->VFragments / 2;
     StartFrag =   pbi->YPlaneFragments + pbi->UVPlaneFragments;

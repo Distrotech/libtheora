@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: quant.c,v 1.3 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -316,7 +316,7 @@ void quantize( PB_INSTANCE *pbi,
   memset( quantized_list, 0, 64 * sizeof(Q_LIST_ENTRY) );
   
   /* Note that we add half divisor to effect rounding on positive number */
-  for( i = 0; i < pbi->Configuration.VFragPixels; i++) {
+  for( i = 0; i < VFRAGPIXELS; i++) {
     /* Column 0  */
     if ( DCT_blockPtr[0] >= FquantZBinSizePtr[0] ) {
       temp = FquantCoeffsPtr[0] * ( DCT_blockPtr[0] + FquantRoundPtr[0] ) ;

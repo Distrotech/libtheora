@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: scan.c,v 1.3 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: scan.c,v 1.4 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -181,9 +181,9 @@ static void ScanCalcPixelIndexTable(PP_INSTANCE *ppi){
   for ( i = 0; i < (ppi->ScanYPlaneFragments); i++ ) {
     PixelIndexTablePtr[ i ] = 
       ((i / ppi->ScanHFragments) * 
-       ppi->VFragPixels * ppi->ScanConfig.VideoFrameWidth);  
+       VFRAGPIXELS * ppi->ScanConfig.VideoFrameWidth);  
     PixelIndexTablePtr[ i ] += 
-      ((i % ppi->ScanHFragments) * ppi->HFragPixels);
+      ((i % ppi->ScanHFragments) * HFRAGPIXELS);
   }
   
   PixelIndexTablePtr = &ppi->ScanPixelIndexTable[ppi->ScanYPlaneFragments];
@@ -191,10 +191,10 @@ static void ScanCalcPixelIndexTable(PP_INSTANCE *ppi){
   for ( i = 0; i < (ppi->ScanUVPlaneFragments * 2); i++ ){
     PixelIndexTablePtr[ i ] =  
       ((i / (ppi->ScanHFragments >> 1) ) * 
-       (ppi->VFragPixels * (ppi->ScanConfig.VideoFrameWidth >> 1)) );   
+       (VFRAGPIXELS * (ppi->ScanConfig.VideoFrameWidth >> 1)) );   
     PixelIndexTablePtr[ i ] += 
       ((i % (ppi->ScanHFragments >> 1) ) * 
-       ppi->HFragPixels) + ppi->YFramePixels;
+       HFRAGPIXELS) + ppi->YFramePixels;
     }
 }
 
@@ -270,8 +270,6 @@ void ScanYUVInit( PP_INSTANCE *  ppi, SCAN_CONFIG_DATA * ScanConfigPtr){
   ppi->ScanConfig.disp_fragments = ScanConfigPtr->disp_fragments;
   
   ppi->ScanConfig.RegionIndex = ScanConfigPtr->RegionIndex;
-  ppi->ScanConfig.HFragPixels = ScanConfigPtr->HFragPixels;
-  ppi->ScanConfig.VFragPixels = ScanConfigPtr->VFragPixels;
   
   ppi->ScanConfig.VideoFrameWidth = ScanConfigPtr->VideoFrameWidth;
   ppi->ScanConfig.VideoFrameHeight = ScanConfigPtr->VideoFrameHeight;
@@ -287,11 +285,11 @@ void ScanYUVInit( PP_INSTANCE *  ppi, SCAN_CONFIG_DATA * ScanConfigPtr){
 
   /* Work out various fragment related values. */
   ppi->ScanYPlaneFragments = ppi->YFramePixels / 
-    (ppi->HFragPixels * ppi->VFragPixels);
+    (HFRAGPIXELS * VFRAGPIXELS);
   ppi->ScanUVPlaneFragments = ppi->UVFramePixels / 
-    (ppi->HFragPixels * ppi->VFragPixels);;
-  ppi->ScanHFragments = ppi->ScanConfig.VideoFrameWidth / ppi->HFragPixels;
-  ppi->ScanVFragments = ppi->ScanConfig.VideoFrameHeight / ppi->VFragPixels;
+    (HFRAGPIXELS * VFRAGPIXELS);;
+  ppi->ScanHFragments = ppi->ScanConfig.VideoFrameWidth / HFRAGPIXELS;
+  ppi->ScanVFragments = ppi->ScanConfig.VideoFrameHeight / VFRAGPIXELS;
   ppi->ScanFrameFragments = ppi->ScanYPlaneFragments + 
     (2 * ppi->ScanUVPlaneFragments);
 
@@ -464,7 +462,7 @@ static int RowSadScan( PP_INSTANCE *ppi,
   int           InterestingBlocksInRow = 0;
 
   /* For each row of pixels in the row of blocks */
-  for ( j = 0; j < ppi->VFragPixels; j++ ){
+  for ( j = 0; j < VFRAGPIXELS; j++ ){
     /* Set local block map pointer. */
     LocalDispFragPtr = DispFragPtr;
     
@@ -554,8 +552,8 @@ static int ColSadScan( PP_INSTANCE *ppi,
     LocalDispFragPtr++;                     
     
     /* Step data pointers on ready for next block */
-    LocalYuvPtr1 += ppi->HFragPixels;
-    LocalYuvPtr2 += ppi->HFragPixels;
+    LocalYuvPtr1 += HFRAGPIXELS;
+    LocalYuvPtr2 += HFRAGPIXELS;
   }
 
   return InterestingBlocksInRow;
@@ -752,7 +750,7 @@ static void RowDiffScan( PP_INSTANCE *ppi,
   
   /* Cannot use kernel if at edge or if PAK disabled */
   if ( (!ppi->PAKEnabled) || EdgeRow ){
-    for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+    for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
       /* Reset count of pixels changed for the current fragment. */
       FragChangedPixels = 0;
       
@@ -762,7 +760,7 @@ static void RowDiffScan( PP_INSTANCE *ppi,
 	/* Clear down entries in changed locals array */
 	memset(ChLocalsPtr,0,8);
 	
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  /* Take a local copy of the measured difference. */
 	  Diff = (int)YuvPtr1[j] - (int)YuvPtr2[j];
 
@@ -789,11 +787,11 @@ static void RowDiffScan( PP_INSTANCE *ppi,
       *RowDiffsPtr += FragChangedPixels;
       *FDiffPixels += (unsigned char)FragChangedPixels;
       
-      YuvPtr1 += ppi->HFragPixels;
-      YuvPtr2 += ppi->HFragPixels;
-      bits_map_ptr += ppi->HFragPixels;
-      ChLocalsPtr += ppi->HFragPixels;
-      YUVDiffsPtr += ppi->HFragPixels;
+      YuvPtr1 += HFRAGPIXELS;
+      YuvPtr2 += HFRAGPIXELS;
+      bits_map_ptr += HFRAGPIXELS;
+      ChLocalsPtr += HFRAGPIXELS;
+      YUVDiffsPtr += HFRAGPIXELS;
       SgcPtr ++;
       FDiffPixels ++;
       
@@ -820,7 +818,7 @@ static void RowDiffScan( PP_INSTANCE *ppi,
       /* Clear down entries in changed locals array */
       memset(ChLocalsPtr,0,8);
       
-      for ( j = 0; j < ppi->HFragPixels; j++ ){
+      for ( j = 0; j < HFRAGPIXELS; j++ ){
 	/* Take a local copy of the measured difference. */
 	Diff = (int)YuvPtr1[j] - (int)YuvPtr2[j];
 	
@@ -851,11 +849,11 @@ static void RowDiffScan( PP_INSTANCE *ppi,
     *RowDiffsPtr += FragChangedPixels;
     *FDiffPixels += (unsigned char)FragChangedPixels;
     
-    YuvPtr1 += ppi->HFragPixels;
-    YuvPtr2 += ppi->HFragPixels;
-    bits_map_ptr += ppi->HFragPixels;
-    ChLocalsPtr += ppi->HFragPixels;
-    YUVDiffsPtr += ppi->HFragPixels;
+    YuvPtr1 += HFRAGPIXELS;
+    YuvPtr2 += HFRAGPIXELS;
+    bits_map_ptr += HFRAGPIXELS;
+    ChLocalsPtr += HFRAGPIXELS;
+    YUVDiffsPtr += HFRAGPIXELS;
     SgcPtr ++;
     FDiffPixels ++;
     
@@ -870,8 +868,8 @@ static void RowDiffScan( PP_INSTANCE *ppi,
     /*************************************************************/
     /* Fragment in between!! */
     
-    for ( i = ppi->HFragPixels ; i < ppi->PlaneWidth-ppi->HFragPixels; 
-	  i += ppi->HFragPixels ){
+    for ( i = HFRAGPIXELS ; i < ppi->PlaneWidth-HFRAGPIXELS; 
+	  i += HFRAGPIXELS ){
       /* Reset count of pixels changed for the current fragment. */
       FragChangedPixels = 0;
       
@@ -879,7 +877,7 @@ static void RowDiffScan( PP_INSTANCE *ppi,
       if (*DispFragPtr == CANDIDATE_BLOCK){
 	/* Clear down entries in changed locals array */
 	memset(ChLocalsPtr,0,8);
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  /* Take a local copy of the measured difference. */
 	  Diff = (int)YuvPtr1[j] - (int)YuvPtr2[j];
 	  
@@ -911,11 +909,11 @@ static void RowDiffScan( PP_INSTANCE *ppi,
       *RowDiffsPtr += FragChangedPixels;
       *FDiffPixels += (unsigned char)FragChangedPixels;
       
-      YuvPtr1 += ppi->HFragPixels;
-      YuvPtr2 += ppi->HFragPixels;
-      bits_map_ptr += ppi->HFragPixels;
-      ChLocalsPtr += ppi->HFragPixels;
-      YUVDiffsPtr += ppi->HFragPixels;
+      YuvPtr1 += HFRAGPIXELS;
+      YuvPtr2 += HFRAGPIXELS;
+      bits_map_ptr += HFRAGPIXELS;
+      ChLocalsPtr += HFRAGPIXELS;
+      YUVDiffsPtr += HFRAGPIXELS;
       SgcPtr ++;
       FDiffPixels ++;
       
@@ -939,7 +937,7 @@ static void RowDiffScan( PP_INSTANCE *ppi,
       /* Clear down entries in changed locals array */
       memset(ChLocalsPtr,0,8);
       
-      for ( j = 0; j < ppi->HFragPixels; j++ ){
+      for ( j = 0; j < HFRAGPIXELS; j++ ){
 	/* Take a local copy of the measured difference. */
 	Diff = (int)YuvPtr1[j] - (int)YuvPtr2[j];
                 
@@ -1037,11 +1035,11 @@ static void RowChangedLocalsScan( PP_INSTANCE *ppi,
 
   if ( RowType == NOT_EDGE_ROW ){
     /* Scan through the row of pixels and calculate changed locals. */
-    for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+    for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
       /* Skip a group of 8 pixels if the assosciated fragment has no
          pixels of interest. */
       if ( *DispFragPtr == CANDIDATE_BLOCK ){
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  changed_locals = 0;
 
 	  /* If the pixel itself has changed */
@@ -1076,10 +1074,10 @@ static void RowChangedLocalsScan( PP_INSTANCE *ppi,
 	  memset(ChLocalsPtr,0,8);
 	
 	/* Step pointers */
-	ChLocalsPtr += ppi->HFragPixels;
-	PixelsChangedPtr0 += ppi->HFragPixels;
-	PixelsChangedPtr1 += ppi->HFragPixels;
-	PixelsChangedPtr2 += ppi->HFragPixels;
+	ChLocalsPtr += HFRAGPIXELS;
+	PixelsChangedPtr0 += HFRAGPIXELS;
+	PixelsChangedPtr1 += HFRAGPIXELS;
+	PixelsChangedPtr2 += HFRAGPIXELS;
       }
       
       /* Move on to next fragment. */
@@ -1088,11 +1086,11 @@ static void RowChangedLocalsScan( PP_INSTANCE *ppi,
     }
   }else{
     /* Scan through the row of pixels and calculate changed locals. */
-    for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+    for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
       /* Skip a group of 8 pixels if the assosciated fragment has no
          pixels of interest */
       if ( *DispFragPtr == CANDIDATE_BLOCK ){
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  changed_locals = 0;
 	  
 	  /* If the pixel itself has changed */
@@ -1138,10 +1136,10 @@ static void RowChangedLocalsScan( PP_INSTANCE *ppi,
 	  memset(ChLocalsPtr,0,8);
 	
 	/* Step pointers */
-	ChLocalsPtr += ppi->HFragPixels;
-	PixelsChangedPtr0 += ppi->HFragPixels;
-	PixelsChangedPtr1 += ppi->HFragPixels;
-	PixelsChangedPtr2 += ppi->HFragPixels;
+	ChLocalsPtr += HFRAGPIXELS;
+	PixelsChangedPtr0 += HFRAGPIXELS;
+	PixelsChangedPtr1 += HFRAGPIXELS;
+	PixelsChangedPtr2 += HFRAGPIXELS;
       }
 
       /* Move on to next fragment. */
@@ -1165,7 +1163,7 @@ static void NoiseScoreRow( PP_INSTANCE *ppi,
   ogg_int32_t  AbsDiff;
   
   /* For each pixel in the row */
-  for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+  for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
     /* Skip a group of 8 pixels if the assosciated fragment has no
        pixels of interest. */
     if ( *DispFragPtr == CANDIDATE_BLOCK ){
@@ -1173,7 +1171,7 @@ static void NoiseScoreRow( PP_INSTANCE *ppi,
       FragScore = 0;
       
       /* Pixels grouped along the row into fragments */
-      for ( j = 0; j < ppi->HFragPixels; j++ ){
+      for ( j = 0; j < HFRAGPIXELS; j++ ){
 	if ( PixelMapPtr[j] ){
 	  AbsDiff = (ogg_int32_t)( abs(YUVDiffsPtr[j]) );
 	  changed_locals = ChLocalsPtr[j];
@@ -1223,10 +1221,10 @@ static void NoiseScoreRow( PP_INSTANCE *ppi,
     /* Increment the various pointers */
     FragScorePtr++;
     DispFragPtr++;
-    PixelNoiseScorePtr += ppi->HFragPixels;
-    PixelMapPtr += ppi->HFragPixels;
-    ChLocalsPtr += ppi->HFragPixels;
-    YUVDiffsPtr += ppi->HFragPixels;
+    PixelNoiseScorePtr += HFRAGPIXELS;
+    PixelMapPtr += HFRAGPIXELS;
+    ChLocalsPtr += HFRAGPIXELS;
+    YUVDiffsPtr += HFRAGPIXELS;
   }
 }
 
@@ -1270,14 +1268,14 @@ static void PrimaryEdgeScoreRow( PP_INSTANCE *ppi,
 
   if ( RowType == NOT_EDGE_ROW ){
     /* Loop for all pixels in the row. */
-    for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+    for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
       /* Does the fragment contain anything interesting to work with. */
       if ( *DispFragPtr == CANDIDATE_BLOCK ){
 	/* Reset the cumulative fragment score. */
 	FragScore = 0;
 	
 	/* Pixels grouped along the row into fragments */
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  /* How many changed locals has the current pixel got. */
 	  changed_locals = ChangedLocalsPtr[j];
 	  
@@ -1347,29 +1345,29 @@ static void PrimaryEdgeScoreRow( PP_INSTANCE *ppi,
       }else{
 	/* Nothing to do for this fragment group */
 	/* Advance pointers into changed locals buffer */
-	CHLocalsPtr0 += ppi->HFragPixels;
-	CHLocalsPtr1 += ppi->HFragPixels;
-	CHLocalsPtr2 += ppi->HFragPixels;
+	CHLocalsPtr0 += HFRAGPIXELS;
+	CHLocalsPtr1 += HFRAGPIXELS;
+	CHLocalsPtr2 += HFRAGPIXELS;
       }
       
       /* Increment the various pointers */
       FragScorePtr++;
       DispFragPtr++;
-      PixelNoiseScorePtr += ppi->HFragPixels;
-      ChangedLocalsPtr += ppi->HFragPixels;
-      YUVDiffsPtr += ppi->HFragPixels;
+      PixelNoiseScorePtr += HFRAGPIXELS;
+      ChangedLocalsPtr += HFRAGPIXELS;
+      YUVDiffsPtr += HFRAGPIXELS;
     }  
   }else{
     /* This is either the top or bottom row of pixels in a plane. */
     /* Loop for all pixels in the row. */
-    for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+    for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
       /* Does the fragment contain anything interesting to work with. */
       if ( *DispFragPtr == CANDIDATE_BLOCK ){
 	/* Reset the cumulative fragment score. */
 	FragScore = 0;
 	
 	/* Pixels grouped along the row into fragments */
-	for ( j = 0; j < ppi->HFragPixels; j++ ){
+	for ( j = 0; j < HFRAGPIXELS; j++ ){
 	  /* How many changed locals has the current pixel got. */
 	  changed_locals = ChangedLocalsPtr[j];
 	  
@@ -1458,17 +1456,17 @@ static void PrimaryEdgeScoreRow( PP_INSTANCE *ppi,
       }else{
 	/* Nothing to do for this fragment group */
 	/* Advance pointers into changed locals buffer */
-	CHLocalsPtr0 += ppi->HFragPixels;
-	CHLocalsPtr1 += ppi->HFragPixels;
-	CHLocalsPtr2 += ppi->HFragPixels;
+	CHLocalsPtr0 += HFRAGPIXELS;
+	CHLocalsPtr1 += HFRAGPIXELS;
+	CHLocalsPtr2 += HFRAGPIXELS;
       }
       
       /* Increment the various pointers */
       FragScorePtr++;
       DispFragPtr++;
-      PixelNoiseScorePtr += ppi->HFragPixels;
-      ChangedLocalsPtr += ppi->HFragPixels;
-      YUVDiffsPtr += ppi->HFragPixels;
+      PixelNoiseScorePtr += HFRAGPIXELS;
+      ChangedLocalsPtr += HFRAGPIXELS;
+      YUVDiffsPtr += HFRAGPIXELS;
     }  
   }
 }
@@ -1699,14 +1697,14 @@ static void LineSearchScoreRow( PP_INSTANCE *ppi,
      changed locals. */
   
   /* Loop for all pixels in the row. */
-  for ( i = 0; i < ppi->PlaneWidth; i += ppi->HFragPixels ){
+  for ( i = 0; i < ppi->PlaneWidth; i += HFRAGPIXELS ){
     /* Does the fragment contain anything interesting to work with. */
     if ( *DispFragPtr == CANDIDATE_BLOCK ){
       /* Reset the cumulative fragment score. */
       FragScore = 0;
       
       /* Pixels grouped along the row into fragments */
-      for ( j = 0; j < ppi->HFragPixels; j++ ){
+      for ( j = 0; j < HFRAGPIXELS; j++ ){
 	/* How many changed locals has the current pixel got. */
 	changed_locals = ChangedLocalsPtr[j];
 	
@@ -1743,9 +1741,9 @@ static void LineSearchScoreRow( PP_INSTANCE *ppi,
     /* Increment the various pointers */
     FragScorePtr++;
     DispFragPtr++;
-    PixelNoiseScorePtr += ppi->HFragPixels;
-    ChangedLocalsPtr += ppi->HFragPixels;
-    YUVDiffsPtr += ppi->HFragPixels;
+    PixelNoiseScorePtr += HFRAGPIXELS;
+    ChangedLocalsPtr += HFRAGPIXELS;
+    YUVDiffsPtr += HFRAGPIXELS;
     
   }
 }
@@ -1772,7 +1770,7 @@ static void RowCopy( PP_INSTANCE *ppi, ogg_uint32_t BlockMapIndex ){
       DestPtr = &ppi->ScanConfig.SrfWorkSpcPtr[PixelIndex];
       
       /* For each row of the block */
-      for ( j = 0; j < ppi->ScanConfig.VFragPixels; j++ ){
+      for ( j = 0; j < VFRAGPIXELS; j++ ){
 	/* Copy the data unaltered from source to destination */
 	memcpy(DestPtr,SourcePtr,8);
 
@@ -1783,7 +1781,7 @@ static void RowCopy( PP_INSTANCE *ppi, ogg_uint32_t BlockMapIndex ){
     }
     
     /* Increment pixel index for next block. */
-    PixelIndex += ppi->ScanConfig.HFragPixels;
+    PixelIndex += HFRAGPIXELS;
   }
 }
 
@@ -2038,8 +2036,8 @@ static void AnalysePlane( PP_INSTANCE *ppi,
   }
   
   /* Set up plane dimension variables */
-  ppi->PlaneHFragments = PWidth / ppi->HFragPixels;
-  ppi->PlaneVFragments = PHeight / ppi->VFragPixels;
+  ppi->PlaneHFragments = PWidth / HFRAGPIXELS;
+  ppi->PlaneVFragments = PHeight / VFRAGPIXELS;
   ppi->PlaneWidth = PWidth;
   ppi->PlaneHeight = PHeight;
   ppi->PlaneStride = PStride;
@@ -2062,7 +2060,7 @@ static void AnalysePlane( PP_INSTANCE *ppi,
   RowDiffsPtr1 = ppi->RowChangedPixels;
   RowDiffsPtr2 = ppi->RowChangedPixels;
   
-  BlockRowPixels = ppi->PlaneWidth * ppi->VFragPixels;
+  BlockRowPixels = ppi->PlaneWidth * VFRAGPIXELS;
   
   for ( i = 0; i < (ppi->PlaneVFragments + 4); i++ ){
     RowNumber1 = (i - 1);
@@ -2151,13 +2149,13 @@ static void AnalysePlane( PP_INSTANCE *ppi,
 				  );
     }
     
-    for ( j = 0; j < ppi->VFragPixels; j++ ){
+    for ( j = 0; j < VFRAGPIXELS; j++ ){
       /* Last two iterations do not apply */
       if ( i < ppi->PlaneVFragments ){
 	/* Is the current fragment at an edge. */
 	EdgeRow = ( ( (i == 0) && (j == 0) ) ||
 		    ( (i == (ppi->PlaneVFragments - 1)) && 
-		      (j == (ppi->VFragPixels - 1)) ) );
+		      (j == (VFRAGPIXELS - 1)) ) );
 	
 	/* Clear the arrays that will be used for the changed pixels maps */
 	memset( PixelsChangedPtr0, 0, ppi->PlaneWidth );
@@ -2206,7 +2204,7 @@ static void AnalysePlane( PP_INSTANCE *ppi,
 	    else    
 	      RowChangedLocalsScan( ppi, PixelsChangedPtr1, ChLocalsPtr1, 
 				    DispFragPtr1, 
-				    ((j==(ppi->VFragPixels-1)) ? 
+				    ((j==(VFRAGPIXELS-1)) ? 
 				     LAST_ROW : NOT_EDGE_ROW) );
 
 	    NoiseScoreRow( ppi, PixelsChangedPtr1, ChLocalsPtr1, YUVDiffsPtr1,
@@ -2238,7 +2236,7 @@ static void AnalysePlane( PP_INSTANCE *ppi,
 		PrimaryEdgeScoreRow( ppi, ChLocalsPtr2, YUVDiffsPtr2,
 				     PixelScoresPtr2, FragScoresPtr2, 
 				     DispFragPtr2,
-				     ((j==(ppi->VFragPixels-1)) ? 
+				     ((j==(VFRAGPIXELS-1)) ? 
 				      LAST_ROW : NOT_EDGE_ROW) );
 	      }
 	      

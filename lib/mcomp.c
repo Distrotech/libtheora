@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: mcomp.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: mcomp.c,v 1.5 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -24,7 +24,7 @@ void InitMotionCompensation ( CP_INSTANCE *cpi ){
   int i;
   int SearchSite=0;
   int Len;
-  int LineStepY = (ogg_int32_t)cpi->pb.Configuration.YStride;
+  int LineStepY = (ogg_int32_t)cpi->pb.YStride;
 	
   Len=((MAX_MV_EXTENT/2)+1)/2;
   
@@ -388,7 +388,7 @@ ogg_uint32_t GetMBInterError (CP_INSTANCE *cpi,
 			      ogg_int32_t LastXMV, 
 			      ogg_int32_t LastYMV, 
 			      ogg_uint32_t PixelsPerLine ) {
-  ogg_uint32_t  RefPixelsPerLine = cpi->pb.Configuration.YStride;
+  ogg_uint32_t  RefPixelsPerLine = cpi->pb.YStride;
   ogg_uint32_t	LocalFragIndex = FragIndex;
   ogg_int32_t   PixelIndex;
   ogg_int32_t   RefPixelIndex;
@@ -485,7 +485,7 @@ ogg_uint32_t GetMBMVInterError (CP_INSTANCE *cpi,
   unsigned char	*CandidateBlockPtr=NULL;
   unsigned char	*BestBlockPtr=NULL;
   
-  ogg_uint32_t  RefRow2Offset = cpi->pb.Configuration.YStride * 8;
+  ogg_uint32_t  RefRow2Offset = cpi->pb.YStride * 8;
   
   int    MBlockDispFrags[4];
   
@@ -673,7 +673,7 @@ ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi,
   unsigned char	*CandidateBlockPtr=NULL;
   unsigned char	*BestBlockPtr=NULL;
   
-  ogg_uint32_t  RefRow2Offset = cpi->pb.Configuration.YStride * 8;
+  ogg_uint32_t  RefRow2Offset = cpi->pb.YStride * 8;
   
   int    MBlockDispFrags[4];
   
@@ -704,7 +704,7 @@ ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi,
 
   RefPtr = &RefFramePtr[cpi->pb.recon_pixel_index_table[FragIndex]];
   RefPtr = RefPtr - ((MAX_MV_EXTENT/2) * cpi->
-		     pb.Configuration.YStride) - (MAX_MV_EXTENT/2);
+		     pb.YStride) - (MAX_MV_EXTENT/2);
 
   /* Search each pixel alligned site */
   for ( i = 0; i < (ogg_int32_t)MAX_MV_EXTENT; i ++ ) {
@@ -746,7 +746,7 @@ ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi,
     }
     
     /* Move on to the next row. */
-    RefPtr += cpi->pb.Configuration.YStride;
+    RefPtr += cpi->pb.YStride;
     
   }
 
@@ -841,7 +841,7 @@ static ogg_uint32_t GetBMVExhaustiveSearch (CP_INSTANCE *cpi,
  
   RefPtr = &RefFramePtr[cpi->pb.recon_pixel_index_table[FragIndex]];
   RefPtr = RefPtr - ((MAX_MV_EXTENT/2) * 
-		     cpi->pb.Configuration.YStride) - (MAX_MV_EXTENT/2);
+		     cpi->pb.YStride) - (MAX_MV_EXTENT/2);
   
   /* Search each pixel alligned site */
   for ( i = 0; i < (ogg_int32_t)MAX_MV_EXTENT; i ++ ) {
@@ -866,7 +866,7 @@ static ogg_uint32_t GetBMVExhaustiveSearch (CP_INSTANCE *cpi,
     }
     
     /* Move on to the next row. */
-    RefPtr += cpi->pb.Configuration.YStride;
+    RefPtr += cpi->pb.YStride;
   }
   
   /* Factor vectors to 1/2 pixel resoultion. */

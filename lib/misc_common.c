@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: misc_common.c,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: misc_common.c,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -295,7 +295,7 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
   ogg_uint32_t  PixelIndex;
   
   /*  Copy back for Y plane. */
-  PlaneLineStep = cpi->pb.Configuration.VideoFrameWidth;
+  PlaneLineStep = cpi->pb.info.width;
   for ( i = 0; i < cpi->pb.YPlaneFragments; i++ ) {
     /* We are only interested in updated fragments. */
     if ( cpi->extra_fragments[i] ) {
@@ -304,8 +304,8 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
       SrcPtr = &cpi->yuv1ptr[PixelIndex];
       DestPtr = &cpi->ConvDestBuffer[PixelIndex];
       
-      for ( j = 0; j < cpi->pb.Configuration.VFragPixels; j++ ) {
-	memcpy( DestPtr, SrcPtr, cpi->pb.Configuration.HFragPixels );
+      for ( j = 0; j < VFRAGPIXELS; j++ ) {
+	memcpy( DestPtr, SrcPtr, HFRAGPIXELS);
 	
 	SrcPtr += PlaneLineStep;
 	DestPtr += PlaneLineStep;
@@ -314,7 +314,7 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
   }
  
   /* Now the U and V planes */
-  PlaneLineStep = cpi->pb.Configuration.VideoFrameWidth / 2;
+  PlaneLineStep = cpi->pb.info.width / 2;
   for ( i = cpi->pb.YPlaneFragments; 
 	i < (cpi->pb.YPlaneFragments + (2 * cpi->pb.UVPlaneFragments)) ; 
 	i++ ) {
@@ -326,8 +326,8 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
       SrcPtr = &cpi->yuv1ptr[PixelIndex];
       DestPtr = &cpi->ConvDestBuffer[PixelIndex];
       
-      for ( j = 0; j < cpi->pb.Configuration.VFragPixels; j++ ) {
-	memcpy( DestPtr, SrcPtr, cpi->pb.Configuration.HFragPixels );
+      for ( j = 0; j < VFRAGPIXELS; j++ ) {
+	memcpy( DestPtr, SrcPtr, HFRAGPIXELS);
 	SrcPtr += PlaneLineStep;
 	DestPtr += PlaneLineStep;
       }   

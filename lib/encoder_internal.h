@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -24,6 +24,8 @@
 
 /* Baseline dct height and width. */
 #define BLOCK_HEIGHT_WIDTH          8
+#define HFRAGPIXELS                 8
+#define VFRAGPIXELS                 8
 
 /* Baseline dct block size */
 #define BLOCK_SIZE              (BLOCK_HEIGHT_WIDTH * BLOCK_HEIGHT_WIDTH)
@@ -58,25 +60,10 @@
 
 #define MAX_MV_EXTENT 31  /* Max search distance in half pixel increments */
 
-typedef struct CONFIG_TYPE{
-  /* The size of the surface we want to draw to */
-  ogg_uint32_t VideoFrameWidth;
-  ogg_uint32_t VideoFrameHeight; 
-  
-  ogg_uint32_t YStride;
-  ogg_uint32_t UVStride;
-  
-  /* The number of horizontal and vertical blocks encoded */
-  ogg_uint32_t HFragPixels;
-  ogg_uint32_t VFragPixels;  
-} CONFIG_TYPE;
-
 typedef struct CONFIG_TYPE2{
-  ogg_uint32_t TargetBandwidth;
   double       OutputFrameRate;
-  ogg_uint32_t OutputFrameRateN;
-  ogg_uint32_t OutputFrameRateD;
-  
+  ogg_uint32_t TargetBandwidth;
+
   ogg_uint32_t FirstFrameQ;
   ogg_uint32_t BaseQ;
   ogg_uint32_t MaxQ;            /* Absolute Max Q allowed. */
@@ -99,8 +86,6 @@ typedef struct{
                                  each block */
   ogg_uint32_t    VideoFrameHeight;
   ogg_uint32_t    VideoFrameWidth;
-  unsigned char   HFragPixels;
-  unsigned char   VFragPixels;
 
 } SCAN_CONFIG_DATA;
 
@@ -255,6 +240,10 @@ typedef struct HUFF_ENTRY {
 
 typedef struct PB_INSTANCE {
   oggpack_buffer opb;
+  theora_info    info;
+  /* how far do we shift the granulepos to seperate out P frame counts? */
+  int            keyframe_granule_shift;
+
 
   /***********************************************************************/
   /* Decoder and Frame Type Information */
@@ -280,10 +269,11 @@ typedef struct PB_INSTANCE {
 
   /**********************************************************************/
   /* Frame Size & Index Information */
-  CONFIG_TYPE   Configuration;     /* frame configuration */
   
   ogg_uint32_t  YPlaneSize;  
   ogg_uint32_t  UVPlaneSize;  
+  ogg_uint32_t  YStride;  
+  ogg_uint32_t  UVStride;  
   ogg_uint32_t  VFragments;
   ogg_uint32_t  HFragments;
   ogg_uint32_t  UnitFragments;
@@ -458,11 +448,6 @@ typedef struct PB_INSTANCE {
         
   unsigned char *DataOutputInPtr;                 
 
-  /* fields to store some extra header information useful to the
-     application, but not really the codec */
-  
-  int quality;
-  int target_bitrate;
 
 } PB_INSTANCE;
 
@@ -657,9 +642,6 @@ typedef struct CP_INSTANCE {
   int               packetflag;
   int               doneflag;
 
-  /* how far do we shift the granulepos to seperate out P frame counts? */
-  int               keyframe_granule_shift;
-	
 } CP_INSTANCE;
 
 /*#define clamp255(x) (((ogg_int32_t)(x)&~0xff)?((ogg_int32_t)(x))>>31:(x))*/
