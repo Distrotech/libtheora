@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.9 2003/05/12 00:20:05 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.10 2003/05/19 18:51:06 giles Exp $
 
  ********************************************************************/
 
@@ -32,8 +32,9 @@
 #include "vorbis/codec.h"
 #include "vorbis/vorbisenc.h"
 
-const char *optstring = "a:A:v:V:";
+const char *optstring = "o:a:A:v:V:";
 struct option options [] = {
+  {"output",required_argument,NULL,'o'},
   {"audio-rate-target",required_argument,NULL,'A'},
   {"video-rate-target",required_argument,NULL,'V'},
   {"audio-quality",required_argument,NULL,'a'},
@@ -68,6 +69,9 @@ static void usage(void){
   fprintf(stderr,
 	  "Usage: encoder_example [options] [audio_file] video_file\n\n"
 	  "Options: \n\n"
+	  "  -o --output <filename.ogg>  file name for encoded output;\n"
+	  "                              If this option is not given, the\n"
+	  "                              compressed data is sent to stdout.\n\n"
 	  "  -A --audio-rate-target <n>  bitrate target for Vorbis audio;\n"
 	  "                              use -a and not -A if at all possible,\n"
 	  "                              as -a gives higher quality for a given\n"
@@ -443,6 +447,8 @@ int main(int argc,char *argv[]){
   ogg_int64_t video_bytesout=0;
   double timebase;
 
+  FILE* outfile = stdout;
+  
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
   /* if we were reading/writing a file, it would also need to in
      binary mode, eg, fopen("file.wav","wb"); */
@@ -454,6 +460,14 @@ int main(int argc,char *argv[]){
 
   while((c=getopt_long(argc,argv,optstring,options,&long_option_index))!=EOF){
     switch(c){
+    case 'o':
+      outfile=fopen(optarg,"wb");
+      if(outfile==NULL){
+        fprintf(stderr,"Unable to open output file '%s'\n", optarg);
+        exit(1);
+      }
+      break;;
+      
     case 'a':
       audio_q=atof(optarg)*.099;
       if(audio_q<-.1 || audio_q>1){
@@ -562,8 +576,8 @@ int main(int argc,char *argv[]){
     fprintf(stderr,"Internal Ogg library error.\n");
     exit(1);
   }  
-  fwrite(og.header,1,og.header_len,stdout);
-  fwrite(og.body,1,og.body_len,stdout);
+  fwrite(og.header,1,og.header_len,outfile);
+  fwrite(og.body,1,og.body_len,outfile);
 
   /* create the remaining theora headers */
   theora_comment_init(&tc);
@@ -584,8 +598,8 @@ int main(int argc,char *argv[]){
       fprintf(stderr,"Internal Ogg library error.\n");
       exit(1);
     }
-    fwrite(og.header,1,og.header_len,stdout);
-    fwrite(og.body,1,og.body_len,stdout);
+    fwrite(og.header,1,og.header_len,outfile);
+    fwrite(og.body,1,og.body_len,outfile);
     
     /* remaining vorbis header packets */
     ogg_stream_packetin(&vo,&header_comm);
@@ -603,8 +617,8 @@ int main(int argc,char *argv[]){
         exit(1);
       }
     if(result==0)break;
-    fwrite(og.header,1,og.header_len,stdout);
-    fwrite(og.body,1,og.body_len,stdout);
+    fwrite(og.header,1,og.header_len,outfile);
+    fwrite(og.body,1,og.body_len,outfile);
   }
   if(audio){
     while(1){
@@ -615,8 +629,8 @@ int main(int argc,char *argv[]){
 	exit(1);
       }
       if(result==0)break;
-      fwrite(og.header,1,og.header_len,stdout);
-      fwrite(og.body,1,og.body_len,stdout);
+      fwrite(og.header,1,og.header_len,outfile);
+      fwrite(og.body,1,og.body_len,outfile);
     }
   }
 
@@ -657,15 +671,15 @@ int main(int argc,char *argv[]){
 
       if(audio_or_video==1){
 	/* flush a video page */
-	video_bytesout+=fwrite(videopage.header,1,videopage.header_len,stdout);
-	video_bytesout+=fwrite(videopage.body,1,videopage.body_len,stdout);
+	video_bytesout+=fwrite(videopage.header,1,videopage.header_len,outfile);
+	video_bytesout+=fwrite(videopage.body,1,videopage.body_len,outfile);
 	videoflag=0;
 	timebase=videotime;
 	
       }else{
 	/* flush an audio page */
-	audio_bytesout+=fwrite(audiopage.header,1,audiopage.header_len,stdout);
-	audio_bytesout+=fwrite(audiopage.body,1,audiopage.body_len,stdout);
+	audio_bytesout+=fwrite(audiopage.header,1,audiopage.header_len,outfile);
+	audio_bytesout+=fwrite(audiopage.body,1,audiopage.body_len,outfile);
 	audioflag=0;
 	timebase=audiotime;
       }
