@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.17 2004/02/05 08:00:21 arc Exp $
+  last mod: $Id: encode.c,v 1.18 2004/02/28 18:25:29 giles Exp $
 
  ********************************************************************/
 
@@ -1476,7 +1476,7 @@ void WriteFrameHeader( CP_INSTANCE *cpi) {
     oggpackB_write( opb, 31, 6 );
   }
 
-  /* we only support on Q index per frame */
+  /* we only support one Q index per frame */
   oggpackB_write( opb, 0, 1 );
 
   /* If the frame was a base frame then write out the frame dimensions. */
