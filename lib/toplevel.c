@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.8 2002/09/23 09:15:04 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.9 2002/09/23 23:18:07 xiphmont Exp $
 
  ********************************************************************/
 
@@ -785,7 +785,7 @@ int theora_encode_init(theora_state *th, theora_info *c){
   CP_INSTANCE *cpi;
 
   memset(th, 0, sizeof(*th));
-  th->internal=cpi=_ogg_calloc(1,sizeof(*cpi));
+  th->internal_encode=cpi=_ogg_calloc(1,sizeof(*cpi));
   
   c->version_major=VERSION_MAJOR;
   c->version_minor=VERSION_MINOR;
@@ -918,7 +918,7 @@ int theora_encode_YUVin(theora_state *t,
   ogg_int32_t i;
   unsigned char *LocalDataPtr;
   unsigned char *InputDataPtr;
-  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
   if(!cpi->readyflag)return OC_EINVAL;
   if(cpi->doneflag)return OC_EINVAL;
@@ -980,7 +980,7 @@ int theora_encode_YUVin(theora_state *t,
 }
 
 int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
-  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
   long bytes=oggpackB_bytes(&cpi->oggbuffer);
   
   if(!bytes)return(0);
@@ -995,7 +995,7 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   op->packetno=cpi->CurrentFrame;
 
   op->granulepos=
-    ((cpi->CurrentFrame-cpi->LastKeyFrame+1)<<cpi->pb.keyframe_granule_shift)+ 
+    ((cpi->CurrentFrame-cpi->LastKeyFrame)<<cpi->pb.keyframe_granule_shift)+ 
     cpi->LastKeyFrame-1;
 
   cpi->packetflag=0;
@@ -1005,7 +1005,7 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
 }
 
 int theora_encode_header(theora_state *t, ogg_packet *op){
-  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
 
   oggpackB_reset(&cpi->oggbuffer);
   oggpackB_write(&cpi->oggbuffer,0x80,8);
@@ -1046,9 +1046,10 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   return(0);
 }
 
-void theora_encode_clear(theora_state *t){
+void theora_clear(theora_state *t){
   if(t){
-    CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
+    CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal_encode);
+    PB_INSTANCE *pbi=(PB_INSTANCE *)(t->internal_decode);
     
     if(cpi){
       
@@ -1061,7 +1062,17 @@ void theora_encode_clear(theora_state *t){
       ClearPPInstance(&cpi->pp);
       
     }
-    t->internal=NULL;
+
+    if(pbi){
+
+      ClearFragmentInfo(pbi);
+      ClearFrameInfo(pbi);
+      ClearPBInstance(pbi);
+
+    }
+
+    t->internal_encode=NULL;
+    t->internal_decode=NULL;
   }
 }
 
@@ -1112,7 +1123,7 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
 int theora_decode_init(theora_state *th, theora_info *c){
   PB_INSTANCE *pbi;
   
-  th->internal=pbi=_ogg_calloc(1,sizeof(*pbi));
+  th->internal_decode=pbi=_ogg_calloc(1,sizeof(*pbi));
   
   InitPBInstance(pbi);
   memcpy(&pbi->info,c,sizeof(*c));
@@ -1138,23 +1149,9 @@ int theora_decode_init(theora_state *th, theora_info *c){
 
 }
 
-void theora_decode_clear(theora_state *th){
-
-  if(th){
-    if(th->internal){
-      PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
-
-      ClearFragmentInfo(pbi);
-      ClearFrameInfo(pbi);
-      ClearPBInstance(pbi);
-
-    }
-  }
-}
-
 int theora_decode_packetin(theora_state *th,ogg_packet *op){
   int ret;
-  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
   
   pbi->DecoderErrorCode = 0;
   oggpackB_readinit(&pbi->opb,op->packet,op->bytes);
@@ -1174,7 +1171,7 @@ int theora_decode_packetin(theora_state *th,ogg_packet *op){
 }
 
 int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv){
-  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
 
   yuv->y_width = pbi->info.width;
   yuv->y_height = pbi->info.height;
@@ -1199,12 +1196,15 @@ int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv){
 
 /* returns, in seconds, absolute time of current packet in given
    logical stream */
-double theora_packet_time(theora_state *th,ogg_packet *op){
-  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+double theora_granule_time(theora_state *th,ogg_int64_t granulepos){
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(th->internal_encode);
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
   
-  if(op->granulepos>=0){
-    ogg_int64_t iframe=op->granulepos>>pbi->keyframe_granule_shift;
-    ogg_int64_t pframe=op->granulepos-(iframe<<pbi->keyframe_granule_shift);
+  if(cpi)pbi=&cpi->pb;
+
+  if(granulepos>=0){
+    ogg_int64_t iframe=granulepos>>pbi->keyframe_granule_shift;
+    ogg_int64_t pframe=granulepos-(iframe<<pbi->keyframe_granule_shift);
 
     return (iframe+pframe)*
       ((double)pbi->info.fps_denominator/pbi->info.fps_numerator);

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.8 2002/09/23 09:15:04 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.9 2002/09/23 23:18:07 xiphmont Exp $
 
  ********************************************************************/
 
@@ -457,7 +457,6 @@ typedef struct CP_INSTANCE {
   /* Compressor Configuration */
   SCAN_CONFIG_DATA ScanConfig;
   CONFIG_TYPE2     Configuration;
-  int              QuickCompress;
   int              GoldenFrameEnabled;
   int              InterPrediction;
   int              MotionCompensation;

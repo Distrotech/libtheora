@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.1 2002/09/23 09:15:03 xiphmont Exp $
+  last mod: $Id: encoder_example.c,v 1.2 2002/09/23 23:18:05 xiphmont Exp $
 
  ********************************************************************/
 
@@ -43,7 +43,7 @@ FILE *video=NULL;
 int audio_ch=0; 
 int audio_hz=0; 
 
-float audio_q=-99;
+float audio_q=1;
 int audio_r=-1;
 
 int video_x=0;
@@ -56,7 +56,7 @@ int video_an=0;
 int video_ad=0;
 
 int video_r=-1;
-int video_q=-1;
+int video_q=10;
 
 static void usage(void){
   fprintf(stderr,
@@ -157,6 +157,9 @@ static void id_file(char *f){
 	      ret=fread(buffer,1,4,test);
 	      if(ret<4)goto riff_err;
 
+	      fprintf(stderr,"File %s is 16 bit %d channel %d Hz RIFF WAV audio.\n",
+		      f,audio_ch,audio_hz);
+
 	      return;
 	    }
 	  }
@@ -211,6 +214,10 @@ static void id_file(char *f){
       }
 
       video=test;
+      
+      fprintf(stderr,"File %s is %dx%d %.02f fps YUV12 video.\n",
+	      f,video_x,video_y,(double)video_hzn/video_hzd);
+      
       return;
     }
   }
@@ -223,11 +230,185 @@ static void id_file(char *f){
  yuv_err:
   fprintf(stderr,"EOF parsing YUV4MPEG2 file %s.\n",f);
   exit(1);
+  
+}
 
+int spinner=0;
+char *spinascii="|/-\\";
+void spinnit(void){
+  spinner++;
+  if(spinner==4)spinner=0;
+  fprintf(stderr,"\r%c",spinascii[spinner]);
+}
+
+int fetch_and_process_audio(FILE *audio,ogg_page *audiopage,
+			    ogg_stream_state *vo,
+			    vorbis_dsp_state *vd,
+			    vorbis_block *vb,
+			    int audioflag){
+  ogg_packet op;
+  int i,j;
+
+  while(audio && !audioflag){
+    /* process any audio already buffered */
+    spinnit();
+    if(ogg_stream_pageout(vo,audiopage)>0) return 1;
+    if(ogg_stream_eos(vo))return 0;
+
+    {
+      /* read and process more audio */
+      signed char readbuffer[4096];
+      int toread=4096/2/audio_ch;
+      int bytesread=fread(readbuffer,1,toread*2*audio_ch,audio);
+      int sampread=bytesread/2/audio_ch;
+      float **vorbis_buffer;
+      int count=0;
+      
+      if(bytesread<=0){
+	/* end of file.  this can be done implicitly, but it's
+	   easier to see here in non-clever fashion.  Tell the
+	   library we're at end of stream so that it can handle the
+	   last frame and mark end of stream in the output properly */
+	vorbis_analysis_wrote(vd,0);
+      }else{
+	vorbis_buffer=vorbis_analysis_buffer(vd,sampread);
+	/* uninterleave samples */
+	for(i=0;i<sampread;i++){
+	  for(j=0;j<audio_ch;j++){
+	    vorbis_buffer[j][i]=((readbuffer[count+1]<<8)|
+				 (0x00ff&(int)readbuffer[count]))/32768.f;
+	    count+=2;
+	  }
+	}
+	
+	vorbis_analysis_wrote(vd,sampread);
+	
+      }
+      
+      while(vorbis_analysis_blockout(vd,vb)==1){
+	
+	/* analysis, assume we want to use bitrate management */
+	vorbis_analysis(vb,NULL);
+	vorbis_bitrate_addblock(vb);
+	
+	/* weld packets into the bitstream */
+	while(vorbis_bitrate_flushpacket(vd,&op))
+	  ogg_stream_packetin(vo,&op);
+	
+      }
+    }
+  }
+  
+  return audioflag;
+}
+
+int fetch_and_process_video(FILE *video,ogg_page *videopage,
+			    ogg_stream_state *to,
+			    theora_state *td,
+			    int videoflag){
+  /* You'll go to Hell for using static variables */
+  static int          state=-1;
+  static signed char *yuvframe[2];
+  yuv_buffer          yuv;
+  ogg_packet          op;
+  int i;
+
+  if(state==-1){
+    /* initialize the double frame buffer */
+    yuvframe[0]=malloc(video_x*video_y*3/2);
+    yuvframe[1]=malloc(video_x*video_y*3/2);
+
+    state=0;
+  }
+
+  /* is there a video page flushed?  If not, work until there is. */
+  while(!videoflag){
+    spinnit();
+    
+    if(ogg_stream_pageout(to,videopage)>0) return 1;
+    if(ogg_stream_eos(to)) return 0;
+
+    {
+      /* read and process more video */
+      /* video strategy reads one frame ahead so we know when we're
+	 at end of stream and can mark last video frame as such
+	 (vorbis audio has to flush one frame past last video frame
+	 due to overlap and thus doesn't need this extra work */
+      
+      /* have two frame buffers full (if possible) before
+	 proceeding.  after first pass and until eos, one will
+	 always be full when we get here */
+
+      for(i=state;i<2;i++){
+	char frame[6];
+	int ret=fread(frame,1,6,video);
+	
+	if(ret<6)break;
+	if(memcmp(frame,"FRAME\n",6)){
+	  fprintf(stderr,"Loss of framing in YUV input data\n");
+	  exit(1);
+	}
+
+	ret=fread(yuvframe[i],1,video_x*video_y*3/2,video);
+	if(ret!=video_x*video_y*3/2)break;
+	
+	state++;
+      }
+
+      if(state<1){
+	/* can't get here unless YUV4MPEG stream has no video */
+	fprintf(stderr,"Video input contains no frames.\n");
+	exit(1);
+      }
+      
+      /* Theora is a one-frame-in,one-frame-out system; subit a frame
+         for compression and pull out the packet */
+      
+      /* center crop the input to a /16 size */
+      {
+	int x_adj= (video_x-video_x_adj)/2;
+	int y_adj= (video_y-video_y_adj)/2;
+
+	yuv.y_width=video_x_adj;
+	yuv.y_height=video_y_adj;
+	yuv.y_stride=video_x;
+	
+	yuv.uv_width=video_x_adj/2;
+	yuv.uv_height=video_y_adj/2;
+	yuv.uv_stride=video_x/2;
+	
+	yuv.y= yuvframe[0]+ 
+	  video_x*y_adj + x_adj;
+	yuv.u= yuvframe[0]+ video_x*video_y +
+	  (video_x/2)*(y_adj/2) + x_adj/2;
+	yuv.v= yuvframe[0]+ video_x*video_y*5/4 +
+	  (video_x/2)*(y_adj/2) + x_adj/2;
+      }
+      
+      theora_encode_YUVin(td,&yuv);
+
+      /* if there's only one frame, it's the last in the stream */
+      if(state<2)
+	theora_encode_packetout(td,1,&op);
+      else
+	theora_encode_packetout(td,0,&op);
+      
+      ogg_stream_packetin(to,&op);
+      
+      {
+	signed char *temp=yuvframe[0];
+	yuvframe[0]=yuvframe[1];
+	yuvframe[1]=temp;
+	state--;
+      }
+      
+    }
+  }
+  return videoflag;
 }
 
 int main(int argc,char *argv[]){
-  int c,long_option_index,ret;
+  int c,long_option_index,ret,i,j;
 
   ogg_stream_state to; /* take physical pages, weld into a logical
                            stream of packets */
@@ -246,9 +427,15 @@ int main(int argc,char *argv[]){
   vorbis_dsp_state vd; /* central working state for the packet->PCM decoder */
   vorbis_block     vb; /* local working space for packet->PCM decode */
 
-  yuv_buffer       yuv;
-  
-  
+  int audioflag=0;
+  int videoflag=0;
+  int akbps=0;
+  int vkbps=0;
+
+  ogg_int64_t audio_bytesout=0;
+  ogg_int64_t video_bytesout=0;
+  double timebase;
+
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
   /* if we were reading/writing a file, it would also need to in
      binary mode, eg, fopen("file.wav","wb"); */
@@ -261,7 +448,7 @@ int main(int argc,char *argv[]){
   while((c=getopt_long(argc,argv,optstring,options,&long_option_index))!=EOF){
     switch(c){
     case 'a':
-      audio_q=atof(optarg)*.1;
+      audio_q=atof(optarg)*.099;
       if(audio_q<-.1 || audio_q>1){
 	fprintf(stderr,"Illegal audio quality (choose -1 through 10)\n");
 	exit(1);
@@ -309,7 +496,7 @@ int main(int argc,char *argv[]){
   /* yayness.  Set up Ogg output stream */
   srand(time(NULL));
   ogg_stream_init(&vo,rand());
-  ogg_stream_init(&to,rand());
+  ogg_stream_init(&to,rand()); /* oops, add one ot the above */
 
   /* Set up Theora encoder */
   if(!video){
@@ -324,14 +511,16 @@ int main(int argc,char *argv[]){
   ti.height=video_y_adj;
   ti.fps_numerator=video_hzn;
   ti.fps_denominator=video_hzd;
+  ti.aspect_numerator=video_an;
+  ti.aspect_denominator=video_ad;
   ti.target_bitrate=video_r;
-  ti.quality=video_r;
+  ti.quality=video_q;
   
-  ti.droppedframes_p=0;
-  ti.quickcompress_p=1;
+  ti.dropframes_p=0;
+  ti.quick_p=1;
   ti.keyframe_auto_p=1;
-  ti.keyframe_frequency=128;
-  ti.keyframe_frequency_force=128;
+  ti.keyframe_frequency=64;
+  ti.keyframe_frequency_force=64;
   ti.keyframe_data_target_bitrate=video_r*1.5;
   ti.keyframe_auto_threshold=80;
   ti.keyframe_mindistance=8;
@@ -343,9 +532,9 @@ int main(int argc,char *argv[]){
   if(audio){
     vorbis_info_init(&vi);
     if(audio_q>-99)
-      ret = vorbis_encode_init_vbr(&vi,2,44100,.4);
+      ret = vorbis_encode_init_vbr(&vi,audio_ch,audio_hz,audio_q);
     else
-      ret = vorbis_encode_init(&vi,2,44100,-1,128000,-1);
+      ret = vorbis_encode_init(&vi,audio_ch,audio_hz,-1,audio_r,-1);
     if(ret){
       fprintf(stderr,"The Vorbis encoder could not set up a mode according to\n"
 	      "the requested quality or bitrate.\n\n");
@@ -396,27 +585,75 @@ int main(int argc,char *argv[]){
     }
   }
 
-  /* setup complete.  Raw processing loop! */
+  /* setup complete.  Raw processing loop */
+  fprintf(stderr,"Compressing....\n");
   while(1){
+    ogg_page audiopage;
+    ogg_page videopage;
 
-    /* is there an audio page ready to flush?  If not, work until there is. */
+    /* is there an audio page flushed?  If not, fetch one if possible */
+    audioflag=fetch_and_process_audio(audio,&audiopage,&vo,&vd,&vb,audioflag);
 
-
-
-    /* is there a video page ready to flush?  If not, work until there is. */
-
-
+    /* is there a video page flushed?  If not, fetch one if possible */
+    videoflag=fetch_and_process_video(video,&videopage,&to,&td,videoflag);
+    
     /* no pages of either?  Must be end of stream. */
-    if(ogg_stream_pageout(&to,&og)<=0 && ogg_stream_pageout(&vo,&og)<=0)break; 
+    if(!audioflag && !videoflag)break; 
 
     /* which is earlier; the end of the audio page or the end of the
        video page? Flush the earlier to stream */
+    {
+      int audio_or_video=-1;
+      double audiotime=
+	audioflag?vorbis_granule_time(&vd,ogg_page_granulepos(&audiopage)):-1;
+      double videotime=
+	videoflag?theora_granule_time(&td,ogg_page_granulepos(&videopage)):-1;
 
+      if(!audioflag){
+	audio_or_video=1;
+      } else if(!videoflag) {
+	audio_or_video=0;
+      } else {
+	if(audiotime<videotime)
+	  audio_or_video=0;
+	else
+	  audio_or_video=1;
+      }
+
+      if(audio_or_video==1){
+	/* flush a video page */
+	video_bytesout+=fwrite(videopage.header,1,videopage.header_len,stdout);
+	video_bytesout+=fwrite(videopage.body,1,videopage.body_len,stdout);
+	videoflag=0;
+	timebase=videotime;
+	
+      }else{
+	/* flush an audio page */
+	audio_bytesout+=fwrite(audiopage.header,1,audiopage.header_len,stdout);
+	audio_bytesout+=fwrite(audiopage.body,1,audiopage.body_len,stdout);
+	audioflag=0;
+	timebase=audiotime;
+      }
+      {
+	int hundredths=timebase*100-(long)timebase*100;
+	int seconds=(long)timebase%60;
+	int minutes=((long)timebase/60)%60;
+	int hours=(long)timebase/3600;
+	
+	if(audio_or_video)
+	  vkbps=rint(video_bytesout*8./timebase*.001);
+	else
+	  akbps=rint(audio_bytesout*8./timebase*.001);
+	
+	fprintf(stderr,
+		"\r      %d:%02d:%02d.%02d audio: %dkbps video: %dkbps                 ",
+		hours,minutes,seconds,hundredths,akbps,vkbps);
+      }
+    }
+	    
   }
 
-  fprintf(stderr,
-	  "\r                                                            \n"
-	  "done.\n\n");
+  fprintf(stderr,"\r   \ndone.\n\n");
 
   return(0);
 

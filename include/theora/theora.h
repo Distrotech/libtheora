@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.2 2002/09/23 09:15:03 xiphmont Exp $
+  last mod: $Id: theora.h,v 1.3 2002/09/23 23:18:06 xiphmont Exp $
 
  ********************************************************************/
 
@@ -21,7 +21,8 @@
 #include <ogg/ogg.h>
 
 typedef struct{
-  void *internal;
+  void *internal_encode;
+  void *internal_decode;
 } theora_state;
 
 typedef struct {
@@ -48,6 +49,7 @@ typedef struct{
   ogg_uint32_t  aspect_denominator;
   int           target_bitrate;
   int           quality;
+  int           quick_p;  /* quick encode/decode */
 
   /* decode only */
   unsigned char version_major;
@@ -56,7 +58,6 @@ typedef struct{
 
   /* encode only */
   int           dropframes_p;
-  int           quickcompress_p;
   int           keyframe_auto_p;
   ogg_uint32_t  keyframe_frequency;
   ogg_uint32_t  keyframe_frequency_force;  /* also used for decode init to
@@ -84,13 +85,12 @@ extern int theora_encode_YUVin(theora_state *t, yuv_buffer *yuv);
 extern int theora_encode_packetout( theora_state *t, int last_p, 
 				    ogg_packet *op);
 extern int theora_encode_header(theora_state *t, ogg_packet *op);
-extern void theora_encode_clear(theora_state *t);
 extern int theora_decode_header(theora_info *c, ogg_packet *op);
 extern int theora_decode_init(theora_state *th, theora_info *c);
-extern void theora_decode_clear(theora_state *th);
 extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
-extern double theora_packet_time(theora_state *th,ogg_packet *op);
+extern double theora_granule_time(theora_state *th,ogg_int64_t granulepos);
+extern void theora_clear(theora_state *t);
 
 
 

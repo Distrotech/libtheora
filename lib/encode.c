@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.7 2002/09/23 08:31:02 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.8 2002/09/23 23:18:06 xiphmont Exp $
 
  ********************************************************************/
 
@@ -1192,7 +1192,7 @@ ogg_uint32_t PickModes(CP_INSTANCE *cpi,
   cpi->InterTripOutThresh = (5000<<12);
   cpi->MVChangeFactor = MVChangeFactorTable[QIndex]; /* 0.9 */
   
-  if ( cpi->QuickCompress ) {
+  if ( cpi->pb.info.quick_p ) {
     cpi->ExhaustiveSearchThresh = (1000<<12);
     cpi->FourMVThreshold = (2500<<12);
   } else {
@@ -1300,7 +1300,7 @@ ogg_uint32_t PickModes(CP_INSTANCE *cpi,
 	if ( BestError > cpi->MinImprovementForNewMV ) {
 	  /* Use a mix of heirachical and exhaustive searches for
              quick mode. */
-	  if ( cpi->QuickCompress ) {
+	  if ( cpi->pb.info.quick_p ) {
 	    MBInterMVError = GetMBMVInterError( cpi, cpi->pb.LastFrameRecon, 
 						YFragIndex, PixelsPerLine, 
 						cpi->MVPixelOffsetY, 
