@@ -4,7 +4,7 @@ dnl ------------------------------------------------
 dnl Initialization and Versioning
 dnl ------------------------------------------------
 
-AC_INIT(libtheora,[1.0alpha3])
+AC_INIT(libtheora,[unreleased])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([lib/dct.c])
 AM_INIT_AUTOMAKE
@@ -125,5 +125,6 @@ AC_CONFIG_FILES([
   include/Makefile include/theora/Makefile
   examples/Makefile doc/Makefile
   debian/Makefile
+  theora.pc
 ])
 AC_OUTPUT
