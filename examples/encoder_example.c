@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.18 2003/06/08 19:59:59 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.19 2003/06/08 20:07:49 giles Exp $
 
  ********************************************************************/
 
@@ -375,21 +375,17 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
       for(i=state;i<2;i++){
 	char frame[6];
 	int ret=fread(frame,1,6,video);
-	int count = 0;
 	
 	if(ret<6)break;
 	if(memcmp(frame,"FRAME\n",6)){
 	  fprintf(stderr,"Loss of framing in YUV input data\n");
 	  exit(1);
 	}
-	
-	fprintf(stderr,"reading frame...");
 
 	/* read the Y plane into our frame buffer with centering */
 	line=yuvframe[i]+video_x*frame_y_offset+frame_x_offset;
 	for(e=0;e<frame_y;e++){
 	  ret=fread(line,1,frame_x,video);
-	  count+=ret;
 	    if(ret!=frame_x) break;
 	  line+=video_x; 
 	}
@@ -398,7 +394,6 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 	  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
 	for(e=0;e<frame_y/2;e++){
 	  ret=fread(line,1,frame_x/2,video);
-	  count+=ret;
 	    if(ret!=frame_x/2) break;
 	  line+=video_x/2;
 	}
@@ -407,11 +402,9 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 		  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
 	for(e=0;e<frame_y/2;e++){
 	  ret=fread(line,1,frame_x/2,video);
-	  count+=ret;
 	    if(ret!=frame_x/2) break;
 	  line+=video_x/2;
 	}
-        fprintf(stderr,"%d of %d bytes.\n",count,frame_x*frame_y*3/2);
 	state++;
       }
 
