@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.29 2003/10/21 22:12:37 giles Exp $
+  last mod: $Id: toplevel.c,v 1.30 2003/10/26 17:42:20 giles Exp $
 
  ********************************************************************/
 
@@ -934,31 +934,34 @@ int theora_encode_YUVin(theora_state *t,
 
 
   /* Copy over input YUV to internal YUV buffers. */
+  /* we invert the image for backward compatibility with VP3 */
   /* First copy over the Y data */
-  LocalDataPtr = cpi->yuv1ptr;
+  LocalDataPtr = cpi->yuv1ptr + yuv->y_width*(yuv->y_height - 1);
   InputDataPtr = yuv->y;
   for ( i = 0; i < yuv->y_height; i++ ){
     memcpy( LocalDataPtr, InputDataPtr, yuv->y_width );
-    LocalDataPtr += yuv->y_width;
+    LocalDataPtr -= yuv->y_width;
     InputDataPtr += yuv->y_stride;
   }
 
   /* Now copy over the U data */
   LocalDataPtr = &cpi->yuv1ptr[(yuv->y_height * yuv->y_width)];
+  LocalDataPtr += yuv->uv_width*(yuv->uv_height - 1);
   InputDataPtr = yuv->u;
   for ( i = 0; i < yuv->uv_height; i++ ){
     memcpy( LocalDataPtr, InputDataPtr, yuv->uv_width );
-    LocalDataPtr += yuv->uv_width;
+    LocalDataPtr -= yuv->uv_width;
     InputDataPtr += yuv->uv_stride;
   }
 
   /* Now copy over the V data */
   LocalDataPtr =
     &cpi->yuv1ptr[((yuv->y_height*yuv->y_width)*5)/4];
+  LocalDataPtr += yuv->uv_width*(yuv->uv_height - 1);
   InputDataPtr = yuv->v;
   for ( i = 0; i < yuv->uv_height; i++ ){
     memcpy( LocalDataPtr, InputDataPtr, yuv->uv_width );
-    LocalDataPtr += yuv->uv_width;
+    LocalDataPtr -= yuv->uv_width;
     InputDataPtr += yuv->uv_stride;
   }
 
@@ -1408,6 +1411,14 @@ int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv){
     yuv->u = &pbi->LastFrameRecon[pbi->ReconUDataOffset];
     yuv->v = &pbi->LastFrameRecon[pbi->ReconVDataOffset];
   }
+  
+  /* we must flip the internal representation,
+     so make the stride negative and start at the end */
+  yuv->y += yuv->y_stride * (yuv->y_height - 1);
+  yuv->u += yuv->uv_stride * (yuv->uv_height - 1);
+  yuv->v += yuv->uv_stride * (yuv->uv_height - 1);
+  yuv->y_stride = - yuv->y_stride;
+  yuv->uv_stride = - yuv->uv_stride;
 
   return 0;
 }
