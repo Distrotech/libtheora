@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.22 2003/06/10 11:42:45 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.23 2003/06/14 01:08:10 giles Exp $
 
  ********************************************************************/
 
@@ -372,13 +372,23 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
          always be full when we get here */
 
       for(i=state;i<2;i++){
-        char frame[6];
+        char c,frame[6];
         int ret=fread(frame,1,6,video);
         
+	/* match and skip the frame header */
         if(ret<6)break;
-        if(memcmp(frame,"FRAME\n",6)){
+        if(memcmp(frame,"FRAME",5)){
           fprintf(stderr,"Loss of framing in YUV input data\n");
           exit(1);
+        }
+        if(frame[5]!='\n'){
+          int j;
+          for(j=0;j<79;j++)
+            if(fread(&c,1,1,video)&&c=='\n')break;
+          if(j==79){
+            fprintf(stderr,"Error parsing YUV frame header\n");
+            exit(1);
+          }
         }
 
         /* read the Y plane into our frame buffer with centering */
