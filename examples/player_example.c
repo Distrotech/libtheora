@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.4 2002/09/25 02:38:10 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.5 2002/09/25 03:07:46 xiphmont Exp $
 
  ********************************************************************/
 
@@ -403,7 +403,7 @@ int main(void){
   }
   
   /* we're expecting more vorbis header packets. */
-  if(vorbis_p && vorbis_p<3){
+  while(vorbis_p && vorbis_p<3){
     int ret;
     while((ret=ogg_stream_packetout(&vo,&op))){
       if(ret<0){
