@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.19 2003/06/03 20:38:13 mauricio Exp $
+  last mod: $Id: toplevel.c,v 1.20 2003/06/03 22:39:26 giles Exp $
 
  ********************************************************************/
 
@@ -1038,10 +1038,11 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
 
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.width>>4,16);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.height>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.pixel_width>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.pixel_height>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.x_offset>>4,16);
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.y_offset>>4,16);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.frame_width,24);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.frame_height,24);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.offset_x,8);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.info.offset_y,8);
+
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.fps_numerator,32);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.fps_denominator,32);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.aspect_numerator,24);
@@ -1199,10 +1200,11 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
 
   c->width=oggpackB_read(&opb,16)<<4;
   c->height=oggpackB_read(&opb,16)<<4;
-  c->pixel_width=oggpackB_read(&opb,16)<<4;
-  c->pixel_height=oggpackB_read(&opb,16)<<4;
-  c->x_offset=oggpackB_read(&opb,16)<<4;
-  c->y_offset=oggpackB_read(&opb,16)<<4;
+  c->frame_width=oggpackB_read(&opb,24);
+  c->frame_height=oggpackB_read(&opb,24);
+  c->offset_x=oggpackB_read(&opb,8);
+  c->offset_y=oggpackB_read(&opb,8);
+
   c->fps_numerator=oggpackB_read(&opb,32);
   c->fps_denominator=oggpackB_read(&opb,32);
   c->aspect_numerator=oggpackB_read(&opb,24);

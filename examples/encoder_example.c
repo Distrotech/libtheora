@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.13 2003/06/03 20:38:13 mauricio Exp $
+  last mod: $Id: encoder_example.c,v 1.14 2003/06/03 22:39:26 giles Exp $
 
  ********************************************************************/
 
@@ -577,10 +577,10 @@ int main(int argc,char *argv[]){
   
   ti.width=video_x_canvas;
   ti.height=video_y_canvas;
-  ti.pixel_width=video_x;
-  ti.pixel_height=video_y;
-  ti.x_offset=video_x_offset;
-  ti.y_offset=video_y_offset;
+  ti.frame_width=video_x;
+  ti.frame_height=video_y;
+  ti.offset_x=video_x_offset;
+  ti.offset_y=video_y_offset;
   ti.fps_numerator=video_hzn;
   ti.fps_denominator=video_hzd;
   ti.aspect_numerator=video_an;

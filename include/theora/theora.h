@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.7 2003/06/03 20:38:13 mauricio Exp $
+  last mod: $Id: theora.h,v 1.8 2003/06/03 22:39:26 giles Exp $
 
  ********************************************************************/
 
@@ -38,10 +38,10 @@ typedef struct {
 typedef struct{
   ogg_uint32_t  width;
   ogg_uint32_t  height;
-  ogg_uint32_t  pixel_width;
-  ogg_uint32_t  pixel_height;
-  ogg_uint32_t  x_offset;
-  ogg_uint32_t  y_offset;
+  ogg_uint32_t  frame_width;
+  ogg_uint32_t  frame_height;
+  ogg_uint32_t  offset_x;
+  ogg_uint32_t  offset_y;
   ogg_uint32_t  fps_numerator;
   ogg_uint32_t  fps_denominator;
   ogg_uint32_t  aspect_numerator;
