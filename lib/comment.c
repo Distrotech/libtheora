@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.3 2003/05/12 22:23:03 mauricio Exp $
+  last mod: $Id: comment.c,v 1.4 2003/05/21 19:31:47 mauricio Exp $
 
  ********************************************************************/
 
@@ -61,7 +61,7 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
   long i;
   int found = 0;
   int taglen = strlen(tag)+1; /* +1 for the = we append */
-  char *fulltag = alloca(taglen+ 1);
+  char *fulltag = _ogg_malloc(taglen+ 1);
                                                                                 
   strcpy(fulltag, tag);
   strcat(fulltag, "=");
@@ -75,6 +75,7 @@ char *theora_comment_query(theora_comment *tc, char *tag, int count){
         found++;
     }
   }
+  _ogg_free(fulltag); 
   return NULL; /* didn't find anything */
 }
 
