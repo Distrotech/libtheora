@@ -5,14 +5,14 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2003             *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.15 2003/06/04 00:04:28 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.16 2003/06/08 00:08:38 giles Exp $
 
  ********************************************************************/
 

@@ -5,13 +5,13 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2002             *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.8 2002/09/23 23:18:06 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.9 2003/06/08 00:08:38 giles Exp $
 
  ********************************************************************/
 

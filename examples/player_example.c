@@ -5,14 +5,14 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2003             *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.17 2003/06/04 01:25:34 mauricio Exp $
+  last mod: $Id: player_example.c,v 1.18 2003/06/08 00:08:38 giles Exp $
 
  ********************************************************************/
 

@@ -5,13 +5,13 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2002             *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.h,v 1.2 2003/06/07 23:34:56 giles Exp $
+  last mod: $Id: toplevel.h,v 1.3 2003/06/08 00:08:38 giles Exp $
 
  ********************************************************************/
 

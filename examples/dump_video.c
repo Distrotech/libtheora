@@ -5,13 +5,13 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2003             *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams 
-  last mod: $Id: dump_video.c,v 1.2 2003/06/04 01:25:34 mauricio Exp $
+  last mod: $Id: dump_video.c,v 1.3 2003/06/08 00:08:38 giles Exp $
 
  ********************************************************************/
 
