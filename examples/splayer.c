@@ -882,7 +882,7 @@ int main( int argc, char* argv[] ){
   SDL_Event event;
   int hasdatatobuffer = 1;
   int playbackdone = 0;
-  double delay;
+  double delay, lastframetime = 0;
 
   int frameNum=0;
 
@@ -1014,7 +1014,6 @@ int main( int argc, char* argv[] ){
 	  videobuf_granulepos=td.granulepos;
 	  videobuf_time=theora_granule_time(&td,videobuf_granulepos);
 	  /* update the frame counter */
-	  //printf("Frame\n");
 	  frameNum++;
 
 	  /* check if this frame time has not passed yet.
@@ -1022,9 +1021,11 @@ int main( int argc, char* argv[] ){
 	     ones and keep looping, since theora at this stage
 	     needs to decode all frames */
 	  delay = videobuf_time-get_time();
-	  fprintf(stderr, "frame %d delay %.3f\n", frameNum, delay);
 	  if(delay>0.0){
 		/* got a good frame, not late, ready to break out */
+		videobuf_ready=1;
+	  }else if(videobuf_time-lastframetime>=1.0){
+		/* display at least one frame per second, regardless */
 		videobuf_ready=1;
 	  }else{
 		fprintf(stderr, "dropping frame %d (%.3fs behind)\n",
@@ -1040,6 +1041,7 @@ int main( int argc, char* argv[] ){
       /*time to write our cached frame*/
       video_write();
       videobuf_ready=0;
+      lastframetime=get_time();
 
       /*if audio has not started (first frame) then start it*/
       if ((!isPlaying)&&(vorbis_p)){
