@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pb.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: pb.c,v 1.2 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -35,8 +35,6 @@ void ClearTmpBuffers(PB_INSTANCE * pbi){
     _ogg_free(pbi->dequant_UV_coeffs);
   if(pbi->dequant_Inter_coeffs)
     _ogg_free(pbi->dequant_Inter_coeffs);
-  if(pbi->ScaleBuffer)
-    _ogg_free(pbi->ScaleBuffer);
   if(pbi->dequant_InterUV_coeffs)
     _ogg_free(pbi->dequant_InterUV_coeffs);
   
@@ -49,7 +47,6 @@ void ClearTmpBuffers(PB_INSTANCE * pbi){
   pbi->dequant_UV_coeffs = 0;
   pbi->dequant_InterUV_coeffs = 0;
   pbi->dequant_Inter_coeffs = 0;
-  pbi->ScaleBuffer = 0;
 
 }
 
@@ -114,6 +111,4 @@ void InitPBInstance(PB_INSTANCE *pbi){
   pbi->DecoderErrorCode = 0;
   pbi->KeyFrameType = DCT_KEY_FRAME;
   pbi->FramesHaveBeenSkipped = 0;
-  pbi->SkipYUVtoRGB = 0;
-  pbi->OutputRGB = 0;
 }

@@ -11,13 +11,13 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: block_inline.h,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: block_inline.h,v 1.3 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
 static ogg_int32_t MBOrderMap[4] = { 0, 2, 3, 1 };
-static ogg_int32_t BlockOrderMap1[4][4] =	
-{ { 0, 1, 3, 2 },
+static ogg_int32_t BlockOrderMap1[4][4] = { 
+  { 0, 1, 3, 2 },
   { 0, 2, 3, 1 },       
   { 0, 2, 3, 1 },
   { 3, 2, 0, 1 }
@@ -28,6 +28,7 @@ static ogg_int32_t QuadMapToIndex1( ogg_int32_t	(*BlockMap)[4][4],
 				    ogg_uint32_t B ){
   return BlockMap[SB][MBOrderMap[MB]][BlockOrderMap1[MB][B]];
 }
+
 
 static ogg_int32_t QuadMapToMBTopLeft( ogg_int32_t (*BlockMap)[4][4], 
 				       ogg_uint32_t SB, ogg_uint32_t MB ){

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -27,7 +27,7 @@
 #define VERSION_MINOR 1
 #define VERSION_SUB 0
 
-#define CommentString "Xiph.Org libTheora I 20020916 0 0 0"
+#define CommentString "Xiph.Org libTheora I 20020916 3 1 0"
 
 static void EClearFragmentInfo(CP_INSTANCE * cpi){
   if(cpi->extra_fragments)
@@ -309,6 +309,9 @@ void UpdateFrame(CP_INSTANCE *cpi){
     
   /* Initialise bit packing mechanism. */
   oggpackB_reset(&cpi->oggbuffer);
+
+  /* mark as video frame */
+  oggpackB_write(&cpi->oggbuffer,0,1);
   
   /* Write out the frame header information including size. */
   WriteFrameHeader(cpi);
@@ -399,10 +402,6 @@ void UpdateFrame(CP_INSTANCE *cpi){
 
 static void CompressFirstFrame(CP_INSTANCE *cpi) {                  
   ogg_uint32_t i; 
-
-  /* if not AutoKeyframing cpi->ForceKeyFrameEvery = is frequency */
-  if(!cpi->AutoKeyFrameEnabled) 
-    cpi->ForceKeyFrameEvery = cpi->KeyFrameFrequency;
 
   /* set up context of key frame sizes and distances for more local
      datarate control */
@@ -496,7 +495,7 @@ static void CompressKeyFrame(CP_INSTANCE *cpi){
   cpi->ThisFrameTargetBytes = (ogg_int32_t) cpi->frame_target_rate + 
     ( (cpi->KeyFrameDataTarget - cpi->frame_target_rate) * 
       cpi->LastKeyFrame / cpi->ForceKeyFrameEvery );
-  
+   
   if ( cpi->ThisFrameTargetBytes > cpi->KeyFrameDataTarget )
     cpi->ThisFrameTargetBytes = cpi->KeyFrameDataTarget;
   
@@ -755,13 +754,7 @@ static void CompressFrame( CP_INSTANCE *cpi) {
     }
   }
 }
-  
-/********************** The toplevel ***********************/
-
-const char *theora_encode_version(void){
-  return CommentString;
-}
-
+ 
 static int _ilog(unsigned int v){
   int ret=0;
   while(v){
@@ -769,6 +762,17 @@ static int _ilog(unsigned int v){
     v>>=1;
   }
   return(ret);
+}
+
+ 
+/********************** The toplevel: encode ***********************/
+
+const char *theora_version_string(void){
+  return CommentString;
+}
+
+ogg_uint32_t theora_version_number(void){
+  return (VERSION_MAJOR<<16) + (VERSION_MINOR<<8) + (VERSION_SUB);
 }
 
 int theora_encode_init(theora_state *th, theora_info *c){
@@ -786,11 +790,17 @@ int theora_encode_init(theora_state *th, theora_info *c){
   InitTmpBuffers(&cpi->pb);
   InitPPInstance(&cpi->pp);
 
+  /* some extras useful to the API */
+  cpi->pb.target_bitrate=c->target_bitrate;
+  cpi->pb.quality=c->quality;
+
   /* Initialise Configuration structure to legal values */
-  cpi->Configuration.BaseQ = 32;
-  cpi->Configuration.FirstFrameQ = 32;
-  cpi->Configuration.MaxQ = 32;
-  cpi->Configuration.ActiveMaxQ = 32;
+  if(c->quality>63)c->quality=63;
+  if(c->quality<0)c->quality=32;
+  cpi->Configuration.BaseQ = c->quality;
+  cpi->Configuration.FirstFrameQ = c->quality;
+  cpi->Configuration.MaxQ = c->quality;
+  cpi->Configuration.ActiveMaxQ = c->quality;
   
   cpi->MVChangeFactor    =    14;     
   cpi->FourMvChangeFactor =   8;           
@@ -807,24 +817,33 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->InterPrediction = 1;
   cpi->MotionCompensation = 1;
   cpi->ThreshMapThreshold = 5;
-  cpi->QuickCompress = 1;
   cpi->MaxConsDroppedFrames = 1;
-  cpi->Sharpness = 2;
-  
-  cpi->PreProcFilterLevel = 2;
+  cpi->Sharpness = c->sharpness;
+
+  /* Set encoder flags. */
+  /* if not AutoKeyframing cpi->ForceKeyFrameEvery = is frequency */
+  cpi->AutoKeyFrameEnabled = c->keyframe_auto_p;
+  if(!cpi->AutoKeyFrameEnabled) 
+    c->keyframe_frequency_force = c->keyframe_frequency;
+
+  cpi->ForceKeyFrameEvery = c->keyframe_frequency_force;
+  cpi->KeyFrameFrequency = c->keyframe_frequency;  
+  cpi->DropFramesAllowed = c->droppedframes_p;
+  cpi->QuickCompress = c->quickcompress_p;
+  cpi->MinimumDistanceToKeyFrame = c->keyframe_mindistance;
+  cpi->PreProcFilterLevel = c->noise_sensitivity;
+  cpi->AutoKeyFrameThreshold = c->keyframe_auto_threshold;
+
   
   /* Set up default values for QTargetModifier[Q_TABLE_SIZE] table */
   for ( i = 0; i < Q_TABLE_SIZE; i++ ) 
-    cpi->QTargetModifier[Q_TABLE_SIZE] = 1.0;
+    cpi->QTargetModifier[i] = 1.0;
  
   /* Set up an encode buffer */
   oggpackB_writeinit(&cpi->oggbuffer);
   
   cpi->pb.Configuration.HFragPixels = 8;
   cpi->pb.Configuration.VFragPixels = 8;
-  
-  /* set the version number */
-  cpi->pb.Vp3VersionNo = CURRENT_ENCODE_VERSION;
   
   /* Set the video frame size. */
   cpi->pb.YPlaneSize = 0xFFF;
@@ -837,17 +856,11 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->ScanConfig.VideoFrameWidth = cpi->pb.Configuration.VideoFrameWidth;
 
   /* Set data rate related variables. */
-  cpi->Configuration.TargetBandwidth = (c->target_bitrate * 1000) / 8;
-  
-  /* Set the target minimum key frame frequency */
-  cpi->KeyFrameFrequency = c->keyframe_frequency;
+  cpi->Configuration.TargetBandwidth = (c->target_bitrate) / 8;
   
   /* Set key frame data rate target */
-  cpi->KeyFrameDataTarget = (c->keyframe_data_target_bitrate * 1000) / 8;
+  cpi->KeyFrameDataTarget = (c->keyframe_data_target_bitrate) / 8;
   
-  /* Set the quality settings. */
-  ConfigureQuality( cpi, c->quality );
-
   /* Set the frame rate variables. */
   cpi->Configuration.OutputFrameRateN = c->fps_numerator;
   cpi->Configuration.OutputFrameRateD = c->fps_denominator;
@@ -863,6 +876,12 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->frame_target_rate = cpi->Configuration.TargetBandwidth /
     cpi->Configuration.OutputFrameRate; 
   
+  /* Set key frame data rate target; this is nominal keyframe size */
+  cpi->KeyFrameDataTarget = (c->keyframe_data_target_bitrate * 
+			     cpi->Configuration.OutputFrameRateN /
+			     cpi->Configuration.OutputFrameRateD ) / 8;
+
+
   /* Initialise image format details */
   InitFrameDetails(&cpi->pb);
   EInitFragmentInfo(cpi);
@@ -881,16 +900,6 @@ int theora_encode_init(theora_state *th, theora_info *c){
 
   /* Initialise the pre-processor module. */
   ScanYUVInit(&cpi->pp, &(cpi->ScanConfig));
-
-  /* Set encoder flags. */
-  cpi->DropFramesAllowed = c->droppedframes_p;
-  cpi->QuickCompress = c->quickcompress_p;
-  cpi->AutoKeyFrameEnabled = 1;
-  cpi->MinimumDistanceToKeyFrame = c->keyframe_mindistance;
-  cpi->ForceKeyFrameEvery = c->keyframe_force_freq;
-  cpi->PreProcFilterLevel = c->noise_sensitivity;
-  cpi->AutoKeyFrameThreshold = c->keyframe_auto_threshold;
-  cpi->Sharpness = c->sharpness;
 
   /* don't go too nuts on keyframe spacing; impose a high limit to
      make certain the granulepos encoding strategy works */
@@ -936,52 +945,50 @@ int theora_encode_init(theora_state *th, theora_info *c){
   return 0;
 }
 
-int theora_encode_YUVin( CP_INSTANCE *cpi, 
-			 YUV_INPUT_BUFFER_CONFIG *YuvInputData){
+int theora_encode_YUVin(theora_state *t, 
+			 yuv_buffer *yuv){
   ogg_int32_t i;
   unsigned char *LocalDataPtr;
   unsigned char *InputDataPtr;
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
 
-  if(!cpi->readyflag)return -1;
-  if(cpi->doneflag)return -1;
+  if(!cpi->readyflag)return OC_EINVAL;
+  if(cpi->doneflag)return OC_EINVAL;
 
   /* If frame size has changed, abort out for now */
-  if (YuvInputData->YHeight != (int)cpi->pb.Configuration.VideoFrameHeight ||
-      YuvInputData->YWidth != (int)cpi->pb.Configuration.VideoFrameWidth )
+  if (yuv->y_height != (int)cpi->pb.Configuration.VideoFrameHeight ||
+      yuv->y_width != (int)cpi->pb.Configuration.VideoFrameWidth )
     return(-1);
 
 
   /* Copy over input YUV to internal YUV buffers. */  
   /* First copy over the Y data */
   LocalDataPtr = cpi->yuv1ptr;
-  InputDataPtr = (unsigned char *)YuvInputData->YBuffer;
-  for ( i = 0; i < YuvInputData->YHeight; i++ ){
-    memcpy( LocalDataPtr, InputDataPtr, YuvInputData->YWidth );
-    LocalDataPtr += YuvInputData->YWidth;
-    InputDataPtr += YuvInputData->YStride;
+  InputDataPtr = yuv->y;
+  for ( i = 0; i < yuv->y_height; i++ ){
+    memcpy( LocalDataPtr, InputDataPtr, yuv->y_width );
+    LocalDataPtr += yuv->y_width;
+    InputDataPtr += yuv->y_stride;
   }
 
   /* Now copy over the U data */
-  LocalDataPtr = &cpi->yuv1ptr[(YuvInputData->YHeight * YuvInputData->YWidth)];
-  InputDataPtr = (unsigned char *)YuvInputData->UBuffer;
-  for ( i = 0; i < YuvInputData->UVHeight; i++ ){
-    memcpy( LocalDataPtr, InputDataPtr, YuvInputData->UVWidth );
-    LocalDataPtr += YuvInputData->UVWidth;
-    InputDataPtr += YuvInputData->UVStride;
+  LocalDataPtr = &cpi->yuv1ptr[(yuv->y_height * yuv->y_width)];
+  InputDataPtr = yuv->u;
+  for ( i = 0; i < yuv->uv_height; i++ ){
+    memcpy( LocalDataPtr, InputDataPtr, yuv->uv_width );
+    LocalDataPtr += yuv->uv_width;
+    InputDataPtr += yuv->uv_stride;
   }
   
   /* Now copy over the V data */
   LocalDataPtr = 
-    &cpi->yuv1ptr[((YuvInputData->YHeight*YuvInputData->YWidth)*5)/4];
-  InputDataPtr = (unsigned char *)YuvInputData->VBuffer;
-  for ( i = 0; i < YuvInputData->UVHeight; i++ ){
-    memcpy( LocalDataPtr, InputDataPtr, YuvInputData->UVWidth );
-    LocalDataPtr += YuvInputData->UVWidth;
-    InputDataPtr += YuvInputData->UVStride;
+    &cpi->yuv1ptr[((yuv->y_height*yuv->y_width)*5)/4];
+  InputDataPtr = yuv->v;
+  for ( i = 0; i < yuv->uv_height; i++ ){
+    memcpy( LocalDataPtr, InputDataPtr, yuv->uv_width );
+    LocalDataPtr += yuv->uv_width;
+    InputDataPtr += yuv->uv_stride;
   }
-
-  /* Mark this as a video frame */
-  oggpackB_write(&cpi->oggbuffer,0,1);
 
   /* Special case for first frame */
   if ( cpi->ThisIsFirstFrame ){
@@ -1004,7 +1011,8 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
   return 0;
 }
 
-int theora_encode_packetout( CP_INSTANCE *cpi, int last_p, ogg_packet *op){
+int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
   long bytes=oggpackB_bytes(&cpi->oggbuffer);
   
   if(!bytes)return(0);
@@ -1028,8 +1036,8 @@ int theora_encode_packetout( CP_INSTANCE *cpi, int last_p, ogg_packet *op){
   return 1;
 }
 
-int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
-  /* width, height, fps, granule_shift, version */
+int theora_encode_header(theora_state *t, ogg_packet *op){
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
 
   oggpackB_reset(&cpi->oggbuffer);
   oggpackB_write(&cpi->oggbuffer,0x80,8);
@@ -1040,6 +1048,10 @@ int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,'r',8);
   oggpackB_write(&cpi->oggbuffer,'a',8);
   
+  oggpackB_write(&cpi->oggbuffer,VERSION_MAJOR,8);
+  oggpackB_write(&cpi->oggbuffer,VERSION_MINOR,8);
+  oggpackB_write(&cpi->oggbuffer,VERSION_SUB,8);
+
   oggpackB_write(&cpi->oggbuffer,cpi->ScanConfig.VideoFrameWidth,16);
   oggpackB_write(&cpi->oggbuffer,cpi->ScanConfig.VideoFrameHeight,16);
   oggpackB_write(&cpi->oggbuffer,cpi->Configuration.OutputFrameRateN,32);
@@ -1047,9 +1059,8 @@ int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
 
   oggpackB_write(&cpi->oggbuffer,cpi->keyframe_granule_shift,5);
 
-  oggpackB_write(&cpi->oggbuffer,VERSION_MAJOR,8);
-  oggpackB_write(&cpi->oggbuffer,VERSION_MINOR,8);
-  oggpackB_write(&cpi->oggbuffer,VERSION_SUB,8);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.target_bitrate,24);
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.quality,6);
 
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
@@ -1065,18 +1076,154 @@ int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
   return(0);
 }
 
-void theora_encode_clear(CP_INSTANCE *cpi){
-  if(cpi){
+void theora_encode_clear(theora_state *t){
+  if(t){
+    CP_INSTANCE *cpi=(CP_INSTANCE *)(t->internal);
     
-    ClearHuffmanSet(&cpi->pb);
-    ClearFragmentInfo(&cpi->pb);
-    ClearFrameInfo(&cpi->pb);
-    EClearFragmentInfo(cpi);
-    EClearFrameInfo(cpi);		
-    ClearTmpBuffers(&cpi->pb);
-    ClearPPInstance(&cpi->pp);
-    
+    if(cpi){
+      
+      ClearHuffmanSet(&cpi->pb);
+      ClearFragmentInfo(&cpi->pb);
+      ClearFrameInfo(&cpi->pb);
+      EClearFragmentInfo(cpi);
+      EClearFrameInfo(cpi);		
+      ClearTmpBuffers(&cpi->pb);
+      ClearPPInstance(&cpi->pp);
+      
+    }
+    t->internal=NULL;
   }
 }
 
+int theora_decode_header(theora_info *c, ogg_packet *op){
+  int ret;
+  oggpack_buffer opb;
+  oggpackB_readinit(&opb,op->packet,op->bytes);
+  memset(c,0,sizeof(*c));
+  
+  if(!op->b_o_s)return(OC_BADHEADER);
+  {
+    char id[6];
+    int i;
+    int typeflag=oggpackB_read(&opb,8);
+
+    if(typeflag!=0x80)return(OC_NOTFORMAT);
+    
+    for(i=0;i<6;i++)
+      id[i]=(char)oggpackB_read(&opb,8);
+    
+    if(memcmp(id,"theora",6))return(OC_NOTFORMAT);
+
+    c->version_major=oggpackB_read(&opb,8);
+    c->version_minor=oggpackB_read(&opb,8);
+    c->version_subminor=oggpackB_read(&opb,8);
+
+    if(c->version_major!=VERSION_MAJOR)return(OC_VERSION);
+    if(c->version_minor>VERSION_MINOR)return(OC_VERSION);
+  }
+
+  c->width=oggpackB_read(&opb,16);
+  c->height=oggpackB_read(&opb,16);
+  c->fps_numerator=oggpackB_read(&opb,32);
+  c->fps_denominator=oggpackB_read(&opb,32);
+
+  c->keyframe_frequency_force=1<<oggpackB_read(&opb,5);
+
+  c->target_bitrate=oggpackB_read(&opb,24);
+  c->quality=ret=oggpackB_read(&opb,6);
+
+  if(ret==-1)return(OC_BADHEADER);
+
+  return(0);
+}
+
+int theora_decode_init(theora_state *th, theora_info *c){
+  PB_INSTANCE *pbi;
+  
+  th->internal=pbi=_ogg_calloc(1,sizeof(*pbi));
+  
+  InitPBInstance(pbi);
+  pbi->Configuration.VideoFrameWidth = c->width;
+  pbi->Configuration.VideoFrameHeight = c->height;
+        
+  InitFrameDetails(pbi);
+
+  pbi->LastFrameQualityValue = 0;
+  pbi->DecoderErrorCode = 0;
+
+  pbi->Configuration.HFragPixels = 8;
+  pbi->Configuration.VFragPixels = 8;
+
+  /* Clear down the YUVtoRGB conversion skipped list. */
+  memset(pbi->skipped_display_fragments, 0, pbi->UnitFragments );
+
+  /* Initialise version specific quantiser values */
+  InitQTables( pbi );
+
+  /* Huffman setup */
+  InitHuffmanSet( pbi );
+    
+
+  return(0);
+
+}
+
+void theora_decode_clear(theora_state *th){
+
+  if(th){
+    if(th->internal){
+      PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+
+      ClearFragmentInfo(pbi);
+      ClearFrameInfo(pbi);
+      ClearPBInstance(pbi);
+
+    }
+  }
+}
+
+int theora_decode_packetin(theora_state *th,ogg_packet *op){
+  int ret;
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+  
+  pbi->DecoderErrorCode = 0;
+  oggpackB_readinit(&pbi->opb,op->packet,op->bytes);
+
+  /* verify that this is a video frame */
+  if(oggpackB_read(&pbi->opb,1)==0){
+    ret=LoadAndDecode(pbi);
+    if(ret)return ret;
+    
+    if(pbi->PostProcessingLevel)
+      PostProcess(pbi);
+           
+    return(0);
+  }
+
+  return OC_BADPACKET;
+}
+
+int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv){
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal);
+
+  yuv->y_width = pbi->Configuration.VideoFrameWidth;
+  yuv->y_height = pbi->Configuration.VideoFrameHeight;
+  yuv->y_stride = pbi->Configuration.YStride;
+  
+  yuv->uv_width = pbi->Configuration.VideoFrameWidth / 2;
+  yuv->uv_height = pbi->Configuration.VideoFrameHeight / 2;
+  yuv->uv_stride = pbi->Configuration.UVStride;
+  
+  if(pbi->PostProcessingLevel){
+    yuv->y = &pbi->PostProcessBuffer[pbi->ReconYDataOffset];
+    yuv->u = &pbi->PostProcessBuffer[pbi->ReconUDataOffset];
+    yuv->v = &pbi->PostProcessBuffer[pbi->ReconVDataOffset];
+  }else{
+    yuv->y = &pbi->LastFrameRecon[pbi->ReconYDataOffset];
+    yuv->u = &pbi->LastFrameRecon[pbi->ReconUDataOffset];
+    yuv->v = &pbi->LastFrameRecon[pbi->ReconVDataOffset];
+  }
+
+  return 0;
+}
 

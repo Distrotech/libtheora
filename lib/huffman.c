@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.3 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: huffman.c,v 1.4 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -189,19 +189,25 @@ static void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
 void ClearHuffmanSet( PB_INSTANCE *pbi ){    
   int i;
   
-  for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
-    if (pbi->HuffRoot_VP3x[i]) DestroyHuffTree(pbi->HuffRoot_VP3x[i]);
-    if (pbi->HuffCodeArray_VP3x[i]) 
-      _ogg_free (pbi->HuffCodeArray_VP3x[i]);
-    if (pbi->HuffCodeLengthArray_VP3x[i]) 
-      _ogg_free (pbi->HuffCodeLengthArray_VP3x[i]);
+  if (pbi->HuffRoot_VP3x){
+    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
+      if (pbi->HuffRoot_VP3x[i]) DestroyHuffTree(pbi->HuffRoot_VP3x[i]);
+    _ogg_free(pbi->HuffRoot_VP3x);
   }
 
-  if(pbi->HuffRoot_VP3x)_ogg_free(pbi->HuffRoot_VP3x);
-  if (pbi->HuffCodeArray_VP3x) 
+  if (pbi->HuffCodeArray_VP3x){
+    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
+      if (pbi->HuffCodeArray_VP3x[i]) 
+	_ogg_free (pbi->HuffCodeArray_VP3x[i]);
     _ogg_free (pbi->HuffCodeArray_VP3x);
-  if (pbi->HuffCodeLengthArray_VP3x) 
+  }
+
+  if (pbi->HuffCodeLengthArray_VP3x) {
+    for ( i = 0; i < NUM_HUFF_TABLES; i++ )
+      if (pbi->HuffCodeLengthArray_VP3x[i]) 
+	_ogg_free (pbi->HuffCodeLengthArray_VP3x[i]);
     _ogg_free (pbi->HuffCodeLengthArray_VP3x);
+  }  
   
   pbi->HuffRoot_VP3x=NULL;
   pbi->HuffCodeArray_VP3x=NULL;

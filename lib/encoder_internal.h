@@ -11,12 +11,13 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
 #include "huffman.h"
+#include "theora/theora.h"
 
 #define CURRENT_ENCODE_VERSION   1
 #define HUGE_ERROR              (1<<28)  /*  Out of range test value */
@@ -56,10 +57,6 @@
 #define MAX_BPB_FACTOR        3.0
 
 #define MAX_MV_EXTENT 31  /* Max search distance in half pixel increments */
-
-typedef enum{       
-        SCP_CONFIGURE_PP
-} SCP_SETTINGS;
 
 typedef struct CONFIG_TYPE{
   /* The size of the surface we want to draw to */
@@ -261,15 +258,11 @@ typedef struct PB_INSTANCE {
 
   /***********************************************************************/
   /* Decoder and Frame Type Information */
-  unsigned char Vp3VersionNo;
   
   int           DecoderErrorCode;
   int           FramesHaveBeenSkipped;
-  int           SkipYUVtoRGB;            /* Skip conversion */
-  int           OutputRGB;               /* Output To RGB */
   
-  int           PostProcessEnabled;
-  
+  int           PostProcessEnabled;  
   ogg_uint32_t  PostProcessingLevel;    /* Perform post processing */
   
   /* Frame Info */
@@ -330,10 +323,6 @@ typedef struct PB_INSTANCE {
   YUV_BUFFER_ENTRY *GoldenFrame; 
   YUV_BUFFER_ENTRY *LastFrameRecon;
   YUV_BUFFER_ENTRY *PostProcessBuffer;
-  YUV_BUFFER_ENTRY *ScaleBuffer;     /* new buffer for testing new loop fi
-					ltering scheme */
-  
-  unsigned char *bmp_dptr0;
   
   ogg_int32_t   *BoundingValuePtr;
 
@@ -468,7 +457,13 @@ typedef struct PB_INSTANCE {
   short         *ModifierPointer[4];
         
   unsigned char *DataOutputInPtr;                 
+
+  /* fields to store some extra header information useful to the
+     application, but not really the codec */
   
+  int quality;
+  int target_bitrate;
+
 } PB_INSTANCE;
 
 typedef struct CP_INSTANCE {
@@ -667,21 +662,6 @@ typedef struct CP_INSTANCE {
 	
 } CP_INSTANCE;
 
-typedef struct{
-    int     YWidth;
-    int     YHeight;
-    int     YStride;
-
-    int     UVWidth;
-    int     UVHeight;
-    int     UVStride;
-
-    char *  YBuffer;
-    char *  UBuffer;
-    char *  VBuffer;
-
-} YUV_INPUT_BUFFER_CONFIG;
-
 /*#define clamp255(x) (((ogg_int32_t)(x)&~0xff)?((ogg_int32_t)(x))>>31:(x))*/
 #define clamp255(val)  ( val<0 ? 0: ( val>255 ? 255:val ) )
 
@@ -692,6 +672,8 @@ extern ogg_uint32_t YUVAnalyseFrame( PP_INSTANCE *ppi,
 extern void ClearPPInstance(PP_INSTANCE *ppi);
 extern void InitPPInstance(PP_INSTANCE *ppi);
 extern int GetFrameType(PB_INSTANCE *pbi);
+extern void InitPBInstance(PB_INSTANCE *pbi);
+extern void ClearPBInstance(PB_INSTANCE *pbi);
 
 
 extern void IDctSlow(  Q_LIST_ENTRY * InputData, 
@@ -792,7 +774,7 @@ extern ogg_uint32_t PickModes(CP_INSTANCE *cpi,
 			      ogg_uint32_t SBCols, 
 			      ogg_uint32_t PixelsPerLine, 
 			      ogg_uint32_t *InterError, 
-			      ogg_uint32_t *IntraError) ;
+			      ogg_uint32_t *IntraError);
 
 extern CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi);
 extern void CreateBlockMapping ( ogg_int32_t  (*BlockMap)[4][4], 
@@ -802,18 +784,18 @@ extern void CreateBlockMapping ( ogg_int32_t  (*BlockMap)[4][4],
 extern void UpRegulateDataStream (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
 				  ogg_int32_t RecoveryBlocks ) ;
 extern void RegulateQ( CP_INSTANCE *cpi, ogg_int32_t UpdateScore );
-extern void ConfigureQuality( CP_INSTANCE *cpi, ogg_uint32_t QualityValue ) ;
 extern void CopyBackExtraFrags(CP_INSTANCE *cpi);
 extern void UpdateUMVBorder( PB_INSTANCE *pbi, 
 			     unsigned char * DestReconPtr );
 extern void PInitFrameInfo(PP_INSTANCE * ppi);
 extern int GetFrameType(PB_INSTANCE *pbi);
 extern void SetFrameType( PB_INSTANCE *pbi,unsigned char FrType );
-extern int LoadFrame(PB_INSTANCE *pbi);
 extern double GetEstimatedBpb( CP_INSTANCE *cpi, ogg_uint32_t TargetQ );
 extern void ClearTmpBuffers(PB_INSTANCE * pbi);
 extern void InitTmpBuffers(PB_INSTANCE * pbi);
 extern void ScanYUVInit( PP_INSTANCE *  ppi, 
 			 SCAN_CONFIG_DATA * ScanConfigPtr);
+extern int LoadAndDecode(PB_INSTANCE *pbi);
+
 
 

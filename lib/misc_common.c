@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: misc_common.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: misc_common.c,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -285,18 +285,6 @@ void RegulateQ( CP_INSTANCE *cpi, ogg_int32_t UpdateScore ) {
     UpdateQC( cpi, cpi->pb.ThisFrameQualityValue );
     cpi->pb.LastFrameQualityValue = cpi->pb.ThisFrameQualityValue;
   }
-}
-
-void ConfigureQuality( CP_INSTANCE *cpi, ogg_uint32_t QualityValue ) {
-  /* Default first frame quality */
-  
-  /* Set the worst case quality value. */
-  /* Note that the actual quality is determined by lookup into the
-      quantiser table QThreshTable[] */
-  cpi->Configuration.MaxQ = 63 - QualityValue;
-  
-  /* Set the default Active MaxQ. */
-  cpi->Configuration.ActiveMaxQ = cpi->Configuration.MaxQ;
 }
 
 void CopyBackExtraFrags(CP_INSTANCE *cpi){

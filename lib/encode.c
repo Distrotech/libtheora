@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.6 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -1536,9 +1536,6 @@ void WriteFrameHeader( CP_INSTANCE *cpi) {
   /* Output the frame type (base/key frame or inter frame) */
   oggpackB_write( opb, cpi->pb.FrameType, 1 );
   
-  /* usused set to 0 allways */
-  oggpackB_write( opb, 0, 1 );
-  
   /* Write out details of the current value of Q... variable resolution. */
   for ( i = 0; i < Q_TABLE_SIZE; i++ ) {
     if ( cpi->pb.ThisFrameQualityValue == cpi->pb.QThreshTable[i] ) {
@@ -1555,9 +1552,6 @@ void WriteFrameHeader( CP_INSTANCE *cpi) {
   
   /* If the frame was a base frame then write out the frame dimensions. */
   if ( cpi->pb.FrameType == BASE_FRAME ) {
-    oggpackB_write( opb, 0, 8 );
-    oggpackB_write( opb, cpi->pb.Vp3VersionNo, 5 );
-    
     /* Key frame type / method */
     oggpackB_write( opb, cpi->pb.KeyFrameType, 1 );
     

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pp.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: pp.c,v 1.5 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -677,63 +677,63 @@ static void DeblockLoopFilteredBand(PB_INSTANCE *pbi,
       Des ++;             
     }
     
-  }
 
-  /* done with filtering the horizontal edge, now let's do the
-     vertical one */
-  /* skip the first one */
-  if(CurrentFrag==StartFrag)
-    CurrentFrag++;
-  else{
-    Des=DesPtr-8*PlaneLineStep+8*(CurrentFrag-StartFrag);
-    Src=Des-5;
-    Des-=4;
-
-    QStep = QuantScale[pbi->FragQIndex[CurrentFrag]];
-    FLimit = ( QStep * 3 ) >> 2;
-    
-    for( j=0; j<8 ; j++){
-      x[0] = Src[0];
-      x[1] = Src[1];
-      x[2] = Src[2];
-      x[3] = Src[3];
-      x[4] = Src[4];
-      x[5] = Src[5];
-      x[6] = Src[6];
-      x[7] = Src[7];
-      x[8] = Src[8];
-      x[9] = Src[9];
-                
-      Sum1=Sum2=0;
+    /* done with filtering the horizontal edge, now let's do the
+       vertical one */
+    /* skip the first one */
+    if(CurrentFrag==StartFrag)
+      CurrentFrag++;
+    else{
+      Des=DesPtr-8*PlaneLineStep+8*(CurrentFrag-StartFrag);
+      Src=Des-5;
+      Des-=4;
       
-      for(k=1;k<=4;k++){   
-	Sum1 += abs(x[k]-x[k-1]);
-	Sum2 += abs(x[k+4]-x[k+5]);           
-      }
-
-      pbi->FragmentVariances[CurrentFrag-1] += ((Sum1>255)?255:Sum1);
-      pbi->FragmentVariances[CurrentFrag] += ((Sum2>255)?255:Sum2);
+      QStep = QuantScale[pbi->FragQIndex[CurrentFrag]];
+      FLimit = ( QStep * 3 ) >> 2;
       
-      if( Sum1 < FLimit &&
-	  Sum2 < FLimit &&
-	  (x[5] - x[4]) < QStep && 
-	  (x[4] - x[5]) < QStep ){
+      for( j=0; j<8 ; j++){
+	x[0] = Src[0];
+	x[1] = Src[1];
+	x[2] = Src[2];
+	x[3] = Src[3];
+	x[4] = Src[4];
+	x[5] = Src[5];
+	x[6] = Src[6];
+	x[7] = Src[7];
+	x[8] = Src[8];
+	x[9] = Src[9];
 	
-	/* low pass filtering (LPF7: 1 1 1 2 1 1 1) */
-	Des[0] = (x[0] + x[0] +x[0] + x[1] * 2 + x[2] + x[3] +x[4] + 4) >> 3;
-	Des[1] = (x[0] + x[0] +x[1] + x[2] * 2 + x[3] + x[4] +x[5] + 4) >> 3;
-	Des[2] = (x[0] + x[1] +x[2] + x[3] * 2 + x[4] + x[5] +x[6] + 4) >> 3;
-	Des[3] = (x[1] + x[2] +x[3] + x[4] * 2 + x[5] + x[6] +x[7] + 4) >> 3;
-	Des[4] = (x[2] + x[3] +x[4] + x[5] * 2 + x[6] + x[7] +x[8] + 4) >> 3;
-	Des[5] = (x[3] + x[4] +x[5] + x[6] * 2 + x[7] + x[8] +x[9] + 4) >> 3;
-	Des[6] = (x[4] + x[5] +x[6] + x[7] * 2 + x[8] + x[9] +x[9] + 4) >> 3;
-	Des[7] = (x[5] + x[6] +x[7] + x[8] * 2 + x[9] + x[9] +x[9] + 4) >> 3;
+	Sum1=Sum2=0;
+	
+	for(k=1;k<=4;k++){   
+	  Sum1 += abs(x[k]-x[k-1]);
+	  Sum2 += abs(x[k+4]-x[k+5]);           
+	}
+	
+	pbi->FragmentVariances[CurrentFrag-1] += ((Sum1>255)?255:Sum1);
+	pbi->FragmentVariances[CurrentFrag] += ((Sum2>255)?255:Sum2);
+	
+	if( Sum1 < FLimit &&
+	    Sum2 < FLimit &&
+	    (x[5] - x[4]) < QStep && 
+	    (x[4] - x[5]) < QStep ){
+	  
+	  /* low pass filtering (LPF7: 1 1 1 2 1 1 1) */
+	  Des[0] = (x[0] + x[0] +x[0] + x[1] * 2 + x[2] + x[3] +x[4] + 4) >> 3;
+	  Des[1] = (x[0] + x[0] +x[1] + x[2] * 2 + x[3] + x[4] +x[5] + 4) >> 3;
+	  Des[2] = (x[0] + x[1] +x[2] + x[3] * 2 + x[4] + x[5] +x[6] + 4) >> 3;
+	  Des[3] = (x[1] + x[2] +x[3] + x[4] * 2 + x[5] + x[6] +x[7] + 4) >> 3;
+	  Des[4] = (x[2] + x[3] +x[4] + x[5] * 2 + x[6] + x[7] +x[8] + 4) >> 3;
+	  Des[5] = (x[3] + x[4] +x[5] + x[6] * 2 + x[7] + x[8] +x[9] + 4) >> 3;
+	  Des[6] = (x[4] + x[5] +x[6] + x[7] * 2 + x[8] + x[9] +x[9] + 4) >> 3;
+	  Des[7] = (x[5] + x[6] +x[7] + x[8] * 2 + x[9] + x[9] +x[9] + 4) >> 3;
+	}
+	
+	Src += PlaneLineStep;
+	Des += PlaneLineStep;               
       }
-      
-      Src += PlaneLineStep;
-      Des += PlaneLineStep;               
+      CurrentFrag ++;
     }
-    CurrentFrag ++;
   }
 }
 

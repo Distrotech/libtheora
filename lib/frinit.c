@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frinit.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
+  last mod: $Id: frinit.c,v 1.3 2002/09/23 02:01:28 xiphmont Exp $
 
  ********************************************************************/
 
@@ -325,8 +325,11 @@ void InitFrameDetails(PB_INSTANCE *pbi){
   
   /*pbi->PostProcessingLevel = 0;
     pbi->PostProcessingLevel = 4;
-    pbi->PostProcessingLevel = 5;*/
-  pbi->PostProcessingLevel = 6;
+    pbi->PostProcessingLevel = 5;
+    pbi->PostProcessingLevel = 6;*/
+
+  pbi->PostProcessingLevel = 0;
+    
 
     /* Set the frame size etc. */                
 
