@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.16 2003/06/08 00:08:38 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.17 2003/06/08 13:13:49 giles Exp $
 
  ********************************************************************/
 
@@ -68,11 +68,10 @@ int audio_r=-1;
 
 int video_x=0;
 int video_y=0;
-/*added canvas and offset dimensions, support for arbitrary resolutions*/
-int video_x_canvas=0;
-int video_y_canvas=0;
-int video_x_offset=0;
-int video_y_offset=0;
+int frame_x=0;
+int frame_y=0;
+int frame_x_offset=0;
+int frame_y_offset=0;
 int video_hzn=0;
 int video_hzd=0;
 int video_an=0;
@@ -227,7 +226,7 @@ static void id_file(char *f){
       }
       
       ret=sscanf(buffer,"MPEG2 W%d H%d F%d:%d I%c A%d:%d",
-		 &video_x,&video_y,&video_hzn,&video_hzd,&interlace,
+		 &frame_x,&frame_y,&video_hzn,&video_hzd,&interlace,
 		 &video_an,&video_ad);
       if(ret<7){
 	fprintf(stderr,"Error parsing YUV4MPEG2 header in file %s.\n",f);
@@ -335,26 +334,22 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
   /* You'll go to Hell for using static variables */
   static int          state=-1;
   static signed char *yuvframe[2];
-  static signed char *yuvcanvas[2];
+  signed char        *line;
   yuv_buffer          yuv;
   ogg_packet          op;
   int i, e;
 
   if(state==-1){
-	/* initialize the double canvas buffer */
-    yuvcanvas[0]=malloc(video_x_canvas*video_y_canvas*3/2);
-    yuvcanvas[1]=malloc(video_x_canvas*video_y_canvas*3/2);
-
-	/* initialize the frame buffer, just a convenient way to parse YUVMPEG2*/
+	/* initialize the double frame buffer */
     yuvframe[0]=malloc(video_x*video_y*3/2);
     yuvframe[1]=malloc(video_x*video_y*3/2);
 
-	/*memset YUV canvas values, as canvas may be larger than actual video data*/
-	/*fill Y plane with 0x10 and UV planes with 0X80, for black data*/
-	memset(yuvcanvas[0],0x10,video_x_canvas*video_y_canvas);
-	memset(yuvcanvas[0]+video_x_canvas*video_y_canvas,0x80,video_x_canvas*video_y_canvas/2);
-	memset(yuvcanvas[1],0x10,video_x_canvas*video_y_canvas);
-	memset(yuvcanvas[1]+video_x_canvas*video_y_canvas,0x80,video_x_canvas*video_y_canvas/2);
+	/* clear initial frame as it may be larger than actual video data */
+	/* fill Y plane with 0x10 and UV planes with 0X80, for black data */
+    memset(yuvframe[0],0x10,video_x*video_y);
+    memset(yuvframe[0]+video_x*video_y,0x80,video_x*video_y/2);
+    memset(yuvframe[1],0x10,video_x*video_y);
+    memset(yuvframe[1]+video_x*video_y,0x80,video_x*video_y/2);
 
     state=0;
   }
@@ -387,32 +382,29 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
 	  exit(1);
 	}
 
-	/*suck YUVMPEG4 frame from file to a buffer*/
-	ret=fread(yuvframe[i],1,video_x*video_y*3/2,video);
-	  if(ret!=video_x*video_y*3/2) break;
-
-	/* copy YUV data aligning it to canvas size (multiple of 16) */
-	/* get and align Y plane first*/
-	for (e=0;e<video_y;e++){
-	  memcpy((yuvcanvas[i]+e*video_x_canvas)
-		  +video_x_canvas*video_y_offset + video_x_offset,
-		  yuvframe[i] +e*video_x
-		  ,video_x);
+	/* read the Y plane into our frame buffer with centering */
+	line=yuvframe[i]+video_x*frame_y_offset+frame_x_offset;
+	for(e=0;e<frame_y;e++){
+	  ret=fread(line,1,frame_x,video);
+	    if(ret!=video_x) break;
+	  line+=video_x; 
 	}
 	/* now get U plane*/
-	for (e=0;e<video_y/2;e++){
-	  memcpy((yuvcanvas[i]+(video_x_canvas*video_y_canvas)+e*video_x_canvas/2)
-		  +(video_x_canvas/2)*(video_y_offset/2) + video_x_offset/2,
-		  yuvframe[i]+(video_x*video_y)+e*video_x/2
-		  ,video_x/2);
+	line=yuvframe[i]+(video_x*video_y)
+	  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
+	for(e=0;e<frame_y/2;e++){
+	  ret=fread(line,1,video_x/2,video);
+	    if(ret!=video_x/2) break;
+	  line+=frame_x/2;
 	}
-	/* finally get V plane*/
-	for (e=0;e<video_y/2;e++){
-	  memcpy((yuvcanvas[i]+(video_x_canvas*video_y_canvas*5/4)+e*video_x_canvas/2)
-		  +(video_x_canvas/2)*(video_y_offset/2) + video_x_offset/2,
-		  yuvframe[i]+(video_x*video_y*5/4)+e*video_x/2,video_x/2);
+	/* and the V plane*/
+	line=yuvframe[i]+(frame_x*frame_y*5/4)
+		  +(video_x/2)*(frame_y_offset/2)+frame_x_offset/2;
+	for(e=0;e<frame_y/2;e++){
+	  ret=fread(line,1,video_x/2,video);
+	    if(ret!=video_x/2) break;
+	  line+=video_x/2;
 	}
-
 	state++;
       }
 
@@ -425,18 +417,18 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
       /* Theora is a one-frame-in,one-frame-out system; submit a frame
          for compression and pull out the packet */
       
-	  {
-	yuv.y_width=video_x_canvas;
-	yuv.y_height=video_y_canvas;
-	yuv.y_stride=video_x_canvas;
-	
-	yuv.uv_width=video_x_canvas/2;
-	yuv.uv_height=video_y_canvas/2;
-	yuv.uv_stride=video_x_canvas/2;
-	
-	yuv.y= yuvcanvas[0];
-	yuv.u= yuvcanvas[0]+ video_x_canvas*video_y_canvas;
-	yuv.v= yuvcanvas[0]+ video_x_canvas*video_y_canvas*5/4 ;
+      {
+	yuv.y_width=video_x;
+	yuv.y_height=video_y;
+	yuv.y_stride=video_x;
+
+	yuv.uv_width=video_x/2;
+	yuv.uv_height=video_y/2;
+	yuv.uv_stride=video_x/2;
+
+	yuv.y= yuvframe[0];
+	yuv.u= yuvframe[0]+ frame_x*frame_y;
+	yuv.v= yuvframe[0]+ frame_x*frame_y*5/4 ;
       }
       
       theora_encode_YUVin(td,&yuv);
@@ -450,9 +442,9 @@ int fetch_and_process_video(FILE *video,ogg_page *videopage,
       ogg_stream_packetin(to,&op);
       
       {
-	signed char *temp=yuvcanvas[0];
-	yuvcanvas[0]=yuvcanvas[1];
-	yuvcanvas[1]=temp;
+	signed char *temp=yuvframe[0];
+	yuvframe[0]=yuvframe[1];
+	yuvframe[1]=temp;
 	state--;
       }
       
@@ -568,19 +560,19 @@ int main(int argc,char *argv[]){
     fprintf(stderr,"No video files submitted for compression?\n");
     exit(1);
   }
-  /* Theora has a divisible-by-sixteen restriction for encoding in the canvas */
-  /* get a larger canvas if input not divisible by 16, and calculate offsets*/
-  video_x_canvas=((video_x + 15) >>4)<<4;
-  video_y_canvas=((video_y + 15) >>4)<<4;
-  video_x_offset = (video_x_canvas-video_x)/2;
-  video_y_offset = (video_y_canvas-video_y)/2;
+  /* Theora has a divisible-by-sixteen restriction for the encoded video size */
+  /* scale the frame size up to the nearest /16 and calculate offsets */
+  video_x=((frame_x + 15) >>4)<<4;
+  video_y=((frame_y + 15) >>4)<<4;
+  frame_x_offset=(video_x-frame_x)/2;
+  frame_y_offset=(video_y-frame_y)/2;
   
-  ti.width=video_x_canvas;
-  ti.height=video_y_canvas;
+  ti.width=frame_x;
+  ti.height=frame_y;
   ti.frame_width=video_x;
   ti.frame_height=video_y;
-  ti.offset_x=video_x_offset;
-  ti.offset_y=video_y_offset;
+  ti.offset_x=frame_x_offset;
+  ti.offset_y=frame_y_offset;
   ti.fps_numerator=video_hzn;
   ti.fps_denominator=video_hzd;
   ti.aspect_numerator=video_an;
