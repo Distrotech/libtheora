@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.16 2003/12/06 18:06:20 arc Exp $
+  last mod: $Id: encode.c,v 1.17 2004/02/05 08:00:21 arc Exp $
 
  ********************************************************************/
 
@@ -289,6 +289,7 @@ static void PackModes (CP_INSTANCE *cpi) {
   /* Order the modes from most to least frequent.  Store result as
      scheme 0 */
   for ( j = 0; j < MAX_MODES; j++ ) {
+    TmpFreq = -1;  /* need to re-initialize for each loop */
     /* Find the most frequent */
     for ( i = 0; i < MAX_MODES; i++ ) {
       /* Is this the best scheme so far ??? */
