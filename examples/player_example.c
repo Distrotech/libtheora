@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.27 2003/09/29 13:43:32 giles Exp $
+  last mod: $Id: player_example.c,v 1.28 2004/03/07 07:51:28 giles Exp $
 
  ********************************************************************/
 
@@ -26,10 +26,13 @@
    it's true. */
 
 #define _GNU_SOURCE
-#define _REENTRANT
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
+
+#ifndef _REENTRANT
+# define _REENTRANT
+#endif
 
 #include <stdio.h>
 #include <unistd.h>
