@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.28 2003/10/21 22:06:30 giles Exp $
+  last mod: $Id: toplevel.c,v 1.29 2003/10/21 22:12:37 giles Exp $
 
  ********************************************************************/
 
@@ -106,7 +106,7 @@ static void EInitFragmentInfo(CP_INSTANCE * cpi){
      the machine is out of heap, the page fails to be mapped and a
      SEGV is generated.
 
-     That means that is we want to deal with out of memory conditions,
+     That means that if we want to deal with out of memory conditions,
      we *must* be prepared to process a SEGV.  If we implement the
      SEGV handler, there's no reason to to check malloc return; it is
      a waste of code. */
@@ -1186,6 +1186,8 @@ void theora_clear(theora_state *t){
     t->internal_decode=NULL;
   }
 }
+
+/********************** The toplevel: decode ***********************/
 
 static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
   long ret;

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: decode.c,v 1.6 2003/06/18 23:01:27 tterribe Exp $
+  last mod: $Id: decode.c,v 1.7 2003/10/21 22:12:36 giles Exp $
 
  ********************************************************************/
 
@@ -406,7 +406,7 @@ static void DecodeMVectors ( PB_INSTANCE *pbi,
               MVect[4].y = MVect[0].y;
               MVect[5].y = MVect[0].y;
             }else if ( CodingMethod == CODE_INTER_PRIOR_LAST ){
-              /* Use the last coded Inter motion vector. */
+              /* Use the next-to-last coded Inter motion vector. */
               MVect[0].x = PriorLastInterMV.x;
               MVect[1].x = MVect[0].x;
               MVect[2].x = MVect[0].x;
@@ -657,7 +657,7 @@ static void UnPackVideo (PB_INSTANCE *pbi){
     pbi->FragCoefEOB[FragIndex] = pbi->FragCoeffs[FragIndex];
 
     /* Select the appropriate huffman table offset according to
-       whether the token is fro am Y or UV block */
+       whether the token is from a Y or UV block */
     if ( FragIndex < (ogg_int32_t)pbi->YPlaneFragments )
       pbi->DcHuffChoice = DcHuffChoice1;
     else
