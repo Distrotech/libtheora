@@ -5,14 +5,14 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2003                *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2004                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: transcoder_example.c,v 1.2 2003/10/28 18:18:42 mauricio Exp $
+  last mod: $Id: transcoder_example.c,v 1.3 2004/03/19 23:49:12 giles Exp $
 
  ********************************************************************/
 
@@ -418,6 +418,8 @@ int theora_transcode_bufferin( TC_INSTANCE *ttc, int isKeyFrame, char * bytes, i
     oggpackB_adv1(&ttc->opb_in);
     /*Copy Q multiplier.*/
     oggpackB_write(&ttc->opb_out,oggpackB_read(&ttc->opb_in,6),6);
+    /*VP3 has no per-block Q multipliers*/
+    oggpackB_write(&ttc->opb_out,0,1);
     /*If the frame is a base/key/golden frame, copy a few extra bits.*/
     if(frame_type==0){
       /*These 13 bits are not included in a Theora frame header.
