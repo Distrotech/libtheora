@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.17 2004/03/08 00:43:19 giles Exp $
+  last mod: $Id: quant.c,v 1.18 2004/03/08 02:11:46 giles Exp $
 
  ********************************************************************/
 
@@ -150,16 +150,16 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   }
   /* table mapping */
   oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
-  oggpackB_write(opb, 63, 6); /* used for every q */
+  oggpackB_write(opb, 62, 6); /* used for every q */
   oggpackB_write(opb, 0, 2);
   oggpackB_write(opb, 1, 1);  /* next range is explicit */
   oggpackB_write(opb, 1, 2);  /* matrix 1 for intra U */
-  oggpackB_write(opb, 63, 6);
+  oggpackB_write(opb, 62, 6);
   oggpackB_write(opb, 1, 2);
   oggpackB_write(opb, 0, 1);  /* intra V is the same */
   oggpackB_write(opb, 1, 1);  /* next range is explicit */
   oggpackB_write(opb, 2, 2);  /* matrix 2 for inter Y */
-  oggpackB_write(opb, 63, 6);
+  oggpackB_write(opb, 62, 6);
   oggpackB_write(opb, 2, 2);
   oggpackB_write(opb, 0, 2);  /* inter U the same */
   oggpackB_write(opb, 0, 2);  /* inter V the same */
@@ -173,7 +173,8 @@ static int _read_qtable_range(codec_setup_info *ci, oggpack_buffer* opb, int N)
   theora_read(opb,_ilog(N-1),&index); /* qi=0 index */
   //fprintf(stderr, " [%d]",index);
   while(qi<63) {
-    theora_read(opb,_ilog(63-qi),&range); /* range to next code q matrix */
+    theora_read(opb,_ilog(62-qi),&range); /* range to next code q matrix */
+    range++;
     //fprintf(stderr," %d",range);
     if(range<=0) return OC_BADHEADER;
     qi+=range;
