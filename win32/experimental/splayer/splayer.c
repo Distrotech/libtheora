@@ -46,6 +46,7 @@ ogg_page         og;
 ogg_stream_state vo;
 ogg_stream_state to;
 theora_info      ti;
+theora_comment   tc;
 theora_state     td;
 vorbis_info      vi;
 vorbis_dsp_state vd;
@@ -248,6 +249,38 @@ static void video_write(void){
   
 }
 
+/* dump the theora (or vorbis) comment header */
+static int dump_comments(theora_comment *tc){
+  int i, len;
+  char *value;
+  
+  printf("Encoded by %s\n",tc->vendor);
+  if(tc->comments){
+    printf("theora comment header:\n");
+    for(i=0;i<tc->comments;i++){
+      if(tc->user_comments[i]){
+        len=tc->comment_lengths[i];
+      	value=malloc(len+1);
+      	memcpy(value,tc->user_comments[i],len);
+      	value[len]='\0';
+      	printf("\t%s\n", value);
+      	free(value);
+      }
+    }
+  }
+  return(0);
+}
+
+/* helper: push a page into the appropriate steam */
+/* this can be done blindly; a stream won't accept a page
+                that doesn't belong to it */
+static int queue_page(ogg_page *page){
+  if(theora_p)ogg_stream_pagein(&to,&og);
+  if(vorbis_p)ogg_stream_pagein(&vo,&og);
+  return 0;
+}                                   
+
+
 void parseHeaders(){
 	/*extracted from player_sample.c test file for theora alpha*/
 	ogg_packet op;
@@ -262,10 +295,7 @@ void parseHeaders(){
       /* is this a mandated initial header? If not, stop parsing */
       if(!ogg_page_bos(&og)){
 	/* don't leak the page; get it into the appropriate stream */
-	/* this can be done blindly; a stream won't accept a page
-             that doesn't bewlong to it */
-	if(theora_p)ogg_stream_pagein(&to,&og);
-	if(vorbis_p)ogg_stream_pagein(&vo,&og);
+	queue_page(&og);
 	stateflag=1;
 	break;
       }
@@ -291,30 +321,56 @@ void parseHeaders(){
     }
   }
   
-  /* we're expecting more vorbis header packets. */
-  while(vorbis_p && vorbis_p<3){
+  /* we're expecting more header packets. */
+  while((theora_p && theora_p<3) || (vorbis_p && vorbis_p<3)){
     int ret;
-    while((ret=ogg_stream_packetout(&vo,&op))){
+    
+    /* look for further theora headers */
+    while(theora_p && (theora_p<3) && (ret=ogg_stream_packetout(&to,&op))){
+      if(ret<0){
+      	printf("Error parsing Theora stream headers; corrupt stream?\n");
+      	exit(1);
+      }
+      if(theora_p==1){
+        if(theora_decode_comment(&tc,&op)){
+          printf("Error parsing Theora stream headers; corrupt stream?\n");
+          exit(1);
+        }else{
+          dump_comments(&tc);
+          theora_p++;
+          continue;
+        }
+      }
+      if(theora_p==2){
+        if(theora_decode_tables(&ti,&op)){
+          printf("Error parsing Theora stream headers; corrupt stream?\n");
+          exit(1);
+        }
+        theora_p++;
+        /* fall through */
+      }
+      if(theora_p==3)break;
+    }
+
+    /* look for more vorbis header packets */  
+    while(vorbis_p && (vorbis_p<3) && (ret=ogg_stream_packetout(&vo,&op))){
       if(ret<0){
 	printf("Error parsing Vorbis stream headers; corrupt stream?\n");
 	exit(1);
       }
-      
       if(vorbis_synthesis_headerin(&vi,&vc,&op)){
 	printf("Error parsing Vorbis stream headers; corrupt stream?\n");
 	exit(1);
       }
       vorbis_p++;
       if(vorbis_p==3)break;
-      
     }
     
     /* The header pages/packets will arrive before anything else we
        care about, or the stream is not obeying spec */
     
     if(ogg_sync_pageout(&oy,&og)>0){
-      ogg_stream_pagein(&vo,&og); /* the vorbis stream will accept
-                                     only its own */
+      queue_page(&og); /* demux into the appropriate stream */
     }else{
       int ret=buffer_data(&oy);
       if(ret==0){

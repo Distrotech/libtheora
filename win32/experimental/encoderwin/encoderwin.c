@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoderwin.c,v 1.1 2003/05/23 14:14:40 mauricio Exp $
+  last mod: $Id: encoderwin.c,v 1.2 2003/05/25 16:37:06 mauricio Exp $
 
  ********************************************************************/
 
@@ -419,6 +419,7 @@ int main(int argc,char *argv[]){
 
   theora_state     td;
   theora_info      ti;
+  theora_comment   tc;
   
   vorbis_info      vi; /* struct that stores all the static vorbis bitstream
                           settings */
@@ -571,6 +572,13 @@ int main(int argc,char *argv[]){
   }
   fwrite(og.header,1,og.header_len,stdout);
   fwrite(og.body,1,og.body_len,stdout);
+  
+  /* create the remaining theora headers */
+  theora_comment_init(&tc);
+  theora_encode_comment(&tc,&op);
+  ogg_stream_packetin(&to,&op);
+  theora_encode_tables(&td,&op);
+  ogg_stream_packetin(&to,&op); 
 
   if(audio){
     ogg_packet header;
@@ -580,12 +588,33 @@ int main(int argc,char *argv[]){
     vorbis_analysis_headerout(&vd,&vc,&header,&header_comm,&header_code);
     ogg_stream_packetin(&vo,&header); /* automatically placed in its own
                                          page */
+    if(ogg_stream_pageout(&vo,&og)!=1){
+      fprintf(stderr,"Internal Ogg library error.\n");
+      exit(1);
+    }
+    fwrite(og.header,1,og.header_len,stdout);
+    fwrite(og.body,1,og.body_len,stdout);
+    
+    /* remaining vorbis header packets */
     ogg_stream_packetin(&vo,&header_comm);
     ogg_stream_packetin(&vo,&header_code);
+    }
     
-    /* This ensures the actual
-     * audio data will start on a new page, as per spec
-     */
+    /* Flush the rest of our headers. This ensures
+     the actual data in each stream will start 
+     on a new page, as per spec. */
+  while(1){
+    int result = ogg_stream_flush(&to,&og);
+      if(result<0){
+        /* can't get here */
+        fprintf(stderr,"Internal Ogg library error.\n");
+        exit(1);
+      }
+    if(result==0)break;
+    fwrite(og.header,1,og.header_len,stdout);
+    fwrite(og.body,1,og.body_len,stdout);
+  }
+  if(audio){
     while(1){
       int result=ogg_stream_flush(&vo,&og);
       if(result<0){
