@@ -105,19 +105,8 @@ AC_CHECK_HEADERS([sys/soundcard.h soundcard.h machine/soundcard.h],[
   break
 ],AC_MSG_WARN([OSS audio support not found -- not compiling player_example]))
 
-AC_CHECK_LIB(portaudio, Pa_OpenStream, [
-  AC_CHECK_HEADER(portaudio.h, [HAVE_PORTAUDIO=yes])
-  ],,[-lpthread]
-)
-if test "x$HAVE_PORTAUDIO" != xyes; then
-  AC_MSG_WARN([portaudio not found -- not compiling splayer example])
-fi
-
 if test x$HAVE_SDL = xyes -a x$HAVE_OSS = xyes; then
   BUILDABLE_EXAMPLES="$BUILDABLE_EXAMPLES player_example"
-fi
-if test x$HAVE_SDL = xyes -a x$HAVE_PORTAUDIO = xyes; then
-  BUILDABLE_EXAMPLES="$BUILDABLE_EXAMPLES splayer"
 fi
 AC_SUBST(BUILDABLE_EXAMPLES)
 

@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/include
 noinst_PROGRAMS = encoder_example dump_video $(BUILDABLE_EXAMPLES)
 
 # possible contents of BUILDABLE_EXAMPLES:
-EXTRA_PROGRAMS = player_example splayer
+EXTRA_PROGRAMS = player_example
 
 CFLAGS = $(SDL_CFLAGS)
 LDADD = ../lib/libtheora.la -logg 
@@ -17,9 +17,6 @@ dump_video_LDADD = $(LDADD)
 
 player_example_SOURCES = player_example.c
 player_example_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis -lm
-
-splayer_SOURCES = splayer.c
-splayer_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis -lportaudio -lpthread -lm
 
 encoder_example_SOURCES = encoder_example.c
 EXTRA_encoder_example_SOURCES = getopt.c getopt1.c getopt.h
