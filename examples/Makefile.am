@@ -31,7 +31,7 @@ splayer_SOURCES = splayer.c
 splayer_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis -lportaudio -lpthread
 
 encoder_example_SOURCES = encoder_example.c
-encoder_example_LDADD = $(LDADD) -lvorbisenc
+encoder_example_LDADD = $(LDADD) -lvorbisenc -lvorbis
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"
