@@ -23,7 +23,9 @@ splayer_SOURCES = splayer.c
 splayer_LDADD = $(LDADD) $(SDL_LIBS) -lvorbis -lportaudio -lpthread
 
 encoder_example_SOURCES = encoder_example.c
-encoder_example_LDADD = $(LDADD) -lvorbisenc -lvorbis
+EXTRA_encoder_example_SOURCES = getopt.c getopt1.c getopt.h
+encoder_example_LDADD = $(GETOPT_OBJS) $(LDADD) -lvorbisenc -lvorbis
+encoder_example_DEPENDENCIES = $(GETOPT_OBJS)
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"
