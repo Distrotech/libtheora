@@ -67,29 +67,76 @@
 #Before we define our first routine, a little housekeeping for Python:
 
 from array import array
-from os import abort
+from sys import exit
 import sys
+import ogg2
 
 #/usage:
 
 if len(sys.argv) < 3:
   print "usage: python spec.py infile outfile"
-  abort()
-
+  exit()
 #/some globals & useful definitions:
 
-#oggfile = file("testspec.ogg","rb")
 oggfile = file(sys.argv[1],"rb")
-oggstring = oggfile.read()                            #NOTE limited by memory constraints -- should use file I/O
-oggindex = 0
-pagebytes = 0
-pagestart =0
-oggbyte = 0
-bitmask = 0
-oggbuf = array('B',oggstring)                         #convert to an array of unsigned bytes
+outfile = file(sys.argv[2],"wb")
+oggsync = ogg2.OggSyncState()
+
+streams = {}
+streamid = None
+page = None
+packet = None
+
 huffs = []                                            #this will contain list of huffman trees
 infoflag = 0                                          #initialization flags
 tableflag = 0
+
+
+print
+print "THEORA SPEC PYTHON SCRIPT"
+print "Test: decoding first frame of", sys.argv[1]
+
+def output(ret) :
+  global outfile
+
+  if type(ret) == str :                               #if it's a header packet,
+    print "header packet type:", ret                  #print the type (info, comment, tables)
+    if ret == "info":
+      print "  version:", version_major, version_minor, version_subminor 
+      print "  encoded width:", encoded_width
+      print "  encoded height:", encoded_height
+      print "  decode width:", decode_width
+      print "  decode height:", decode_height
+      print "  X offset:", offset_x
+      print "  Y offset:", offset_y
+      print "  fps:", fps_numerator, "/", fps_denominator
+      print "  aspect:", aspect_numerator, "/", aspect_denominator
+      print "  colorspace:",
+      if colorspace == 0:
+        print "  not specified"
+      elif colorspace == 1:
+        print "  ITU 601"
+      elif colorspace == 2:
+        print "  CIE 709"
+      else:
+        print "  colorspace type not recognized"
+      print "  target bitrate:", bitrate
+      print "  target quality:", quality
+      outfile.write('YUV4MPEG2 W%d H%d F%d:%d Ip A%d:%d\n' % \
+                    (decode_width, decode_height, \
+                     fps_numerator, fps_denominator, \
+                     aspect_numerator, aspect_denominator))
+    elif ret == "comment":
+      print "  vendor string:", vendor_string
+      print "  comment length:", comment_string_len
+    elif ret == "table":
+      print "  tables loaded"
+  else:
+    print "frame decoded"
+    Y, U, V = ret
+    outfile.write('FRAME\n')
+    outfile.write(array('B', Y + U + V))
+
 
 ##_Bitstream parsing routines
 
@@ -97,93 +144,43 @@ tableflag = 0
 
 #Note that in this specification we are assuming bytes are always 8 bit values.  Future versions may support non-8-bit platforms.
 
-#/helpers:
-
-def flushpacket():                                    #flush bits between packets
-  global bitmask
-  bitmask = 0
-
-def flushpage():                                      #flush packet & disable paging for read_page_header()
-  global bitmask, pagebytes
-  bitmask = 0
-  pagebytes = 999999                                  #kluge - yuk
-
-#/simple Ogg page header parsing routine.  Note we are not checking CRC's; we are assuming Ogg data is not corrupt.  Also, right now we only support single-stream Ogg files; we will abort if we ever see a different serial number.
-
-serialno = 'none'
-
-def read_page_header():
-  global oggindex, pagebytes, pagestart, serialno
-  flushpage()
-  oggs = readstring(4)                                #get the putated 4-byte Ogg identifier
-  if oggs != "OggS":
-    print "invalid page data -- OggS =", oggs
-    abort()
-  oggindex += 10                                      #serialnum at offset 14
-  sernum = readOgg32()
-  if serialno == 'none':
-    serialno = sernum
-  else:
-    if serialno != sernum:
-      print "Multiple streams not supported"
-      abort()
-  oggindex += 8                                       #segment count at offset 26
-  segments = readbits(8)
-  bytes = 0
-  for i in range(segments):
-    bytes += readbits(8)
-  pagebytes = bytes
-  pagestart = oggindex
-
-
 #/this routine just grabs a byte from the input stream:
-
-def readbyte():                                       #note: this is a low-level function to read 
-                                                      #a byte-aligned octet from the datastream.
-                                                      #To read an arbitrarily aligned byte, use readbits(8)
-  global oggindex,pagebytes
-  if oggindex >= pagestart+pagebytes:
-    read_page_header()
-  byte = oggbuf[oggindex]
-  oggindex += 1
-  return byte
 
 #/These are used during the bulk of Theora stream parsing:
 
-def readbit():
-  global bitmask, oggbyte
-  if bitmask == 0:
-    oggbyte = readbyte()
-    bitmask = 0x80
-  if oggbyte & bitmask:
-    bit = 1
-  else:
-    bit = 0
-  bitmask >>= 1
-  return bit
+def spec_err(msg):
+  print 'Error: %s' % msg
+  exit()
 
 #/readbits: our workhorse.  Gets up to 32 bits from the stream 
 
 def readbits(x):
-  ret = 0
-  for i in range(x):
-    ret <<= 1
-    ret += readbit()
-  return ret
+  global buffer
+  return buffer.read(x)
 
 #/readstring reads a string of 8-bit unsigned chars:
 
-def readstring(x):
+def readstring(x) :
+  global buffer
   s = ''
   for i in range(x):
-    s += chr(readbits(8))
+    byte = readbits(8)
+    if byte != None :
+      s += chr(byte)
   return s
 
-#/readOgg32 reads a longword Ogg style.  ONLY GOOD FOR BYTE-ALIGNED READS! (should fix)
+#readOgg32 reads a longword Ogg style.  ONLY GOOD FOR BYTE-ALIGNED READS! (should fix)
 
 def readOgg32():                                      #different than readbits(32): byte order is reversed
-
   return readbits(8) + (readbits(8) << 8) + (readbits(8) << 16) + (readbits(8) << 24)
+
+def get_page() :
+  global page, oggsync
+  while page == None :
+    new = oggsync.input(oggfile)
+    page = oggsync.pageout()
+    if new == 0 : break
+    
 
 ##_entropy coding routines
 
@@ -199,12 +196,11 @@ hufftokens=0                                          #keep track of # of token 
 
 def read_hufftable(table):
   global hufftokens
-  if readbit():                                       #if bit==1, this bitstring is complete
+  if readbits(1):                                      #if bit==1, this bitstring is complete
     table.append( readbits(5) )                       #next 5 bits = token number for this string
     hufftokens += 1
     if hufftokens > 32:
-      print "illegal huffman table, > 32 tokens"
-      abort()
+      spec_err("illegal huffman table, > 32 tokens")
   else:                                               #if bit was zero, we have two more entries defining
                                                       #the zero and one case for the next bit:
     table.append([])                                  #add another pair of tables
@@ -220,7 +216,7 @@ def readtoken(huf):
   if type(huf[0]) == type(0):                         #integer means we have a value
     return huf[0]                                     #return token value
   else:
-    if readbit():                                     #read a bit, recurse into subtable 0 or 1
+    if readbits(1):                                   #read a bit, recurse into subtable 0 or 1
       return readtoken(huf[1])                        #case for bit=1
     else:
       return readtoken(huf[0])                        #case for bit=0
@@ -289,7 +285,7 @@ def parsetoken(huf):
 
   sign = 1
   if sign_extra:
-    if readbit():
+    if readbits(1):
       sign = -1                                       #if there's a sign bit, get it.  1 means negative
                                                       #note that value may be negative to begin with, in
                                                       #which case there are no extra value or sign bits
@@ -314,12 +310,10 @@ def read_info_header():
 
   version_major = readbits(8)                         #major & minor version must be exact match
   if version_major != 3:
-    print "incompatible major version#"
-    abort()
+    spec_err("incompatible major version#")
   version_minor = readbits(8)
   if version_minor != 2:
-    print "incompatible minor version#"
-    abort()
+    spec_err("incompatible minor version#")
   version_subminor = readbits(8)
 
   encoded_width = readbits(16) << 4                   #encoded width & height are in block units of 16x16
@@ -334,10 +328,12 @@ def read_info_header():
   fps_denominator = readbits(32)
   aspect_numerator = readbits(24)                     #aspect not used now
   aspect_denominator = readbits(24)
-  readbits(5)                                         #force keyframe frequency flag -- not used for decode
   colorspace = readbits(8)                            #colorspace flag defines YUV to RGB mapping
   bitrate = readbits(24)                              #target bitrate; not used for decode
   quality = readbits(6)                               #target quality also not used for decode
+  keyframe_granulepos_shift = readbits(5)             #P-frame granulepos field size; not used for decode
+  readbits(5)                                         #5 bits set aside for future use
+
   infoflag = 1
 
 #/parse the comment header:
@@ -386,27 +382,57 @@ def decode_header():
 
   cid = readstring(6)
   if cid != "theora":
-    print "not a theora stream header", cid
-    abort()
+    spec_err("not a theora stream header %s", cid)
 
   if header_type == 0:
     read_info_header()
-    flushpacket()
     return "info"
 
   elif header_type == 1:
     read_comment_header()
-    flushpacket()
     return "comment"
 
   elif header_type == 2:
     read_table_header()
-    flushpacket()
     return "table"
 
   else:
     print "unknown stream header type -- skipping"
     return "unknown"
+
+##_routine to process a new stream
+
+def decode_new_stream() :
+  global page, stream, buffer, streams, streamid
+
+  codecs = (("\x80theora", "Theora"), ("\x01vorbis", "Vorbis"),
+            ("Speex", "Speex"), ("fLaC", "FLAC"), ("\x00writ", "Writ"))
+
+  serialno = page.serialno
+  temp_stream = ogg2.OggStreamState(serialno)
+  temp_stream.pagein(page)
+  page = None
+  packet = temp_stream.packetout()
+  if packet == None :
+    spec_err('first page of a bitstream must contain one complete packet')
+  buffer = ogg2.OggPackBuffB(packet)
+  magic = readstring(7)
+  for c in codecs:
+    if magic[:len(c[0])] == c[0] :
+      streams[serialno] = c[1]
+      if c[1] == "Theora" :
+        if streamid == None :
+          print "Theora stream found (serialno %d), will decode" % serialno
+          stream = temp_stream
+          streamid = serialno
+          read_info_header()
+          output("info")
+        else :
+          print "another Theora stream found (serialno %d), will ignore" % serialno
+      else :
+        print "%s stream found (serialno %d), will ignore" % (c[1], serialno)
+      break
+
 
 ##_ Routines that decode video
 
@@ -736,7 +762,7 @@ def blocks2pixels(data, w, h, dx, dy):
       ix = xx % 8
       iy = yy % 8
       p = data[bx][by][ix + iy*8]
-      pix[x][y] = p
+      pix[x][h-y-1] = p   # The h-y-1 trick inverts the frame
   return pix
 
 #/one last helper -- turns a color map (integers with x, y coordinates) into a straight block array, clamped to 0-255:
@@ -765,15 +791,17 @@ def decode_frame():
   global quality_index, infoflag, tableflag
 
   if (infoflag == 0) | (tableflag == 0):                    #if info & table not initialized
-    print "stream parameters not initialized -- missing info or table headers?"
-    abort()
+    spec_err("stream parameters not initialized -- missing info or table headers?")
 
 #/First, we decode the frame header:
 
-  is_predicted = readbit()
+  is_predicted = readbits(1)
   print "is_predicted:", is_predicted
   quality_index = readbits(6)
   print "quality_index =", quality_index
+  spare_q_bit = readbits(1)
+  if spare_q_bit == 1 :
+    spec_err("spare QI bit is set, I don't know what to do!")
   scalefactor_AC = scale_table_AC[quality_index]            #(ThisFrameQualityValue in C)
   print "scalefactor_AC =", scalefactor_AC
   scalefactor_DC = scale_table_DC[quality_index]
@@ -783,7 +811,7 @@ def decode_frame():
 
 #/OK, this is a keyframe.  That means we just have 'intra' coded blocks.
     print "decoding keyframe"
-    keyframe_type = readbit()                               #keyframe type always == 1 (DCT) (for now)
+    keyframe_type = readbits(1)                             #keyframe type always == 1 (DCT) (for now)
     readbits(2)                                             #2 unused bits
 
 #/compute some values based on width & height:
@@ -915,8 +943,7 @@ def decode_frame():
 
 ##/Decode Predicted Frame:                THIS SECTION UNFINISHED
   else: 
-    print "decoding interframe (NOT!)"
-    abort()
+    spec_err("decoding interframe (NOT!)")
     coding_scheme = readbits(3)
     if coding_scheme == 0:
       mode_alphabet = []                                    #define a list (think of it as an array)
@@ -931,7 +958,7 @@ def decode_frame():
 #/Define a function to parse the packet type & call appropriate functions.  Returns either a string for header packets, or a tuple of Y, U, and V data for frames:
 
 def decode_packet():
-  packet_type = readbit()
+  packet_type = readbits(1)
   if packet_type == 0:
     return decode_frame()
   else:
@@ -941,67 +968,30 @@ def decode_packet():
 
 #let's test our routines by parsing the stream headers and the first frame.
 
-print
-print "THEORA SPEC PYTHON SCRIPT"
-print "Test: decoding first frame of", sys.argv[1]
-ret = ""
+###_Main Loop
 
-while type(ret) == type(""):                          #string means stream header parsed
-  ret = decode_packet()
-  if type(ret) == type(""):                           #if it's a header packet,
-    print "header packet type:", ret                  #print the type (info, comment, tables)
-    if ret == "info":
-      print "  version:", version_major, version_minor, version_subminor 
-      print "  encoded width:", encoded_width
-      print "  encoded height:", encoded_height
-      print "  decode width:", decode_width
-      print "  decode height:", decode_height
-      print "  X offset:", offset_x
-      print "  Y offset:", offset_y
-      print "  fps:", fps_numerator, "/", fps_denominator
-      print "  aspect:", aspect_numerator, "/", aspect_denominator
-      print "  colorspace:",
-      if colorspace == 0:
-        print "  not specified"
-      elif colorspace == 1:
-        print "  ITU 601"
-      elif colorspace == 2:
-        print "  CIE 709"
-      else:
-        print "  colorspace type not recognized"
-      print "  target bitrate:", bitrate
-      print "  target quality:", quality
+while 1 :
+  get_page()
+  if page == None :
+    print 'No more pages left, done!'
+    outfile.close()
+    exit()
+  if streams.has_key(page.serialno) :
+    if page.serialno == streamid :
+      stream.pagein(page)
+      packet = stream.packetout()
+      while packet != None :
+        buffer = ogg2.OggPackBuffB(packet)
+        output(decode_packet())
+        packet = stream.packetout()
+  else :
+    decode_new_stream()
+  page = None
+    
 
-    elif ret == "comment":
-      print "  vendor string:", vendor_string
-      print "  comment length:", comment_string_len
-    elif ret == "table":
-      print "  tables loaded"
-  else:
-    print "frame decoded"
+    
 
 #'ret' should now have the first frame:
 
-Y, U, V = ret
-
-#/define a little routine to fix up the UV buffer the way we like:
-
-def interleave(U, V, w, h):
-  buf = []
-  for y in range(h):
-    for x in range(w):
-      buf.append( V[y*w + x] )
-    for x in range(w):
-      buf.append( U[y*w + x] )
-  return buf
-
-#write data to disk:
-
-buf = array('B', Y + interleave(U, V, decode_width//2, decode_height//2) )
-outfile = file(sys.argv[2],"wb")
-outfile.write(buf)
-
-#that's all for now.
-print "done"
 
  
