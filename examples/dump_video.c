@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams
-  last mod: $Id: dump_video.c,v 1.5 2003/06/10 01:31:32 tterribe Exp $
+  last mod: $Id: dump_video.c,v 1.6 2003/10/26 21:49:59 giles Exp $
 
  ********************************************************************/
 
@@ -19,7 +19,6 @@
 /*  simply dump decoded YUV data, for verification of theora bitstream */
 
 #define _GNU_SOURCE
-#define _REENTRANT
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
