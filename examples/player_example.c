@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.26 2003/09/26 15:03:48 tterribe Exp $
+  last mod: $Id: player_example.c,v 1.27 2003/09/29 13:43:32 giles Exp $
 
  ********************************************************************/
 
@@ -389,14 +389,14 @@ static int dump_comments(theora_comment *tc){
 static void report_colorspace(theora_info *ti)
 {
     switch(ti->colorspace){
-      case not_specified:
+      case OC_CS_UNSPECIFIED:
         /* nothing to report */
         break;;
-      case ITU_Rec_601:
-        fprintf(stderr,"  encoder specified ITU Rec 601 color.\n");
+      case OC_CS_ITU_REC_470M:
+        fprintf(stderr,"  encoder specified ITU Rec 470M (NTSC) color.\n");
         break;;
-      case CIE_Rec_709:
-        fprintf(stderr,"  encoder specified CIE Rec 709 color.\n");
+      case OC_CS_ITU_REC_470BG:
+        fprintf(stderr,"  encoder specified ITU Rec 470BG (PAL) color.\n");
         break;;
       default:
         fprintf(stderr,"warning: encoder specified unknown colorspace (%d).\n",
