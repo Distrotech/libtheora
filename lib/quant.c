@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.14 2004/03/07 02:27:04 giles Exp $
+  last mod: $Id: quant.c,v 1.15 2004/03/07 02:43:29 giles Exp $
 
  ********************************************************************/
 
@@ -305,15 +305,9 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   }
   
   /* ignore the range table and reference the matricies we use */
-#if 0
-  ci->Y_coeffs=&(ci->qmats[0]);
-  ci->UV_coeffs=&(ci->qmats[64]);
-  ci->Inter_coeffs=&(ci->qmats[2*64]);
-#else
   memcpy(ci->Y_coeffs, &ci->qmats[0], sizeof(ci->Y_coeffs));
   memcpy(ci->UV_coeffs, &ci->qmats[64], sizeof(ci->UV_coeffs));
   memcpy(ci->Inter_coeffs, &ci->qmats[2*64], sizeof(ci->Inter_coeffs));
-#endif
 
   return 0;
 }
@@ -334,9 +328,9 @@ void InitQTables( PB_INSTANCE *pbi ){
   memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
   memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1,
          sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(Y_coeffsV1));
-  memcpy(pbi->UV_coeffs, UV_coeffsV1, sizeof(UV_coeffsV1));
-  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, sizeof(Inter_coeffsV1));
+  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(pbi->Y_coeffs));
+  memcpy(pbi->UV_coeffs, UV_coeffsV1, sizeof(pbi->UV_coeffs));
+  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, sizeof(pbi->Inter_coeffs));
 }
 
 static void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
