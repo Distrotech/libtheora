@@ -507,6 +507,9 @@ PASTREAMIO_Stream  *aOutStream; /* our modified stream buffer*/
 SAMPLE      *samples; /*local buffer for samples*/
 double latency_sec = 0;
 
+/*ticks information to be used if the audio stream is not present*/
+int    currentTicks = -1;
+
 /*initial state of the audio stream*/
 int isPlaying = 0;
 PaError err;
@@ -631,12 +634,22 @@ error:
 
 
 double get_time(){
-  /*not entirely accurate with the WAVE OUT device, but good enough
-  at this stage. Needs to be reworked to account for blank audio
-  data written to the stream...*/
-  double curtime = (double) (GetAudioStreamTime( aOutStream ) / vi.rate) -  latency_sec;
-  if (curtime<0) curtime = 0;
-  return  curtime  ;
+    double curtime;
+    if (vorbis_p){
+     /*not entirely accurate with the WAVE OUT device, but good enough
+     at this stage. Needs to be reworked to account for blank audio
+     data written to the stream...*/
+      curtime = (double) (GetAudioStreamTime( aOutStream ) / vi.rate) -  latency_sec;
+      if (curtime<0) curtime = 0;
+	} else {
+        /*initialize timer variable if not set yet*/
+        if (currentTicks==-1) {
+            currentTicks = SDL_GetTicks();
+            return currentTicks;
+        }
+		curtime = (double) (SDL_GetTicks() - currentTicks)/1000.0F;
+	}
+    return  curtime  ;
 }
 
 
