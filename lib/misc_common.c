@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: misc_common.c,v 1.1 2002/09/16 07:10:02 xiphmont Exp $
+  last mod: $Id: misc_common.c,v 1.2 2002/09/17 07:01:33 xiphmont Exp $
 
  ********************************************************************/
 
@@ -45,7 +45,7 @@ double GetEstimatedBpb( CP_INSTANCE *cpi, ogg_uint32_t TargetQ ){
 }
 
 void UpRegulateMB( CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
-		   ogg_uint32_t SB, ogg_uint32_t MB, BOOL NoCheck ) {
+		   ogg_uint32_t SB, ogg_uint32_t MB, int NoCheck ) {
   ogg_int32_t  FragIndex;
   ogg_uint32_t B; 
   
@@ -116,7 +116,7 @@ void UpRegulateBlocks (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ,
       /* Check its four Macro-Blocks */
       for ( MB=(*LastMB); MB<4; MB++ ) {
 	/* Mark relevant blocks for update */
-	UpRegulateMB( cpi, RegulationQ, SB, MB, FALSE );
+	UpRegulateMB( cpi, RegulationQ, SB, MB, 0 );
 	
 	/* Keep track of the last refresh MB. */
 	(*LastMB) += 1;
@@ -179,7 +179,7 @@ void UpRegulateDataStream (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ,
 	/* Check its four Macro-Blocks */
 	for ( MB=LastPassMBPos; MB<4; MB++ ) {
 	  /* Mark relevant blocks for update */
-	  UpRegulateMB( cpi, RegulationQ, SB, MB, TRUE );
+	  UpRegulateMB( cpi, RegulationQ, SB, MB, 1 );
 	  
 	  /* Keep track of the last refresh MB. */
 	  LastPassMBPos += 1;

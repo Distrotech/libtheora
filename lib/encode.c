@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.1 2002/09/16 07:10:02 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.2 2002/09/17 07:01:33 xiphmont Exp $
 
  ********************************************************************/
 
@@ -240,7 +240,7 @@ void PackCodedVideo (CP_INSTANCE *cpi) {
   }
   
   /* Note the number of bits used to code the tree itself. */
-  cpi->FrameBitCount = cpi->ThisFrameSize << 3;
+  cpi->FrameBitCount = oggpackB_bytes(&cpi->opb) << 3;
 
   /* Mode and MV data not needed for key frames. */
   if ( GetFrameType(&cpi->pb) != BASE_FRAME ){
@@ -250,7 +250,7 @@ void PackCodedVideo (CP_INSTANCE *cpi) {
     PackMotionVectors (cpi);
   }
   
-  cpi->FrameBitCount = cpi->ThisFrameSize << 3;
+  cpi->FrameBitCount = oggpackB_bytes(&cpi->opb) << 3;
   
   /* Optimise the DC tokens */
   for ( i = 0; i < cpi->pb.CodedBlockIndex; i++ ) {
