@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.24 2003/06/12 10:39:38 giles Exp $
+  last mod: $Id: player_example.c,v 1.25 2003/07/15 13:21:21 giles Exp $
 
  ********************************************************************/
 
@@ -545,9 +545,11 @@ int main(int argc,char *argv[]){
   /* and now we have it all.  initialize decoders */
   if(theora_p){
     theora_decode_init(&td,&ti);
-    printf("Ogg logical stream %x is Theora %dx%d %.02f fps video\n"
-           "  Frame content is %dx%d with offset (%d,%d).\n",
-           to.serialno,ti.width,ti.height, (double)ti.fps_numerator/ti.fps_denominator,
+    printf("Ogg logical stream %x is Theora %dx%d %.02f fps video\n",
+           to.serialno,ti.width,ti.height, 
+           (double)ti.fps_numerator/ti.fps_denominator);
+    if(ti.width!=ti.frame_width || ti.height!=ti.frame_height)
+      printf("  Frame content is %dx%d with offset (%d,%d).\n",
            ti.frame_width, ti.frame_height, ti.offset_x, ti.offset_y);
     report_colorspace(&ti);
     dump_comments(&tc);
