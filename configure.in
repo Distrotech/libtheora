@@ -94,7 +94,7 @@ AC_CHECK_FUNC(oggpackB_read, , [
 
 AM_PATH_SDL(,[
 	HAVE_SDL=yes
-	SDL_LIBS=`$SDL_CONFIG --static-libs`
+	SDL_LIBS=`$SDL_CONFIG --libs`
 ],AC_MSG_WARN([*** Unable to find SDL -- Not compiling example players ***]))
 
 AC_CHECK_HEADERS([sys/soundcard.h soundcard.h machine/soundcard.h],[

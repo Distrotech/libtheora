@@ -10,7 +10,6 @@ noinst_PROGRAMS = encoder_example dump_video $(BUILDABLE_EXAMPLES)
 EXTRA_PROGRAMS = player_example splayer
 
 CFLAGS = $(SDL_CFLAGS)
-LDFLAGS = -all-static 
 LDADD = ../lib/libtheora.la -logg 
 
 dump_video_SOURCES = dump_video.c
