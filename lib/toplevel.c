@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.31 2003/10/26 21:57:15 giles Exp $
+  last mod: $Id: toplevel.c,v 1.32 2003/10/30 13:54:31 giles Exp $
 
  ********************************************************************/
 
@@ -1052,11 +1052,11 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.aspect_numerator,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.aspect_denominator,24);
 
-  oggpackB_write(&cpi->oggbuffer,cpi->pb.keyframe_granule_shift,5);
-
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.colorspace,8);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
+
+  oggpackB_write(&cpi->oggbuffer,cpi->pb.keyframe_granule_shift,5);
 
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
@@ -1214,11 +1214,11 @@ static int _theora_unpack_info(theora_info *ci, oggpack_buffer *opb){
   ci->aspect_numerator=oggpackB_read(opb,24);
   ci->aspect_denominator=oggpackB_read(opb,24);
 
-  ci->keyframe_frequency_force=1<<oggpackB_read(opb,5);
-
   ci->colorspace=oggpackB_read(opb,8);
   ci->target_bitrate=oggpackB_read(opb,24);
   ci->quality=ret=oggpackB_read(opb,6);
+
+  ci->keyframe_frequency_force=1<<oggpackB_read(opb,5);
 
   if(ret==-1L)return(OC_BADHEADER);
 
