@@ -1,6 +1,6 @@
 VP3 Bitstream Format and Decoding Process
 by Mike Melanson (melanson@pcisys.net)
-v0.1: June 17, 2003
+v0.2: October 9, 2003
 
 
   [This document is still categorized as a "work-in-progess" and has
@@ -23,6 +23,7 @@ Contents
  * Reversing the DC Prediction
  * Reconstructing The Frame
  * Appendix A: The VP3 IDCT
+ * Appendix B: Theora Differences
  * Acknowledgements
  * References
  * Changelog
@@ -586,7 +587,7 @@ next EB determines coefficient sign; coeff = DCT_VAL_CAT2_MIN (3) +
 * 17:
 DCT_VAL_CATEGORY3
 next EB determines coefficient sign; coeff = DCT_VAL_CAT3_MIN (7) + next
-EB (this give a range of +/- 7..8)
+EB (this gives a range of +/- 7..8)
 
 * 18:
 DCT_VAL_CATEGORY4
@@ -667,58 +668,163 @@ Now that all of the DCT coefficient data has been unpacked, the DC
 coefficients need to be fully reconstructed before the IDCT can be
 performed.
 
-VP3 uses a somewhat involved process for DC prediction which involves up
-to four DC coefficients from surrounding fragments. For each fragment to
-be transformed with the IDCT, the DC coefficient is predicted from the
-DC coefficients in the left (l), up-left (ul), up (u), and up-right (ur)
-fragments, if they are coded (not unchanged from the previous frame) in
-a compatible frame (current, previous, or golden).
+VP3 uses a somewhat involved process for DC prediction which uses up to
+four DC coefficients from surrounding fragments. For each fragment to be
+transformed with the IDCT, the DC coefficient is predicted from weighted
+sum of the DC coefficients in the left (l), up-left (ul), up (u), and
+up-right (ur) fragments, if they are coded (not unchanged from the
+previous frame) in a compatible frame (current, previous, or golden).
 
-To expound, in a golden frame, all of the fragments will be coded; none
-of the frames will be unchanged from, or predicted from, any previous
-frames. The fragments in an intraframe can be divided into 6 groups:
+In a golden frame, the prediction is quite straightforward since all
+fragments will be coded. A fragment's DC prediction will fall into 1 of
+5 groups:
 
-     32222222226
-     10000000004
-     10000000004
-     10000000004
-     10000000004
+     abbbbbbbbb
+     cdddddddde
+     cdddddddde
+     cdddddddde
+     cdddddddde
 
-Each number represents a fragment.
+* Group a is the top left corner fragment. There is nothing to predict
+from. This DC coefficient has a lot of energy and requires many bits to
+code.
 
-* Group 0, main body of fragments: Use all 4 predicting fragments, [l ul
-u ur].
+* Group b is the remainder of the top row of fragments. These fragments
+can only predict from the left fragment.
 
-* Group 1, left column of fragments: The left fragment is unavailable;
-use [ul u ur].
+* Group c is the left column of fragments, not including the top left
+fragment. These fragments have the top and top-right fragments from
+which to predict.
 
-* Group 2, top row: None of the up fragments are available; only use the
-left fragment for prediction.
+* Group d is the main body of fragments. These fragments have access to
+all 4 predictors.
 
-* Group 3, top left fragment; There is nothing to predict from; DC
-coefficient unpacked from bitstream is the final coefficient.
+* Group e is the right column of fragments, not including the top right
+fragment. These fragments can predict from the left, up-left and up
+fragments.
 
-* Group 4, right column of fragments: The up-right fragment is
-unavailable; use [l ul u].
+The process of reversing prediction for interframes grows more complex.
+First, the decoder must evaluate which candidate fragments (l, ul, u, or
+ur) are available for as predictors. Then, it can only use fragments
+that are coded within the same frame (current, previous, or golden).
+Further, there are auxiliary predictors for each frame type that are
+initialized to 0 at the start of each video frame decode operation. The
+decoder falls back on these auxiliary predictors when it can not find
+any valid candidate predictors for the current fragment.
 
-* Group 6, top right fragment: Technically the same as group 2.
+To work through some examples, consider the following notation, e.g.:
 
-The reason for the unusual numbering scheme (group 6 == group 2, no
-groups 5 or 7) has to do with the way the official VP3 source decides
-which group a fragment belongs to. A fragment's group number is computed
-with this formula:
+  ul-C = up-left fragment, coded in the current frame
+   u-P = up fragment, coded as a motion residual from the previous frame
+  ur-C = up-right fragment, coded in the current frame
+   l-G = left fragment, coded as a motion residual from the golden frame   
+   x-P = current fragment where DC prediction is being performed, coded
+         as a motion residual from the previous frame
 
-  predictor_group = (x == 0) + ((y == 0) << 1) +
-    ((x + 1 == fragment_width) << 2);
+This is a simple case:
 
-where (x, y) are the fragment's coordinates on the plane's fragment map,
-(0..fragment_width-1, 0..fragment_height-1). Note that groups 5 and 7 do
-not exist as it would mean that x would be equal to both 0 and
-(fragment_width-1).
+   ul-C   u-C  ur-C
+    l-C   x-C
+
+The current fragment predicts from all four of the candidate fragments
+since they are coded in the same frame. 
+
+   ul-P   u-C  ur-C
+    l-P   x-P
+
+The current fragment predicts from the left and up-left fragments.
+
+   ul-C   u-P  ur-G
+    l-P   x-G
+
+The current fragment predicts from the up-right fragment.
+
+   ul-C   u-C  ur-C
+    l-C   x-G
+
+The current fragment does not predict from any of the candidate
+fragments since the current fragment is a motion residual from the
+golden frame. Rather, add the auxiliary golden frame predictor to the
+current fragment's DC coefficient. Save the new DC coefficient as the
+new golden frame auxiliary DC predictor.
+
+If the decoder only finds one valid candidate predictor, then it is used
+by itself. When the decoder finds multiple valid candidate fragments
+from which to predict DC, it applies a weighting function to the
+surrounding fragments' DC coefficients.
+
+If the up-right and left predictors are available:
+
+  pred = (53 * ur.dc) + (75 * l.dc)
+         --------------------------
+                    128
+
+If the up, up-right, and left predictors are available, the up
+predictor is discarded and the predictor calculation is the same as for 
+[ur l] prediction.
+
+If the up-left, up-right, and left predictors are available, the up-left
+predictor is discarded and the predictor calculation is the same as for 
+[ur l] prediction.
+
+If the up and left predictors are available:
+
+  pred = (u.dc + l.dc)
+         -------------
+               2
+
+If the up and up-right predictors are available, the up-right predictor
+is discarded and the up predictor is used by itself.
+
+If the up-left and left predictors are available, the up-left predictor
+is discarded and the left predictor is used by itself.
+
+If the up-left and up predictors are available, the up-left predictor is
+discarded and the left predictor is used by itself.
+
+If the up-left and up-right predictors are available:
+
+  pred = (ul.dc + ur.dc)
+         ---------------
+                2
+
+If the up-left, up, and up-right predictors are available:
+
+  pred = (3 * ul.dc + 10 * u.dc + 3 * ur.dc)
+         -----------------------------------
+                         16
+
+If the up-left, up, and left predictors are available:
+
+  pred = (-26 * ul.dc + 29 * u.dc + 29 * l.dc)
+         -------------------------------------
+                          32
+
+If all 4 predictors are available (up-left, up, up-right, and left), the
+up-right predictor is discarded and the predictor calculation is the
+same as for [ul u l].
+
+Note that this final prediction case ([ul u l]) risks outranging. The
+difference of the predicted DC is checked against u.dc, l.dc, and ul.dc,
+in that order, and if the difference is greater than 128 in any case,
+the predictor is assigned as that DC coefficient. In pseudocode:
+
+  if (ABSOLUTE_VALUE(pred - u.dc) > 128)
+    pref = u.dc
+  else if (ABSOLUTE_VALUE(pred - l.dc) > 128)
+    pref = l.dc
+  else if (ABSOLUTE_VALUE(pred - ul.dc) > 128)
+    pref = ul.dc
+
+The predicted value is, at long last, added to the fragment's decoded DC
+coefficient. Finally, the new DC coefficient is saved as the frame
+type's auxiliary predictor. For example, if this fragment is coded as a
+motion residual from the previous frame, save the fragment's DC
+coefficient as the previous frame auxiliary predictor.
 
 
-
-[not finished]
+[still need to mention precise rounding considerations, a.k.a, the
+HIGHTBITDUPPED() macro]
 
 
 
@@ -733,6 +839,28 @@ Appendix A: The VP3 IDCT
 
 [not finished]
 
+
+Appendix B: Theora Differences
+------------------------------
+The Theora project leverages the VP3 codec into a new video coding
+system. The algorithm and bitstream format are the same as VP3 with a
+few minor differences:
+
+1) The frame orientation is reversed-- VP3 is coded from bottom to top
+while Theora video is coded from top to bottom.
+
+2) Variable histograms-- VP3 uses a hardcoded set of histograms for DCT
+coefficient coding (described in section "Unpacking The DCT
+Coefficients"). Theora packs the histogram information in the header of
+the transport format (which is meant to be Ogg, but can probably be
+coerced into a variety of other multimedia container formats).
+
+3) Variable quantization-- As with the histograms, Theora codes the
+quantization tables and quality thresholds (described in section
+"Setting Up The Dequantizers") into the header.
+
+
+[still need coding format of histogram and quantizer information]
 
 
 Acknowledgements
@@ -761,5 +889,9 @@ http://www.on2.com/
 
 ChangeLog
 ---------
+v0.2: October 9, 2003
+- expanded section "Reversing the DC Prediction"
+- added Appendix B: Theora Differences
+
 v0.1: June 17, 2003
 - initial release, nowhere near complete
