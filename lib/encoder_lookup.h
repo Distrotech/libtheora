@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: simple static lookups for VP3 frame encoder
-  last mod: $Id: encoder_lookup.h,v 1.6 2003/06/10 13:50:52 mauricio Exp $
+  last mod: $Id: encoder_lookup.h,v 1.7 2003/06/11 02:24:29 tterribe Exp $
 
  ********************************************************************/
 
@@ -81,10 +81,7 @@ ogg_uint32_t ModeBitPatterns[MAX_MODES] = {
 ogg_int32_t ModeBitLengths[MAX_MODES] =  {
   1,    2,    3,    4,    5,    6,    7,    7 };
 
-unsigned char ModeSchemes[MODE_METHODS-1][MAX_MODES] =  {
-  /* Reserved for optimal */
-  { 0,    0,    0,    0,    0,    0,    0,    0 },    
-  
+unsigned char ModeSchemes[MODE_METHODS-2][MAX_MODES] =  {
   /* Last Mv dominates */
   { 3,    4,    2,    0,    1,    5,    6,    7 },    /* L P  M N I G GM 4 */
   { 2,    4,    3,    0,    1,    5,    6,    7 },    /* L P  N M I G GM 4 */
