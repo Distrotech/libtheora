@@ -1034,14 +1034,9 @@ int main( int argc, char* argv[] ){
     /* if we're set for the next frame, sleep */
     if((!theora_p || videobuf_ready) && 
        (!vorbis_p || audiobuf_ready)){
-	double now = get_time();
-        int ticks = 1.0e3*(videobuf_time-now);
-	fprintf(stderr, "delay ticks %d from %f - %f = %f\n",
-		ticks, videobuf_time, now, videobuf_time-now);
-	if(ticks>0){
-	  fprintf(stderr, "  Calling SDL_Delay(%d)\n", ticks);
+        int ticks = 1.0e3*(videobuf_time-get_time());
+	if(ticks>0)
           SDL_Delay(ticks);
-        }
     }
  
     if(videobuf_ready){
