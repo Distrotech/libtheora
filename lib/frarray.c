@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: frarray.c,v 1.7 2003/12/03 08:59:41 arc Exp $
+  last mod: $Id: frarray.c,v 1.8 2003/12/04 01:35:07 arc Exp $
 
  ********************************************************************/
 
@@ -384,7 +384,7 @@ static void GetNextBInit(PB_INSTANCE *pbi){
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+  do theora_read(&pbi->opb,1,&ret);
   while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
 }
@@ -397,7 +397,7 @@ static unsigned char GetNextBBit (PB_INSTANCE *pbi){
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+    do theora_read(&pbi->opb,1,&ret);
     while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
   }
@@ -417,7 +417,7 @@ static void GetNextSbInit(PB_INSTANCE *pbi){
 
   /* Read run length */
   FrArrayDeCodeInit(pbi);
-  do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+  do theora_read(&pbi->opb,1,&ret);
   while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
 }
@@ -431,7 +431,7 @@ static unsigned char GetNextSbBit (PB_INSTANCE *pbi){
 
     /* Read next run */
     FrArrayDeCodeInit(pbi);
-    do if (theora_read(&pbi->opb,1,&ret)<=0) break;
+    do theora_read(&pbi->opb,1,&ret);
     while (FrArrayDeCodeBlockRun(pbi,ret,&pbi->BitsLeft)==0);
 
   }
