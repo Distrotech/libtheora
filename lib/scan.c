@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: scan.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: scan.c,v 1.2 2002/09/20 09:45:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -535,7 +535,7 @@ static int ColSadScan( PP_INSTANCE *ppi,
     /* Skip if block already marked to be coded. */
     if ( *LocalDispFragPtr <= BLOCK_NOT_CODED ){
       /* Calculate the SAD score for the block column */
-      MaxSad = ColSAD( ppi, LocalYuvPtr1, LocalYuvPtr2 );
+      MaxSad = ScalarColSAD( ppi, LocalYuvPtr1, LocalYuvPtr2 );
 
       /* Now test the group SAD score */
       if ( MaxSad > LocalGrpLowSadThresh ){
@@ -1756,7 +1756,7 @@ static void RowCopy( PP_INSTANCE *ppi, ogg_uint32_t BlockMapIndex ){
 
   ogg_uint32_t   i,j;
   
-  ogg_uint32_t   PixelIndex = ScanGetFragIndex(ppi, BlockMapIndex);
+  ogg_uint32_t   PixelIndex = ppi->ScanPixelIndexTable[BlockMapIndex];
   signed char   * BlockMapPtr = &ppi->ScanDisplayFragments[BlockMapIndex];
   signed char   * PrevFragmentsPtr = &ppi->PrevFragments[0][BlockMapIndex];
   
@@ -1786,6 +1786,147 @@ static void RowCopy( PP_INSTANCE *ppi, ogg_uint32_t BlockMapIndex ){
     
     /* Increment pixel index for next block. */
     PixelIndex += ppi->ScanConfig.HFragPixels;
+  }
+}
+
+static void RowBarEnhBlockMap( PP_INSTANCE *ppi, 
+			       ogg_uint32_t * FragScorePtr, 
+			       signed char   * FragSgcPtr,
+			       signed char   * UpdatedBlockMapPtr,
+			       signed char   * BarBlockMapPtr,
+			       ogg_uint32_t RowNumber ){
+  /* For boundary blocks relax thresholds */
+  ogg_uint32_t BarBlockThresh = ppi->BlockThreshold / 10;
+  ogg_uint32_t BarSGCThresh = ppi->BlockSgcThresh / 2;
+  
+  ogg_int32_t i;
+  
+  /* Start by blanking the row in the bar block map structure. */
+  memset( BarBlockMapPtr, BLOCK_NOT_CODED, ppi->PlaneHFragments );
+
+  /* First row */
+  if ( RowNumber == 0 ){
+    
+    /* For each fragment in the row. */
+    for ( i = 0; i < ppi->PlaneHFragments; i ++ ){
+      /* Test for CANDIDATE_BLOCK or CANDIDATE_BLOCK_LOW. Uncoded or
+	 coded blocks will be ignored. */
+      if ( UpdatedBlockMapPtr[i] <= CANDIDATE_BLOCK ){
+	/* Is one of the immediate neighbours updated in the main map. */
+	/* Note special cases for blocks at the start and end of rows. */
+	if ( i == 0 ){
+	  
+	  if ((UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	      (UpdatedBlockMapPtr[i+ppi->PlaneHFragments]>BLOCK_NOT_CODED ) ||
+	      (UpdatedBlockMapPtr[i+ppi->PlaneHFragments+1]>BLOCK_NOT_CODED ) )
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	  
+	  
+	}else if ( i == (ppi->PlaneHFragments - 1) ){
+                    
+	  if ((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	      (UpdatedBlockMapPtr[i+ppi->PlaneHFragments-1]>BLOCK_NOT_CODED) ||
+	       (UpdatedBlockMapPtr[i+ppi->PlaneHFragments]>BLOCK_NOT_CODED) )
+	      BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+                    
+	}else{
+	  if((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments+1] > BLOCK_NOT_CODED) )
+	      BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	}
+      }
+    }
+    
+  } else if ( RowNumber == (ogg_uint32_t)(ppi->PlaneVFragments-1)) {
+    
+    /* Last row */
+    /* Used to read PlaneHFragments */
+    
+    /* For each fragment in the row. */
+    for ( i = 0; i < ppi->PlaneHFragments; i ++ ){
+      /* Test for CANDIDATE_BLOCK or CANDIDATE_BLOCK_LOW
+	 Uncoded or coded blocks will be ignored. */
+      if ( UpdatedBlockMapPtr[i] <= CANDIDATE_BLOCK ){
+	/* Is one of the immediate neighbours updated in the main map. */
+	/* Note special cases for blocks at the start and end of rows. */
+	if ( i == 0 ){
+	  if((UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments+1] > BLOCK_NOT_CODED ))
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+                
+	}else if ( i == (ppi->PlaneHFragments - 1) ){
+	  if((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) )
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	}else{
+	  if((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments+1] > BLOCK_NOT_CODED) )
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	}
+      }
+    }
+    
+  }else{
+    /* All other rows */
+    /* For each fragment in the row. */
+    for ( i = 0; i < ppi->PlaneHFragments; i ++ ){
+      /* Test for CANDIDATE_BLOCK or CANDIDATE_BLOCK_LOW */
+      /* Uncoded or coded blocks will be ignored. */
+      if ( UpdatedBlockMapPtr[i] <= CANDIDATE_BLOCK ){
+	/* Is one of the immediate neighbours updated in the main map. */
+	/* Note special cases for blocks at the start and end of rows. */
+	if ( i == 0 ){
+	  
+	  if((UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments+1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments+1] > BLOCK_NOT_CODED) )
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	  
+	}else if ( i == (ppi->PlaneHFragments - 1) ){
+                    
+	  if((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments] > BLOCK_NOT_CODED ) )
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	  
+	}else{
+	  if((UpdatedBlockMapPtr[i-1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+1] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i-ppi->PlaneHFragments+1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments-1] > BLOCK_NOT_CODED)||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments] > BLOCK_NOT_CODED ) ||
+	     (UpdatedBlockMapPtr[i+ppi->PlaneHFragments+1] > BLOCK_NOT_CODED ))
+	    BarBlockMapPtr[i] = BLOCK_CODED_BAR;
+	}
+      }
+    }
+  }
+}
+
+static void BarCopyBack( PP_INSTANCE *ppi, 
+			 signed char  * UpdatedBlockMapPtr,
+			 signed char  * BarBlockMapPtr ){
+  ogg_int32_t i;
+  
+  /* For each fragment in the row. */
+  for ( i = 0; i < ppi->PlaneHFragments; i ++ ){
+    if ( BarBlockMapPtr[i] > BLOCK_NOT_CODED ){
+      UpdatedBlockMapPtr[i] = BarBlockMapPtr[i];
+    }
   }
 }
 

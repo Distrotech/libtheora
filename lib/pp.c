@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pp.c,v 1.2 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: pp.c,v 1.3 2002/09/20 09:45:02 xiphmont Exp $
 
  ********************************************************************/
 
@@ -655,7 +655,7 @@ static void DeringFrame(PB_INSTANCE *pbi,
   
 }
 
-static void UpdateFragQIndex(PB_INSTANCE *pbi){
+void UpdateFragQIndex(PB_INSTANCE *pbi){
   
   ogg_uint32_t  ThisFrameQIndex;
   ogg_uint32_t  i;
