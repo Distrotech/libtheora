@@ -2,7 +2,7 @@
 
 AUTOMAKE_OPTIONS = foreign dist-zip
 
-SUBDIRS = lib include examples
+SUBDIRS = lib include examples debian
 
 EXTRA_DIST = COPYING autogen.sh 
 
