@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.4 2002/09/23 09:15:04 xiphmont Exp $
+  last mod: $Id: quant.c,v 1.5 2003/02/26 21:04:33 giles Exp $
 
  ********************************************************************/
 
@@ -74,6 +74,50 @@ static Q_LIST_ENTRY Inter_coeffsV1[64] ={
   32,  40,  48,  64,  64,  64,  96,  128,
   40,  48,  64,  64,  64,  96,  128, 128
 };
+
+
+///	dbm 12/5/02 -- write qtables into header.  called from theora_encode_header (toplevel.c)
+///	someday we can change the quant tables to be adaptive, or just plain better.
+
+void write_Qtables(oggpack_buffer* opb) {
+  int x;
+  for(x=0; x<64; x++) {
+	oggpackB_write(opb, QThreshTableV1[x],16);
+  }
+  for(x=0; x<64; x++) {
+	oggpackB_write(opb, DcScaleFactorTableV1[x],16);
+  }
+  for(x=0; x<64; x++) {
+	oggpackB_write(opb, Y_coeffsV1[x],8);
+  }
+  for(x=0; x<64; x++) {
+	oggpackB_write(opb, UV_coeffsV1[x],8);
+  }
+  for(x=0; x<64; x++) {
+	oggpackB_write(opb, Inter_coeffsV1[x],8);
+  }
+}
+
+///	dbm 12/5/02 -- read qtables from header.  called from theora_decode_header (toplevel.c)
+
+void read_Qtables(oggpack_buffer* opb) {
+  int x;
+  for(x=0; x<64; x++) {
+	QThreshTableV1[x]=oggpackB_read(opb, 16);
+  }
+  for(x=0; x<64; x++) {
+	DcScaleFactorTableV1[x]=oggpackB_read(opb, 16);
+  }
+  for(x=0; x<64; x++) {
+	Y_coeffsV1[x]=oggpackB_read(opb, 8);
+  }
+  for(x=0; x<64; x++) {
+	UV_coeffsV1[x]=oggpackB_read(opb, 8);
+  }
+  for(x=0; x<64; x++) {
+	Inter_coeffsV1[x]=oggpackB_read(opb, 8);
+  }
+}
 
 void InitQTables( PB_INSTANCE *pbi ){
   memcpy ( pbi->QThreshTable, QThreshTableV1, sizeof( pbi->QThreshTable ) );

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.12 2002/09/25 02:38:10 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.13 2003/02/26 21:04:33 giles Exp $
 
  ********************************************************************/
 
@@ -1035,6 +1035,10 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.target_bitrate,24);
   oggpackB_write(&cpi->oggbuffer,cpi->pb.info.quality,6);
 
+///	dbm -- added functions to write important data (qtables + huff stuff) into header
+  write_Qtables(&cpi->oggbuffer);
+  write_FrequencyCounts(&cpi->oggbuffer);
+
   op->packet=oggpackB_get_buffer(&cpi->oggbuffer);
   op->bytes=oggpackB_bytes(&cpi->oggbuffer);
 
@@ -1118,6 +1122,10 @@ int theora_decode_header(theora_info *c, ogg_packet *op){
 
   c->target_bitrate=oggpackB_read(&opb,24);
   c->quality=ret=oggpackB_read(&opb,6);
+
+///	dbm -- read important stuff from the stream header:
+  read_Qtables(&opb);
+  read_FrequencyCounts(&opb);
 
   if(ret==-1)return(OC_BADHEADER);
 

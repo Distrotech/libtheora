@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.4 2002/09/23 02:01:28 xiphmont Exp $
+  last mod: $Id: huffman.c,v 1.5 2003/02/26 21:04:33 giles Exp $
 
  ********************************************************************/
 
@@ -237,7 +237,24 @@ void InitHuffmanSet( PB_INSTANCE *pbi ){
     BuildHuffmanTree( pbi->HuffRoot_VP3x, 
 		      pbi->HuffCodeArray_VP3x[i],
 		      pbi->HuffCodeLengthArray_VP3x[i],
-		      i, FrequencyCounts_VP31[i]);
+		      i, FrequencyCounts_VP3[i]);
   }
 }
 
+void write_FrequencyCounts(oggpack_buffer* opb) {
+  int x, y;
+  for(x=0; x<NUM_HUFF_TABLES; x++) {
+    for(y=0; y<MAX_ENTROPY_TOKENS; y++) {
+	  oggpackB_write(opb, FrequencyCounts_VP3[x][y], 16);
+	}
+  }
+}
+
+void read_FrequencyCounts(oggpack_buffer* opb) {
+  int x, y;
+  for(x=0; x<NUM_HUFF_TABLES; x++) {
+    for(y=0; y<MAX_ENTROPY_TOKENS; y++) {
+	  FrequencyCounts_VP3[x][y]=oggpackB_read(opb, 16);
+	}
+  }
+}

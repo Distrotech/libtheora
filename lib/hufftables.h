@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: hufftables.h,v 1.1 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: hufftables.h,v 1.2 2003/02/26 21:04:33 giles Exp $
 
  ********************************************************************/
 
@@ -26,7 +26,7 @@ unsigned char ExtraBitLengths_VP31[MAX_ENTROPY_TOKENS] = {
 };
 
 /* Frequency tables for encoder version < 2 */
-ogg_uint32_t FrequencyCounts_VP31[NUM_HUFF_TABLES][MAX_ENTROPY_TOKENS] = {
+ogg_uint32_t FrequencyCounts_VP3[NUM_HUFF_TABLES][MAX_ENTROPY_TOKENS] = {
   /* DC Intra bias */
   {  198,    62,    22,    31,    14,     6,     6,   205,     3,
      843,   843,   415,   516,
