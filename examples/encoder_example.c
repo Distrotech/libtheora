@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.3 2002/09/24 05:05:49 xiphmont Exp $
+  last mod: $Id: encoder_example.c,v 1.4 2002/09/25 05:35:38 xiphmont Exp $
 
  ********************************************************************/
 
@@ -43,7 +43,7 @@ FILE *video=NULL;
 int audio_ch=0; 
 int audio_hz=0; 
 
-float audio_q=1;
+float audio_q=.1;
 int audio_r=-1;
 
 int video_x=0;
@@ -56,7 +56,7 @@ int video_an=0;
 int video_ad=0;
 
 int video_r=-1;
-int video_q=10;
+int video_q=16;
 
 static void usage(void){
   fprintf(stderr,

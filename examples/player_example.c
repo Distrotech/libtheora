@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.6 2002/09/25 03:22:31 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.7 2002/09/25 05:35:38 xiphmont Exp $
 
  ********************************************************************/
 
@@ -152,7 +152,7 @@ static void open_audio(){
     exit(1);
   }
   
-  ioctl(audiofd,SNDCTL_DSP_SPEED,&rate);
+  ret=ioctl(audiofd,SNDCTL_DSP_SPEED,&rate);
   if(ret){
     fprintf(stderr,"Could not set %d Hz playback\n",rate);
     exit(1);
@@ -523,7 +523,7 @@ int main(void){
            with non-keyframe seeks.  */
 
 	if(videobuf_time>=get_time())
-	  videobuf_ready=1;
+	videobuf_ready=1;
 		
       }else
 	break;
