@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.19 2004/03/18 02:00:30 giles Exp $
+  last mod: $Id: quant.c,v 1.20 2004/03/19 05:13:56 giles Exp $
 
  ********************************************************************/
 
@@ -142,18 +142,14 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
     oggpackB_write(opb, pbi->DcScaleFactorTable[x],bits);
   }
   oggpackB_write(opb, 3 - 1, 9); /* number of base matricies */
-  bits=8;
-  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->Y_coeffs[x],bits);
+    oggpackB_write(opb, pbi->Y_coeffs[x],8);
   }
-  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->UV_coeffs[x],bits);
+    oggpackB_write(opb, pbi->UV_coeffs[x],8);
   }
-  oggpackB_write(opb, bits-1, 4);
   for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->Inter_coeffs[x],bits);
+    oggpackB_write(opb, pbi->Inter_coeffs[x],8);
   }
   /* table mapping */
   oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
@@ -218,9 +214,8 @@ int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   ci->MaxQMatrixIndex = N;
   for(y=0; y<N; y++) {
     //fprintf(stderr," q matrix %d:\n  ", y);
-    theora_read(opb,4,&bits); bits++;
     for(x=0; x<64; x++) {
-      theora_read(opb,bits,&value);
+      theora_read(opb,8,&value);
       if(bits<0)return OC_BADHEADER;
       ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)value;
       //fprintf(stderr," %03d", (Q_LIST_ENTRY)value);
