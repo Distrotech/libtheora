@@ -12,7 +12,7 @@
 
   function: example SDL player application; plays Ogg Theora files (with
             optional Vorbis audio second stream)
-  last mod: $Id: player_example.c,v 1.3 2002/09/25 01:08:15 xiphmont Exp $
+  last mod: $Id: player_example.c,v 1.4 2002/09/25 02:38:10 xiphmont Exp $
 
  ********************************************************************/
 
@@ -55,13 +55,6 @@ int buffer_data(ogg_sync_state *oy){
   return(bytes);
 }
 
-/* clean quit on Ctrl-C for SDL and thread shutdown as per SDL example
-   (we don't use any threads, but libSDL does) */
-int got_sigint=0;
-static void sigint_handler (int signal) {
-  got_sigint = 1;
-}
-
 /* never forget that globals are a one-way ticket to Hell */
 /* Ogg and codec state for demux/decode */
 ogg_sync_state   oy; 
@@ -75,6 +68,10 @@ vorbis_dsp_state vd;
 vorbis_block     vb;
 vorbis_comment   vc;
 
+int              theora_p=0;
+int              vorbis_p=0;
+int              stateflag=0;
+
 /* SDL Video playback structures */
 SDL_Surface *screen;
 SDL_Overlay *yuv_overlay;
@@ -82,7 +79,7 @@ SDL_Rect rect;
 
 /* single frame video buffering */
 int          videobuf_ready=0;
-ogg_int64_t  videobuf_granulepos=0;
+ogg_int64_t  videobuf_granulepos=-1;
 double       videobuf_time=0;
 
 /* single audio fragment audio buffering */
@@ -129,7 +126,6 @@ int          audiofd_fragsize;      /* read and write only complete fragments
 				       switch */
 int          audiofd=-1;
 ogg_int64_t  audiofd_timer_calibrate=-1;
-long         audiofd_drift=0;
 
 static void open_audio(){
   audio_buf_info info;
@@ -188,17 +184,12 @@ void audio_calibrate_timer(int restart){
   new_time=tv.tv_sec*1000+tv.tv_usec/1000;
 
   if(restart){
-    fprintf(stderr,"audio playback start: calibrating clock.\n");
     current_sample=audiobuf_granulepos-audiobuf_fill/2/vi.channels;
   }else
     current_sample=audiobuf_granulepos-
       (audiobuf_fill+audiofd_totalsize-audiofd_fragsize)/2/vi.channels;
   
   new_time-=1000*current_sample/vi.rate;
-  audiofd_drift+=audiofd_timer_calibrate-new_time;
-
-  fprintf(stderr,"calibration drift: %d \n",
-	  audiofd_timer_calibrate-new_time);
 
   audiofd_timer_calibrate=new_time;
 }
@@ -207,21 +198,34 @@ void audio_calibrate_timer(int restart){
    drift */
 double get_time(){
   static ogg_int64_t last=0;
+  static ogg_int64_t up=0;
   ogg_int64_t now;
   struct timeval tv;
 
   gettimeofday(&tv,0);
   now=tv.tv_sec*1000+tv.tv_usec/1000;
 
+  if(audiofd_timer_calibrate==-1)audiofd_timer_calibrate=last=now;
+
   if(audiofd<0){
     /* no audio timer to worry about, we can just use the system clock */
-    if(audiofd_timer_calibrate==-1)audiofd_timer_calibrate=last=now;
-
     /* only one complication: If the process is suspended, we should
        reset timing to account for the gap in play time.  Do it the
        easy/hack way */
     if(now-last>1000)audiofd_timer_calibrate+=(now-last);
     last=now;
+  }
+
+  if(now-up>200){
+    double timebase=(now-audiofd_timer_calibrate)*.001;
+    int hundredths=timebase*100-(long)timebase*100;
+    int seconds=(long)timebase%60;
+    int minutes=((long)timebase/60)%60;
+    int hours=(long)timebase/3600;
+    
+    fprintf(stderr,"   Playing: %d:%02d:%02d.%02d                       \r",
+	    hours,minutes,seconds,hundredths);
+    up=now;
   }
 
   return (now-audiofd_timer_calibrate)*.001;
@@ -240,7 +244,7 @@ void audio_write_nonblocking(void){
     bytes=info.bytes;
     if(bytes>=audiofd_fragsize){
       if(bytes==audiofd_totalsize)audio_calibrate_timer(1);
-
+   
       while(1){
 	bytes=write(audiofd,audiobuf+(audiofd_fragsize-audiobuf_fill),
 		    audiofd_fragsize);
@@ -260,6 +264,14 @@ void audio_write_nonblocking(void){
 
     }
   } 
+}
+
+/* clean quit on Ctrl-C for SDL and thread shutdown as per SDL example
+   (we don't use any threads, but libSDL does) */
+int got_sigint=0;
+static void sigint_handler (int signal) {
+  got_sigint = 1;
+  if(audiofd>-1)ioctl(audiofd,SNDCTL_DSP_RESET,NULL);
 }
 
 static void open_video(void){
@@ -329,9 +341,6 @@ static void video_write(void){
 
 int main(void){
   
-  int theora_p=0;
-  int vorbis_p=0;
-  int stateflag=0;
   int i,j;
   ogg_packet op;
 
@@ -499,20 +508,26 @@ int main(void){
       }
     }
       
-    if(theora_p && !videobuf_ready){
+    while(theora_p && !videobuf_ready){
       /* theora is one in, one out... */
       if(ogg_stream_packetout(&to,&op)>0){
+   
 	theora_decode_packetin(&td,&op);
-	videobuf_ready=1;
-	
-	if(op.granulepos>=0)
-	  videobuf_granulepos=op.granulepos;
-	else
-	  videobuf_granulepos++;
+	videobuf_granulepos=td.granulepos;
 	
 	videobuf_time=theora_granule_time(&td,videobuf_granulepos);
-	
-      }
+
+	/* is it already too old to be useful?  This is only actually
+           useful cosmetically after a SIGSTOP.  Note that we have to
+           decode the frame even if we don't show it (for now) due to
+           keyframing.  Soon enough libtheora will be able to deal
+           with non-keyframe seeks.  */
+
+	if(videobuf_time>=get_time())
+	  videobuf_ready=1;
+		
+      }else
+	break;
     }
     
     if(!videobuf_ready && !audiobuf_ready && feof(stdin))break;
@@ -571,7 +586,7 @@ int main(void){
     if((!theora_p || videobuf_ready) && 
        (!vorbis_p || audiobuf_ready))stateflag=1;
     if(feof(stdin))stateflag=1; 
-    
+
   }
 
   /* tear it all down */

@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/include
 noinst_PROGRAMS = encoder_example player_example 
 
 LDFLAGS = -all-static 
-LDADD = ../lib/libtheora.la -lm -logg -lvorbis
+LDADD = ../lib/libtheora.la -logg -lvorbis -lm
 
 player_example_SOURCES = player_example.c
 player_example_LDADD = $(LDADD) -lSDL -lpthread

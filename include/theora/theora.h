@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: theora.h,v 1.3 2002/09/23 23:18:06 xiphmont Exp $
+  last mod: $Id: theora.h,v 1.4 2002/09/25 02:38:10 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,11 +19,6 @@
 #define _O_THEORA_H_
 
 #include <ogg/ogg.h>
-
-typedef struct{
-  void *internal_encode;
-  void *internal_decode;
-} theora_state;
 
 typedef struct {
     int   y_width;
@@ -69,6 +64,14 @@ typedef struct{
   ogg_int32_t   sharpness;
 
 } theora_info;
+
+typedef struct{
+  theora_info *i;
+  ogg_int64_t granulepos;
+
+  void *internal_encode;
+  void *internal_decode;
+} theora_state;
 
 #define OC_FAULT       -1
 #define OC_EINVAL      -10

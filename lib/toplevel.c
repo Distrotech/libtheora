@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.11 2002/09/24 11:18:22 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.12 2002/09/25 02:38:10 xiphmont Exp $
 
  ********************************************************************/
 
@@ -840,6 +840,8 @@ int theora_encode_init(theora_state *th, theora_info *c){
 
   /* copy in config */
   memcpy(&cpi->pb.info,c,sizeof(*c));
+  th->i=&cpi->pb.info;
+  th->granulepos=-1;
 
   /* Set up default values for QTargetModifier[Q_TABLE_SIZE] table */
   for ( i = 0; i < Q_TABLE_SIZE; i++ ) 
@@ -975,6 +977,10 @@ int theora_encode_YUVin(theora_state *t,
   cpi->LastFrameSize = oggpackB_bytes(&cpi->oggbuffer);
   cpi->CurrentFrame++;
   cpi->packetflag=1;
+
+  t->granulepos=
+    ((cpi->CurrentFrame-cpi->LastKeyFrame-1)<<cpi->pb.keyframe_granule_shift)+ 
+    cpi->LastKeyFrame-1;
   
   return 0;
 }
@@ -993,10 +999,7 @@ int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
   op->e_o_s=last_p;
   
   op->packetno=cpi->CurrentFrame;
-
-  op->granulepos=
-    ((cpi->CurrentFrame-cpi->LastKeyFrame-1)<<cpi->pb.keyframe_granule_shift)+ 
-    cpi->LastKeyFrame-1;
+  op->granulepos=t->granulepos;
 
   cpi->packetflag=0;
   if(last_p)cpi->doneflag=1;
@@ -1128,6 +1131,8 @@ int theora_decode_init(theora_state *th, theora_info *c){
   
   InitPBInstance(pbi);
   memcpy(&pbi->info,c,sizeof(*c));
+  th->i=&pbi->info;
+  th->granulepos=-1;
         
   InitFrameDetails(pbi);
 
@@ -1160,10 +1165,27 @@ int theora_decode_packetin(theora_state *th,ogg_packet *op){
   /* verify that this is a video frame */
   if(oggpackB_read(&pbi->opb,1)==0){
     ret=LoadAndDecode(pbi);
+
     if(ret)return ret;
     
     if(pbi->PostProcessingLevel)
       PostProcess(pbi);
+
+    if(op->granulepos>-1)
+      th->granulepos=op->granulepos;
+    else{
+      if(th->granulepos==-1){
+	th->granulepos=0;
+      }else{
+	if(pbi->FrameType==BASE_FRAME){
+	  long frames= th->granulepos & ((1<<pbi->keyframe_granule_shift)-1);
+	  th->granulepos>>=pbi->keyframe_granule_shift;
+	  th->granulepos+=frames+1;
+	  th->granulepos<<=pbi->keyframe_granule_shift;
+	}else
+	  th->granulepos++;
+      }
+    }
            
     return(0);
   }
