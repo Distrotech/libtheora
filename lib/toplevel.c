@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.35 2003/12/06 18:06:20 arc Exp $
+  last mod: $Id: toplevel.c,v 1.36 2004/03/05 17:44:28 giles Exp $
 
  ********************************************************************/
 
@@ -24,7 +24,7 @@
 #define VERSION_MINOR 2
 #define VERSION_SUB 0
 
-#define VENDOR_STRING "Xiph.Org libTheora I 20031026 3 2 0"
+#define VENDOR_STRING "Xiph.Org libTheora I 20040228 3 2 0"
 
 #define A_TABLE_SIZE        29
 #define DF_CANDIDATE_WINDOW 5
@@ -1214,6 +1214,7 @@ void theora_info_init(theora_info *c) {
 void theora_info_clear(theora_info *c) {
   codec_setup_info *ci=c->codec_setup;
   if(ci){
+    if(ci->qmats) _ogg_free(ci->qmats);
     ClearHuffmanTrees(ci->HuffRoot);
     _ogg_free(ci);
   }

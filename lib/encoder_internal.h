@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.17 2003/12/06 18:06:20 arc Exp $
+  last mod: $Id: encoder_internal.h,v 1.18 2004/03/05 17:44:28 giles Exp $
 
  ********************************************************************/
 
@@ -249,9 +249,11 @@ typedef struct HUFF_ENTRY {
 typedef struct codec_setup_info {
   ogg_uint32_t QThreshTable[Q_TABLE_SIZE];
   Q_LIST_ENTRY DcScaleFactorTable[Q_TABLE_SIZE];
-  Q_LIST_ENTRY Y_coeffs[64];
-  Q_LIST_ENTRY UV_coeffs[64];
-  Q_LIST_ENTRY Inter_coeffs[64];
+  int MaxQMatrixIndex;
+  Q_LIST_ENTRY *qmats;
+  Q_LIST_ENTRY *Y_coeffs;
+  Q_LIST_ENTRY *UV_coeffs;
+  Q_LIST_ENTRY *Inter_coeffs;
 
   HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES];
 } codec_setup_info;

@@ -11,10 +11,11 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.10 2003/12/03 08:59:41 arc Exp $
+  last mod: $Id: quant.c,v 1.11 2004/03/05 17:44:28 giles Exp $
 
  ********************************************************************/
 
+#include <stdio.h>
 #include <string.h>
 #include "encoder_internal.h"
 #include "quant_lookup.h"
@@ -119,6 +120,15 @@ static Q_LIST_ENTRY Inter_coeffsV1[64] ={
 
 #endif
 
+static int _ilog(unsigned int v){
+  int ret=0;
+  while(v){
+    ret++;
+    v>>=1;
+  }
+  return(ret);
+}
+                
 void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   int x;
   for(x=0; x<64; x++) {
@@ -127,6 +137,7 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   for(x=0; x<64; x++) {
     oggpackB_write(opb, pbi->DcScaleFactorTable[x],16);
   }
+  oggpackB_write(opb, 3 - 1, 9); /* number of base matricies */
   for(x=0; x<64; x++) {
     oggpackB_write(opb, pbi->Y_coeffs[x],8);
   }
@@ -136,36 +147,175 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   for(x=0; x<64; x++) {
     oggpackB_write(opb, pbi->Inter_coeffs[x],8);
   }
+  /* table mapping */
+  oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
+  oggpackB_write(opb, 63, 6); /* used for every q */
+  oggpackB_write(opb, 0, 2);
+  oggpackB_write(opb, 1, 1);  /* next range is explicit */
+  oggpackB_write(opb, 1, 2);  /* matrix 1 for intra U */
+  oggpackB_write(opb, 63, 6);
+  oggpackB_write(opb, 1, 2);
+  oggpackB_write(opb, 0, 1);  /* intra V is the same */
+  oggpackB_write(opb, 1, 0);  /* next range is explicit */
+  oggpackB_write(opb, 2, 2);  /* matrix 2 for inter Y */
+  oggpackB_write(opb, 63, 6);
+  oggpackB_write(opb, 2, 2);
+  oggpackB_write(opb, 0, 2);  /* inter U the same */
+  oggpackB_write(opb, 0, 2);  /* inter V the same */
 }
 
 int ReadQTables(codec_setup_info *ci, oggpack_buffer* opb) {
   long bits;
-  int  x;
+  int x,y, N;
+  /* AC scale table */
   for(x=0; x<Q_TABLE_SIZE; x++) {
     theora_read(opb,16,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->QThreshTable[x]=bits;
   }
+  /* DC scale table */
   for(x=0; x<Q_TABLE_SIZE; x++) {
     theora_read(opb,16,&bits);
     if(bits<0)return OC_BADHEADER;
     ci->DcScaleFactorTable[x]=(Q_LIST_ENTRY)bits;
   }
-  for(x=0; x<64; x++) {
-    theora_read(opb,8,&bits);
-    if(bits<0)return OC_BADHEADER;
-    ci->Y_coeffs[x]=(Q_LIST_ENTRY)bits;
+  /* base matricies */
+  //N=(unsigned int)oggpackB_read(opb, 9) + 1;
+  theora_read(opb,9,&N);
+  N++;
+  if(N!=3)return OC_BADHEADER; /* we only support the VP3 config */
+  ci->qmats=_ogg_malloc(N*64*sizeof(Q_LIST_ENTRY));
+  ci->MaxQMatrixIndex = N;
+  for(y=0; y<N; y++) {
+    for(x=0; x<64; x++) {
+      //bits=oggpackB_read(opb, 8);
+      theora_read(opb,8,&bits);
+      if(bits<0)return OC_BADHEADER;
+      ci->qmats[(y<<6)+x]=(Q_LIST_ENTRY)bits;
+    }
   }
-  for(x=0; x<64; x++) {
-    theora_read(opb,8,&bits);
-    if(bits<0)return OC_BADHEADER;
-    ci->UV_coeffs[x]=(Q_LIST_ENTRY)bits;
+  /* table mapping */
+  {
+    int index, range, flag;
+    int qi = 0;
+    /* intra Y */
+    //index=oggpackB_read(opb, _ilog(N-1)); /* qi=0 index */
+    theora_read(opb,_ilog(N-1),&index);
+    while(qi<63) {
+      //range=oggpackB_read(opb,_ilog(63-qi));
+      theora_read(opb,_ilog(63-qi),&range);
+      if(range<=0) return OC_BADHEADER;
+      qi+=range;
+      //index=oggpackB_read(opb, _ilog(N-1));
+      theora_read(opb,_ilog(N-1),&index); /* next index */
+    }
+    /* intra U */
+    //flag=oggpackB_read(opb, 1);
+    theora_read(opb,1,&flag);
+    if(flag<0) return OC_BADHEADER;
+    if(flag) {
+      /* explicitly coded */
+      qi = 0;
+      theora_read(opb,_ilog(N-1),&index);
+      while(qi<63) {
+        theora_read(opb,_ilog(63-qi),&range);
+        if(range<=0) return OC_BADHEADER;
+        qi+=range;
+        theora_read(opb,_ilog(N-1),&index);
+      }
+    } else {
+      /* same as previous */
+    }
+    /* intra V */
+    flag=oggpackB_read(opb, 1);
+    if(flag<0) return OC_BADHEADER;
+    if(flag) {
+      /* explicitly coded */
+      qi=0;
+      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      while(qi<63) {
+        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        if(range<=0) return OC_BADHEADER;
+        qi+=range;
+        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+      }
+    } else {
+       /* same as previous */
+    }
+    /* inter Y */
+    flag=oggpackB_read(opb, 1);
+    if(flag<0) return OC_BADHEADER;
+    if(flag) {
+      /* explicitly coded */
+      qi=0;
+      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      while(qi<63) {
+        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        if(range<=0) return OC_BADHEADER;
+        qi+=range;
+        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+      }
+    } else {
+      flag=oggpackB_read(opb, 1);
+      if(flag<0) return OC_BADHEADER;
+      if(flag) {
+        /* same as corresponding intra */
+      } else {
+        /* same as previous */
+      }
+    }
+    /* inter U */
+    flag=oggpackB_read(opb, 1);
+    if(flag<0) return OC_BADHEADER;
+    if(flag) {
+      /* explicitly coded */
+      qi=0;
+      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      while(qi<63) {
+        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        if(range<=0) return OC_BADHEADER;
+        qi+=range;
+        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+      }
+    } else {
+      flag=oggpackB_read(opb, 1);
+      if(flag<0) return OC_BADHEADER;
+      if(flag) {
+        /* same as corresponding intra */
+      } else {
+        /* same as previous */
+      }
+    }
+    /* inter V */
+    flag=oggpackB_read(opb, 1);
+    if(flag<0) return OC_BADHEADER;
+    if(flag) {
+      /* explicitly coded */
+      qi=0;
+      index=oggpackB_read(opb, _ilog(N-1)); /* first index */
+      fprintf(stderr, " inter V index %d\n", index);
+      while(qi<63) {
+        range=oggpackB_read(opb, _ilog(63-qi)); /* range */
+        if(range<=0) return OC_BADHEADER;
+        qi+=range;
+        index=oggpackB_read(opb, _ilog(N-1)); /* next index */
+      }
+    } else {
+      flag=oggpackB_read(opb, 1);
+      if(flag<0) return OC_BADHEADER;
+      if(flag) {
+        /* same as corresponding intra */
+      } else {
+        /* same as previous */
+      }
+    }
   }
-  for(x=0; x<64; x++) {
-    theora_read(opb,8,&bits);
-    if(bits<0)return OC_BADHEADER;
-    ci->Inter_coeffs[x]=(Q_LIST_ENTRY)bits;
-  }
+  
+  /* ignore the range table and reference the matricies we use */
+  ci->Y_coeffs=&(ci->qmats[0]);
+  ci->UV_coeffs=&(ci->qmats[64]);
+  ci->Inter_coeffs=&(ci->qmats[2*64]);
+  
   return 0;
 }
 
@@ -173,9 +323,9 @@ void CopyQTables(PB_INSTANCE *pbi, codec_setup_info *ci) {
   memcpy(pbi->QThreshTable, ci->QThreshTable, sizeof(pbi->QThreshTable));
   memcpy(pbi->DcScaleFactorTable, ci->DcScaleFactorTable,
          sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, ci->Y_coeffs, sizeof(pbi->Y_coeffs));
-  memcpy(pbi->UV_coeffs, ci->UV_coeffs, sizeof(pbi->UV_coeffs));
-  memcpy(pbi->Inter_coeffs, ci->Inter_coeffs, sizeof(pbi->Inter_coeffs));
+  memcpy(pbi->Y_coeffs, ci->Y_coeffs, 64 * sizeof(*ci->Y_coeffs));
+  memcpy(pbi->UV_coeffs, ci->UV_coeffs, 64 * sizeof(*ci->UV_coeffs));
+  memcpy(pbi->Inter_coeffs, ci->Inter_coeffs, 64 * sizeof(*ci->Inter_coeffs));
 }
 
 /* Initialize custom qtables using the VP31 values.
@@ -185,9 +335,9 @@ void InitQTables( PB_INSTANCE *pbi ){
   memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
   memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1,
          sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(pbi->Y_coeffs));
-  memcpy(pbi->UV_coeffs, UV_coeffsV1, sizeof(pbi->UV_coeffs));
-  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, sizeof(pbi->Inter_coeffs));
+  memcpy(pbi->Y_coeffs, Y_coeffsV1, 64 * sizeof(*Y_coeffsV1));
+  memcpy(pbi->UV_coeffs, UV_coeffsV1, 64 * sizeof(*UV_coeffsV1));
+  memcpy(pbi->Inter_coeffs, Inter_coeffsV1, 64 * sizeof(*Inter_coeffsV1));
 }
 
 static void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
