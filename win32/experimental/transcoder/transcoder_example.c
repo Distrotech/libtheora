@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: transcoder_example.c,v 1.3 2004/03/19 23:49:12 giles Exp $
+  last mod: $Id: transcoder_example.c,v 1.4 2004/03/20 00:14:04 tterribe Exp $
 
  ********************************************************************/
 
@@ -35,6 +35,7 @@
 
 #ifdef _WIN32
 /*supply missing headers and functions to Win32. going to hell, I know*/
+#include <io.h>
 #include <fcntl.h>
 
 static double rint(double x)
@@ -45,6 +46,17 @@ static double rint(double x)
     return (double)(int)(x + 0.5);
 }
 #endif
+
+/*Copied from vorbis/sharedbook.c*/
+static int _ilog(unsigned int v){
+  int ret=0;
+  while(v){
+    ret++;
+    v>>=1;
+  }
+  return(ret);
+}
+
 
 const char *optstring = "o:a:A:v:V:";
 struct option options [] = {
