@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: pp.c,v 1.3 2002/09/20 09:45:02 xiphmont Exp $
+  last mod: $Id: pp.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,26 +19,36 @@
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
 #include "pp.h"
-#include "quant_lookup.h"
 
 #define MAX(a, b) ((a>b)?a:b)
 #define MIN(a, b) ((a<b)?a:b)
 #define PP_QUALITY_THRESH   49
 
-ogg_int32_t SharpenModifier[ Q_TABLE_SIZE ] =
+static ogg_int32_t SharpenModifier[ Q_TABLE_SIZE ] =
 {  -12, -11, -10, -10,  -9,  -9,  -9,  -9,
-    -6,  -6,  -6,  -6,  -6,  -6,  -6,  -6, 
-    -4,  -4,  -4,  -4,  -4,  -4,  -4,  -4,
-    -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,
-    -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,
-    0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  0
+   -6,  -6,  -6,  -6,  -6,  -6,  -6,  -6, 
+   -4,  -4,  -4,  -4,  -4,  -4,  -4,  -4,
+   -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,
+   -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,
+   0,  0,  0,  0,  0,  0,  0,  0,
+   0,  0,  0,  0,  0,  0,  0,  0,
+   0,  0,  0,  0,  0,  0,  0,  0
+};
+
+static ogg_uint32_t DcQuantScaleV1[ Q_TABLE_SIZE ] = { 
+  22, 20, 19, 18, 17, 17, 16, 16,
+  15, 15, 14, 14, 13, 13, 12, 12,
+  11, 11, 10, 10, 9,  9,  9,  8,
+  8,  8,  7,  7,  7,  6,  6,  6,
+  6,  5,  5,  5,  5,  4,  4,  4,
+  4,  4,  3,  3,  3,  3,  3,  3,
+  3,  2,  2,  2,  2,  2,  2,  2,
+  2,  1,  1,  1,  1,  1,  1,  1 
 };
 
 static ogg_uint32_t *DeringModifierV1=DcQuantScaleV1;
 
-void PClearFrameInfo(PP_INSTANCE * ppi){
+static void PClearFrameInfo(PP_INSTANCE * ppi){
   int i;
 
   if(ppi->ScanPixelIndexTable) _ogg_free(ppi->ScanPixelIndexTable);
@@ -171,12 +181,11 @@ void InitPPInstance(PP_INSTANCE *ppi){
   ppi->MaxLineSearchLen = MAX_SEARCH_LINE_LEN;
 }
 
-static void DeringBlockStrong(PB_INSTANCE *pbi, 
-                       unsigned char *SrcPtr,
-                       unsigned char *DstPtr,
-                       ogg_int32_t Pitch,
-                       ogg_uint32_t FragQIndex,
-                       ogg_uint32_t *QuantScale){
+static void DeringBlockStrong(unsigned char *SrcPtr,
+			      unsigned char *DstPtr,
+			      ogg_int32_t Pitch,
+			      ogg_uint32_t FragQIndex,
+			      ogg_uint32_t *QuantScale){
     
   ogg_int16_t UDMod[72];
   ogg_int16_t LRMod[72];
@@ -298,12 +307,11 @@ static void DeringBlockStrong(PB_INSTANCE *pbi,
   }
 }
 
-static void DeringBlockWeak(PB_INSTANCE *pbi, 
-                     unsigned char *SrcPtr,
-                     unsigned char *DstPtr,
-                     ogg_int32_t Pitch,
-                     ogg_uint32_t FragQIndex,
-                     ogg_uint32_t *QuantScale){
+static void DeringBlockWeak(unsigned char *SrcPtr,
+			    unsigned char *DstPtr,
+			    ogg_int32_t Pitch,
+			    ogg_uint32_t FragQIndex,
+			    ogg_uint32_t *QuantScale){
   
   ogg_int16_t UDMod[72];
   ogg_int16_t LRMod[72];
@@ -420,91 +428,6 @@ static void DeringBlockWeak(PB_INSTANCE *pbi,
   }
 }
 
-static void DeringBlock(const PB_INSTANCE *pbi, 
-                 const unsigned char *SrcPtr,
-                 unsigned char *DstPtr,
-                 const ogg_int32_t Pitch,
-                 ogg_uint32_t FragQIndex,
-                 const ogg_uint32_t *QuantScale,
-                 ogg_uint32_t Variance){
-
-  int N[8]; 
-  unsigned int j,k,l;
-  unsigned int QValue = QuantScale[FragQIndex];
-  
-  int  atot;
-  int  B;
-  int newVal;
-
-  const unsigned char *srcRow = SrcPtr-Pitch-1;
-  unsigned char *dstRow = DstPtr;
- 
-  unsigned int round = (1<<7);
-  
-  int High;
-  int Low;
-  int TmpMod;
-  int Sharpen = SharpenModifier[FragQIndex];
-  
-  int Slope = 4;
-  
-  if(pbi->PostProcessingLevel > 100)
-    QValue = pbi->PostProcessingLevel - 100;
-
-  if ( Variance > 32768)
-    Slope = 4;
-  else if (Variance > 2048)
-    Slope = 8;
-  
-  High = 3 * QValue;  
-  if(High>32)
-    High=32;
-  Low = 0;
-
-  for(k=0;k<8;k++){
-    /* loop expanded for speed */
-    for(j=0;j<8;j++){
-      /* set up 8 neighbors of pixel srcRow[j] */
-      N[0] = srcRow[j            ]; 
-      N[1] = srcRow[j          +1]; 
-      N[2] = srcRow[j          +2];
-      N[3] = srcRow[j  +Pitch    ];
-      N[4] = srcRow[j  +Pitch  +2];
-      N[5] = srcRow[j +Pitch*2   ];
-      N[6] = srcRow[j +Pitch*2 +1];
-      N[7] = srcRow[j +Pitch*2 +2];
-      
-      // column 0 
-      atot = 256;
-      B = round;
-      
-      for(l = 0; l<8; l++){
-	TmpMod = 32 + QValue - (Slope *(abs(srcRow[j+Pitch+1]-N[l])) >> 2);
-	
-	if(TmpMod< -64)
-	  TmpMod = Sharpen;
-	
-	else if(TmpMod<Low)
-	  TmpMod = Low;
-	
-	else if(TmpMod>High)
-	  TmpMod = High;
-	
-	atot -= TmpMod;
-	B += TmpMod * N[l];
-	
-      }
-      
-      newVal = ( atot * srcRow[j+Pitch+1] + B) >> 8;
-            
-      dstRow[j] = clamp255( newVal );
-    }
-        
-    dstRow += Pitch;
-    srcRow += Pitch;
-  }
-}
-
 static void DeringFrame(PB_INSTANCE *pbi, 
 			unsigned char *Src, unsigned char *Dst){
   ogg_uint32_t  col,row;
@@ -539,7 +462,7 @@ static void DeringFrame(PB_INSTANCE *pbi,
       ogg_int32_t Variance = pbi->FragmentVariances[Block]; 
       
       if( pbi->PostProcessingLevel >5 && Variance > Thresh3 ){
-	DeringBlockStrong(pbi, SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
 				
 	if( (col > 0 && 
@@ -551,18 +474,18 @@ static void DeringFrame(PB_INSTANCE *pbi,
 	    (row > 0 && 
 	     pbi->FragmentVariances[Block-BlocksAcross] > Thresh4) ){
 
-	  DeringBlockStrong(pbi, SrcPtr + 8 * col, DestPtr + 8 * col, 
+	  DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			    LineLength,Quality,QuantScale);
-	  DeringBlockStrong(pbi, SrcPtr + 8 * col, DestPtr + 8 * col, 
+	  DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			    LineLength,Quality,QuantScale);
 	}			
       } else if(Variance > Thresh2 ) {
 	
-	DeringBlockStrong(pbi, SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
       } else if(Variance > Thresh1 ) {
 
-	DeringBlockWeak(pbi, SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockWeak(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			LineLength,Quality,QuantScale);
       
       } else {
@@ -592,18 +515,18 @@ static void DeringFrame(PB_INSTANCE *pbi,
       ogg_int32_t Variance = pbi->FragmentVariances[Block]; 
 			
       if( pbi->PostProcessingLevel >5 && Variance > Thresh4 ) {
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
 	
       }else if(Variance > Thresh2 ){
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
       }else if(Variance > Thresh1 ){
-	DeringBlockWeak(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockWeak(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			LineLength,Quality,QuantScale);
       }else{
 	CopyBlock(SrcPtr + 8 * col, DestPtr + 8 * col, LineLength);
@@ -628,18 +551,18 @@ static void DeringFrame(PB_INSTANCE *pbi,
       
 			
       if( pbi->PostProcessingLevel >5 && Variance > Thresh4 ) {
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
 				
       }else if(Variance > Thresh2 ){
-	DeringBlockStrong(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockStrong(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			  LineLength,Quality,QuantScale);
       }else if(Variance > Thresh1 ){
-	DeringBlockWeak(pbi,SrcPtr + 8 * col, DestPtr + 8 * col, 
+	DeringBlockWeak(SrcPtr + 8 * col, DestPtr + 8 * col, 
 			LineLength,Quality,QuantScale);
       }else{
 	CopyBlock(SrcPtr + 8 * col, DestPtr + 8 * col, LineLength);

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frarray.c,v 1.3 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: frarray.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,7 +19,7 @@
 #include "encoder_internal.h"
 #include "block_inline.h"
 
-ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
+static ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
   ogg_uint32_t CodedVal = 0;
   ogg_uint32_t CodedBits = 0;
   
@@ -62,7 +62,8 @@ ogg_uint32_t FrArrayCodeSBRun( CP_INSTANCE *cpi, ogg_uint32_t value ){
   return CodedBits;
 }
 
-ogg_uint32_t FrArrayCodeBlockRun( CP_INSTANCE *cpi, ogg_uint32_t value ) {
+static ogg_uint32_t FrArrayCodeBlockRun( CP_INSTANCE *cpi, 
+					 ogg_uint32_t value ) {
   ogg_uint32_t CodedVal = 0;
   ogg_uint32_t CodedBits = 0;
   
@@ -110,7 +111,6 @@ void PackAndWriteDFArray( CP_INSTANCE *cpi ){
   ogg_uint32_t  run_count; 
      
   ogg_uint32_t	SB, MB, B;   /* Block, MB and SB loop variables */
-  ogg_uint32_t  LastSbMbIndex = 0; 
   ogg_uint32_t  BListIndex = 0;    
   ogg_uint32_t  LastSbBIndex = 0;  
   ogg_int32_t   DfBlockIndex;  /* Block index in display_fragments */
@@ -228,7 +228,155 @@ static void FrArrayDeCodeInit(PB_INSTANCE *pbi){
   pbi->bits_so_far = 0; 
 }
 
-void GetNextBInit(PB_INSTANCE *pbi){
+static int FrArrayDeCodeBlockRun(  PB_INSTANCE *pbi, ogg_uint32_t bit_value, 
+			    ogg_int32_t * run_value ){
+  int  ret_val = 0;
+  
+  /* Add in the new bit value. */
+  pbi->bits_so_far++;
+  pbi->bit_pattern = (pbi->bit_pattern << 1) + (bit_value & 1);
+  
+  /* Coding scheme:
+     Codeword           RunLength
+     0x                    1-2
+     10x                   3-4
+     110x                  5-6
+     1110xx                7-10
+     11110xx              11-14
+     11111xxxx            15-30 	
+  */
+
+  switch ( pbi->bits_so_far ){
+  case 2: 
+    /* If bit 1 is clear */
+    if ( !(pbi->bit_pattern & 0x0002) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0001) + 1;
+    }           
+    break;      
+    
+  case 3:  
+    /* If bit 1 is clear */
+    if ( !(pbi->bit_pattern & 0x0002) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0001) + 3;
+    }           
+    break;      
+    
+  case 4:
+    /* If bit 1 is clear */
+    if ( !(pbi->bit_pattern & 0x0002) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0001) + 5;
+    }           
+    break;      
+    
+  case 6:
+    /* If bit 2 is clear */
+    if ( !(pbi->bit_pattern & 0x0004) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0003) + 7;
+    }           
+    break;      
+    
+  case 7:
+    /* If bit 2 is clear */
+    if ( !(pbi->bit_pattern & 0x0004) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0003) + 11;
+    }           
+    break;      
+    
+  case 9:
+    ret_val = 1;
+    *run_value = (pbi->bit_pattern & 0x000F) + 15;
+    break;      
+  }
+  
+  return ret_val;
+}
+
+static int FrArrayDeCodeSBRun (PB_INSTANCE *pbi, ogg_uint32_t bit_value, 
+			ogg_int32_t * run_value ){
+  int ret_val = 0;
+  
+  /* Add in the new bit value. */
+  pbi->bits_so_far++;
+  pbi->bit_pattern = (pbi->bit_pattern << 1) + (bit_value & 1);
+  
+  /* Coding scheme:
+     Codeword            RunLength
+     0                       1
+     10x                    2-3
+     110x                   4-5
+     1110xx                 6-9
+     11110xxx              10-17
+     111110xxxx            18-33
+     111111xxxxxxxxxxxx    34-4129
+  */
+
+  switch ( pbi->bits_so_far ){
+  case 1:  
+    if ( pbi->bit_pattern == 0 ){
+      ret_val = 1;
+      *run_value = 1;                             
+    }
+    break; 
+
+  case 3:
+    /* Bit 1 clear */
+    if ( !(pbi->bit_pattern & 0x0002) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0001) + 2; 
+    }
+    break; 
+    
+  case 4:
+    /* Bit 1 clear */
+    if ( !(pbi->bit_pattern & 0x0002) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0001) + 4;
+    }
+    break; 
+    
+  case 6:
+    /* Bit 2 clear */
+    if ( !(pbi->bit_pattern & 0x0004) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0003) + 6;
+    }
+    break; 
+    
+  case 8:
+    /* Bit 3 clear */
+    if ( !(pbi->bit_pattern & 0x0008) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x0007) + 10; 
+    }
+    break; 
+          
+  case 10:
+    /* Bit 4 clear */
+    if ( !(pbi->bit_pattern & 0x0010) ){
+      ret_val = 1;
+      *run_value = (pbi->bit_pattern & 0x000F) + 18; 
+    }
+    break; 
+    
+  case 18:
+    ret_val = 1;
+    *run_value = (pbi->bit_pattern & 0x0FFF) + 34;                             
+    break; 
+    
+  default:
+    ret_val = 0;
+    break;
+  }
+  
+  return ret_val;
+}
+
+static void GetNextBInit(PB_INSTANCE *pbi){
   pbi->NextBit = oggpackB_read(&pbi->opb,1);
 
   /* Read run length */
@@ -237,7 +385,7 @@ void GetNextBInit(PB_INSTANCE *pbi){
 				 &pbi->BitsLeft ) == 0 );
 }
 
-unsigned char GetNextBBit (PB_INSTANCE *pbi){
+static unsigned char GetNextBBit (PB_INSTANCE *pbi){
   if ( !pbi->BitsLeft ){
     /* Toggle the value.   */
     pbi->NextBit = ( pbi->NextBit == 1 ) ? 0 : 1;
@@ -255,7 +403,7 @@ unsigned char GetNextBBit (PB_INSTANCE *pbi){
   return pbi->NextBit;
 }
 
-void GetNextSbInit(PB_INSTANCE *pbi){
+static void GetNextSbInit(PB_INSTANCE *pbi){
   pbi->NextBit = oggpackB_read(&pbi->opb,1);
   
   /* Read run length */
@@ -264,7 +412,7 @@ void GetNextSbInit(PB_INSTANCE *pbi){
 			      &pbi->BitsLeft ) == 0 );
 }
 
-unsigned char GetNextSbBit (PB_INSTANCE *pbi){
+static unsigned char GetNextSbBit (PB_INSTANCE *pbi){
   if ( !pbi->BitsLeft ){
     /* Toggle the value.   */
     pbi->NextBit = ( pbi->NextBit == 1 ) ? 0 : 1;
@@ -282,69 +430,6 @@ unsigned char GetNextSbBit (PB_INSTANCE *pbi){
   return pbi->NextBit;
 }
 
-void GetNextMbInit(PB_INSTANCE *pbi){
-  pbi->NextBit = oggpackB_read(&pbi->opb,1);
-  pbi->BitsLeft = 0;
-  
-  /* Read run length */
-  FrArrayDeCodeInit(pbi);               
-  while ( FrArrayDeCodeMBRun( pbi,oggpackB_read(&pbi->opb,1), 
-			      &pbi->BitsLeft ) == 0 );
-}
-
-unsigned char GetNextMbBit (PB_INSTANCE *pbi){
-  if ( !pbi->BitsLeft ){
-    /* Toggle the value. */
-    pbi->NextBit = ( pbi->NextBit == 1 ) ? 0 : 1;
-    
-    /* Read next run */
-    FrArrayDeCodeInit(pbi);       
-    while ( FrArrayDeCodeMBRun( pbi, oggpackB_read(&pbi->opb,1), 
-				&pbi->BitsLeft ) == 0 );
-  }
-  
-  /* Decrement bits left in run counter */
-  pbi->BitsLeft--;
-  
-  /* Return next bit value */
-  return pbi->NextBit;
-}
-
-void ReadBlockPatternInit (PB_INSTANCE *pbi){
-  pbi->BlockPatternPredictor = 0;
-}
-
-unsigned char ReadNextBlockPattern (PB_INSTANCE *pbi){
-  unsigned char BlockPattern = 0;
-  unsigned char Bitpattern = 0;
-  ogg_uint32_t BitCount = 3;
-
-  /* Read three bits and test to see if we have a valid token. */
-  Bitpattern = oggpackB_read(&pbi->opb, 3);
-  
-  /* Test pattern to see if is a valid token. */
-  BlockPattern = BlockDecode1[pbi->BlockPatternPredictor][Bitpattern];
-  
-  /* if pattern was not a valid token */
-  if ( !BlockPattern ){
-    BitCount++;
-    Bitpattern = (Bitpattern << 1) + oggpackB_read(&pbi->opb,1);
-    
-    /* Test pattern to see if is a valid token. */
-    BlockPattern = BlockDecode2[pbi->BlockPatternPredictor][Bitpattern];
-    
-    if ( !BlockPattern ){
-      BitCount++;
-      Bitpattern = (Bitpattern << 1) + oggpackB_read(&pbi->opb,1);
-      BlockPattern = BlockDecode3[pbi->BlockPatternPredictor][Bitpattern];
-    }
-  }
-  
-  /* Update the entropy predictor for next time. */
-  pbi->BlockPatternPredictor = BPPredictor[BlockPattern];
-  return BlockPattern;
-
-}
 void QuadDecodeDisplayFragments ( PB_INSTANCE *pbi ){
   ogg_uint32_t  SB, MB, B;
   int    DataToDecode; 
@@ -442,267 +527,6 @@ void QuadDecodeDisplayFragments ( PB_INSTANCE *pbi ){
       }
     }
   }
-}
-
-int FrArrayDeCodeMBRun(  PB_INSTANCE *pbi, ogg_uint32_t bit_value, 
-			 ogg_int32_t * run_value ){
-  int ret_val = 0;
-
-  /* Add in the new bit value. */
-  pbi->bits_so_far++;
-  pbi->bit_pattern = (pbi->bit_pattern << 1) + (bit_value & 1);
-        
-  /* Coding scheme:
-     Codeword                RunLength
-     0                           1
-     10                          2
-     110x                       3-4
-     1110xx                     5-8
-     11110xxx                   9-16
-     111110xxxx                17-32
-     1111110xxxxx              33-64
-     11111110xxxxxx            65-128
-     111111110xxxxxxx         129-256
-     111111111                  256 repeats
-  */
-  switch ( pbi->bits_so_far ){
-  case 1:  
-    if ( pbi->bit_pattern == 0 ){
-      ret_val = 1;
-      *run_value += 1;                             
-    }
-    break; 
-    
-  case 2:
-    /* Bit 1 clear */
-    if ( pbi->bit_pattern == 2 ){
-      ret_val = 1;
-      *run_value += 2;                             
-    }
-    break; 
-        
-  case 4:
-    /* Bit 1 clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x0001) + 3;
-    }
-    break; 
-             
-  case 6:
-    /* Bit 2 clear */
-    if ( !(pbi->bit_pattern & 0x0004) ){
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x0003) + 5;   
-    }
-    break; 
-    
-  case 8:
-    /* Bit 3 clear */
-    if ( !(pbi->bit_pattern & 0x0008) ){
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x0007) + 9;
-    }
-    break; 
-    
-    /* This token is a special case repeat token and does not
-       terminate the run */
-  case 9:
-    if ( pbi->bit_pattern == 0x01FF ){
-      ret_val = 0;
-      *run_value += 256;                             
-      
-      /* Reset the bit counter and pattern. */
-      FrArrayDeCodeInit(pbi);
-    }
-    break;
-
-  case 10:
-    /* Bit 4 clear*/
-    if ( !(pbi->bit_pattern & 0x0010) ) {
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x000F) + 17;
-    }
-    break; 
-    
-  case 12:
-    /* Bit 5 clear */
-    if ( !(pbi->bit_pattern & 0x0020) ){
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x001F) + 33; 
-    }
-    break; 
-
-  case 14:
-    /* Bit 6 clear */
-    if ( !(pbi->bit_pattern & 0x0040) ) {
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x003F) + 65; 
-    }
-    break; 
-    
-  case 16:
-    /* Bit 7 clear */
-    if ( !(pbi->bit_pattern & 0x0080) ) {
-      ret_val = 1;
-      *run_value += (pbi->bit_pattern & 0x007F) + 129; 
-    }
-    break; 
-    
-  default:
-    ret_val = 0;
-    break;
-  }
-  
-  return ret_val;
-}
-
-int FrArrayDeCodeSBRun (PB_INSTANCE *pbi, ogg_uint32_t bit_value, 
-			ogg_int32_t * run_value ){
-  int ret_val = 0;
-  
-  /* Add in the new bit value. */
-  pbi->bits_so_far++;
-  pbi->bit_pattern = (pbi->bit_pattern << 1) + (bit_value & 1);
-  
-  /* Coding scheme:
-     Codeword            RunLength
-     0                       1
-     10x                    2-3
-     110x                   4-5
-     1110xx                 6-9
-     11110xxx              10-17
-     111110xxxx            18-33
-     111111xxxxxxxxxxxx    34-4129
-  */
-
-  switch ( pbi->bits_so_far ){
-  case 1:  
-    if ( pbi->bit_pattern == 0 ){
-      ret_val = 1;
-      *run_value = 1;                             
-    }
-    break; 
-
-  case 3:
-    /* Bit 1 clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0001) + 2; 
-    }
-    break; 
-    
-  case 4:
-    /* Bit 1 clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0001) + 4;
-    }
-    break; 
-    
-  case 6:
-    /* Bit 2 clear */
-    if ( !(pbi->bit_pattern & 0x0004) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0003) + 6;
-    }
-    break; 
-    
-  case 8:
-    /* Bit 3 clear */
-    if ( !(pbi->bit_pattern & 0x0008) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0007) + 10; 
-    }
-    break; 
-          
-  case 10:
-    /* Bit 4 clear */
-    if ( !(pbi->bit_pattern & 0x0010) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x000F) + 18; 
-    }
-    break; 
-    
-  case 18:
-    ret_val = 1;
-    *run_value = (pbi->bit_pattern & 0x0FFF) + 34;                             
-    break; 
-    
-  default:
-    ret_val = 0;
-    break;
-  }
-  
-  return ret_val;
-}
-
-int FrArrayDeCodeBlockRun(  PB_INSTANCE *pbi, ogg_uint32_t bit_value, 
-			    ogg_int32_t * run_value ){
-  int  ret_val = 0;
-  
-  /* Add in the new bit value. */
-  pbi->bits_so_far++;
-  pbi->bit_pattern = (pbi->bit_pattern << 1) + (bit_value & 1);
-  
-  /* Coding scheme:
-     Codeword           RunLength
-     0x                    1-2
-     10x                   3-4
-     110x                  5-6
-     1110xx                7-10
-     11110xx              11-14
-     11111xxxx            15-30 	
-  */
-
-  switch ( pbi->bits_so_far ){
-  case 2: 
-    /* If bit 1 is clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0001) + 1;
-    }           
-    break;      
-    
-  case 3:  
-    /* If bit 1 is clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0001) + 3;
-    }           
-    break;      
-    
-  case 4:
-    /* If bit 1 is clear */
-    if ( !(pbi->bit_pattern & 0x0002) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0001) + 5;
-    }           
-    break;      
-    
-  case 6:
-    /* If bit 2 is clear */
-    if ( !(pbi->bit_pattern & 0x0004) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0003) + 7;
-    }           
-    break;      
-    
-  case 7:
-    /* If bit 2 is clear */
-    if ( !(pbi->bit_pattern & 0x0004) ){
-      ret_val = 1;
-      *run_value = (pbi->bit_pattern & 0x0003) + 11;
-    }           
-    break;      
-    
-  case 9:
-    ret_val = 1;
-    *run_value = (pbi->bit_pattern & 0x000F) + 15;
-    break;      
-  }
-  
-  return ret_val;
 }
 
 CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi){

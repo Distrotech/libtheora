@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: quant.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: quant.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,11 +19,67 @@
 #include "encoder_internal.h"
 #include "quant_lookup.h"
 
+static ogg_uint32_t QThreshTableV1[Q_TABLE_SIZE] = { 
+  500,  450,  400,  370,  340,  310, 285, 265,
+  245,  225,  210,  195,  185,  180, 170, 160, 
+  150,  145,  135,  130,  125,  115, 110, 107,
+  100,   96,   93,   89,   85,   82,  75,  74,
+  70,   68,   64,   60,   57,   56,  52,  50,  
+  49,   45,   44,   43,   40,   38,  37,  35,  
+  33,   32,   30,   29,   28,   25,  24,  22,
+  21,   19,   18,   17,   15,   13,  12,  10 
+};
+
+static Q_LIST_ENTRY DcScaleFactorTableV1[ Q_TABLE_SIZE ] = { 
+  220, 200, 190, 180, 170, 170, 160, 160,
+  150, 150, 140, 140, 130, 130, 120, 120,
+  110, 110, 100, 100, 90,  90,  90,  80,
+  80,  80,  70,  70,  70,  60,  60,  60,
+  60,  50,  50,  50,  50,  40,  40,  40,
+  40,  40,  30,  30,  30,  30,  30,  30,
+  30,  20,  20,  20,  20,  20,  20,  20,
+  20,  10,  10,  10,  10,  10,  10,  10 
+};
+
+static Q_LIST_ENTRY Y_coeffsV1[64] ={
+  16,  11,  10,  16,  24,  40,  51,  61,
+  12,  12,  14,  19,  26,  58,  60,  55, 
+  14,  13,  16,  24,  40,  57,  69,  56, 
+  14,  17,  22,  29,  51,  87,  80,  62, 
+  18,  22,  37,  58,  68, 109, 103,  77, 
+  24,  35,  55,  64,  81, 104, 113,  92, 
+  49,  64,  78,  87, 103, 121, 120, 101, 
+  72,  92,  95,  98, 112, 100, 103,  99
+};
+
+static Q_LIST_ENTRY UV_coeffsV1[64] ={	
+  17,	18,	24,	47,	99,	99,	99,	99,
+  18,	21,	26,	66,	99,	99,	99,	99,
+  24,	26,	56,	99,	99,	99,	99,	99,
+  47,	66,	99,	99,	99,	99,	99,	99,
+  99,	99,	99,	99,	99,	99,	99,	99,
+  99,	99,	99,	99,	99,	99,	99,	99,
+  99,	99,	99,	99,	99,	99,	99,	99,
+  99,	99,	99,	99,	99,	99,	99,	99
+};
+
+/* Different matrices for different encoder versions */
+static Q_LIST_ENTRY Inter_coeffsV1[64] ={
+  16,  16,  16,  20,  24,  28,  32,  40,
+  16,  16,  20,  24,  28,  32,  40,  48, 
+  16,  20,  24,  28,  32,  40,  48,  64, 
+  20,  24,  28,  32,  40,  48,  64,  64, 
+  24,  28,  32,  40,  48,  64,  64,  64, 
+  28,  32,  40,  48,  64,  64,  64,  96, 
+  32,  40,  48,  64,  64,  64,  96,  128,
+  40,  48,  64,  64,  64,  96,  128, 128
+};
+
 void InitQTables( PB_INSTANCE *pbi ){
   memcpy ( pbi->QThreshTable, QThreshTableV1, sizeof( pbi->QThreshTable ) );
 }
 
-void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
+static void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
   ogg_int32_t i,j;
   
   /* invert the dequant index into the quant index */
@@ -33,7 +89,7 @@ void BuildQuantIndex_Generic(PB_INSTANCE *pbi){
   }
 }
 
-void init_quantizer ( CP_INSTANCE *cpi, 
+static void init_quantizer ( CP_INSTANCE *cpi, 
 		      ogg_uint32_t scale_factor, 
 		      unsigned char QIndex ){
     int i;                 
@@ -255,7 +311,6 @@ void quantize( PB_INSTANCE *pbi,
   ogg_int16_t * DCT_blockPtr = DCT_block;
   ogg_uint32_t * QIndexPtr = (ogg_uint32_t *)pbi->quant_index;
   ogg_int32_t temp;
-  int x = -7 >> 1;
   
   /* Set the quantized_list to default to 0 */
   memset( quantized_list, 0, 64 * sizeof(Q_LIST_ENTRY) );
@@ -373,7 +428,7 @@ void quantize( PB_INSTANCE *pbi,
   }
 }
 
-void init_dequantizer ( PB_INSTANCE *pbi, 
+static void init_dequantizer ( PB_INSTANCE *pbi, 
 			ogg_uint32_t scale_factor, 
 			unsigned char  QIndex ){
   int i, j;

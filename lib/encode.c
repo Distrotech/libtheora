@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -26,12 +26,10 @@
 #define PL 1
 #define HIGHBITDUPPED(X) (((ogg_int16_t) X)  >> 15)
 
-ogg_uint32_t QuadCodeComponent ( CP_INSTANCE *cpi, 
+static ogg_uint32_t QuadCodeComponent ( CP_INSTANCE *cpi, 
 				 ogg_uint32_t FirstSB, 
 				 ogg_uint32_t SBRows, 
 				 ogg_uint32_t SBCols, 
-				 ogg_uint32_t HExtra, 
-				 ogg_uint32_t VExtra, 
 				 ogg_uint32_t PixelsPerLine ){
 
   ogg_int32_t	FragIndex;      /* Fragment number */
@@ -103,7 +101,7 @@ ogg_uint32_t QuadCodeComponent ( CP_INSTANCE *cpi,
   return coded_pixels;
 }
 
-void EncodeDcTokenList (CP_INSTANCE *cpi) {
+static void EncodeDcTokenList (CP_INSTANCE *cpi) {
   ogg_int32_t   i,j;
   ogg_uint32_t  Token;
   ogg_uint32_t  ExtraBitsToken;
@@ -186,7 +184,7 @@ void EncodeDcTokenList (CP_INSTANCE *cpi) {
   cpi->OptimisedTokenCount = 0;
 }
 
-void EncodeAcTokenList (CP_INSTANCE *cpi) {
+static void EncodeAcTokenList (CP_INSTANCE *cpi) {
   ogg_int32_t   i,j;
   ogg_uint32_t  Token;
   ogg_uint32_t  ExtraBitsToken;
@@ -266,7 +264,7 @@ void EncodeAcTokenList (CP_INSTANCE *cpi) {
   cpi->OptimisedTokenCount = 0;
 }
 
-void PackModes (CP_INSTANCE *cpi) {
+static void PackModes (CP_INSTANCE *cpi) {
   ogg_uint32_t  i,j;
   unsigned char   ModeIndex;
   
@@ -353,13 +351,11 @@ void PackModes (CP_INSTANCE *cpi) {
   }
 }
 
-void PackMotionVectors (CP_INSTANCE *cpi) {
+static void PackMotionVectors (CP_INSTANCE *cpi) {
   ogg_int32_t  i;
   ogg_uint32_t MethodBits[2] = {0,0};  
   ogg_uint32_t * MvBitsPtr;
   ogg_uint32_t * MvPatternPtr;  
-  ogg_int32_t   LastXMVComponent = 0;
-  ogg_int32_t   LastYMVComponent = 0;
 
   oggpack_buffer *opb=&cpi->oggbuffer;
 
@@ -392,7 +388,7 @@ void PackMotionVectors (CP_INSTANCE *cpi) {
   }
 }
 
-void PackEOBRun( CP_INSTANCE *cpi) {
+static void PackEOBRun( CP_INSTANCE *cpi) {
   if(cpi->RunLength == 0)
         return;
 
@@ -455,7 +451,7 @@ void PackEOBRun( CP_INSTANCE *cpi) {
   cpi->RunLength = 0;
 }
 
-void PackToken ( CP_INSTANCE *cpi, ogg_int32_t FragmentNumber, 
+static void PackToken ( CP_INSTANCE *cpi, ogg_int32_t FragmentNumber, 
 		 ogg_uint32_t HuffIndex ) {
   ogg_uint32_t Token = 
     cpi->pb.TokenList[FragmentNumber][cpi->FragTokens[FragmentNumber]];
@@ -470,8 +466,9 @@ void PackToken ( CP_INSTANCE *cpi, ogg_int32_t FragmentNumber,
   if ( Token == DCT_EOB_TOKEN )
     cpi->pb.FragCoeffs[FragmentNumber] = BLOCK_SIZE;
   else
-    ExpandToken( &cpi->pb, cpi->pb.QFragData[FragmentNumber], 
-		 &cpi->pb.FragCoeffs[FragmentNumber], Token, ExtraBitsToken );
+    ExpandToken( cpi->pb.QFragData[FragmentNumber], 
+		 &cpi->pb.FragCoeffs[FragmentNumber], 
+		 Token, ExtraBitsToken );
   
   /* Update record of tokens coded and where we are in this fragment. */
   /* Is there an extra bits token */
@@ -516,7 +513,7 @@ void PackToken ( CP_INSTANCE *cpi, ogg_int32_t FragmentNumber,
   }
 }
 
-ogg_uint32_t GetBlockReconErrorSlow( CP_INSTANCE *cpi, 
+static ogg_uint32_t GetBlockReconErrorSlow( CP_INSTANCE *cpi, 
 				     ogg_int32_t BlockIndex ) {
   ogg_uint32_t	i;
   ogg_uint32_t	ErrorVal = 0;
@@ -555,10 +552,9 @@ ogg_uint32_t GetBlockReconErrorSlow( CP_INSTANCE *cpi,
   return ErrorVal;
 }
 
-void PackCodedVideo (CP_INSTANCE *cpi) {
+static void PackCodedVideo (CP_INSTANCE *cpi) {
   ogg_int32_t i;
   ogg_int32_t EncodedCoeffs = 1;
-  ogg_int32_t TotalTokens = cpi->TotTokenCount;
   ogg_int32_t FragIndex;
   ogg_uint32_t HuffIndex; /* Index to group of tables used to code a token */
 
@@ -655,7 +651,7 @@ void PackCodedVideo (CP_INSTANCE *cpi) {
   
 }
 
-ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
+static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
   ogg_int32_t   i,j;
   ogg_uint32_t	coded_pixels=0;
   int           QIndex;
@@ -706,7 +702,6 @@ ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
   
   /* last used inter predictor (Raster Order) */
   ogg_int16_t Last[3];	/* last value used for given frame */
-  ogg_int16_t TempInter = 0;
   
   int FragsAcross=cpi->pb.HFragments;	
   int FragsDown = cpi->pb.VFragments;
@@ -745,20 +740,14 @@ ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
 
   /* Encode and tokenise the Y, U and V components */
   coded_pixels = QuadCodeComponent(cpi, 0, cpi->pb.YSBRows, cpi->pb.YSBCols, 
-				   cpi->pb.HFragments%4, 
-				   cpi->pb.VFragments%4, 
 				   cpi->pb.Configuration.VideoFrameWidth );
   coded_pixels += QuadCodeComponent(cpi, cpi->pb.YSuperBlocks, 
 				    cpi->pb.UVSBRows, 
 				    cpi->pb.UVSBCols, 
-				    (cpi->pb.HFragments/2)%4, 
-				    (cpi->pb.VFragments/2)%4, 
 				    cpi->pb.Configuration.VideoFrameWidth>>1 );
   coded_pixels += QuadCodeComponent(cpi, 
 				    cpi->pb.YSuperBlocks+cpi->pb.UVSuperBlocks,
 				    cpi->pb.UVSBRows, cpi->pb.UVSBCols, 
-				    (cpi->pb.HFragments/2)%4, 
-				    (cpi->pb.VFragments/2)%4, 
 				    cpi->pb.Configuration.VideoFrameWidth>>1 );
     
   /* for y,u,v */
@@ -976,8 +965,7 @@ ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
   for ( i = 0; i < cpi->pb.CodedBlockIndex; i++ ) {
     /* Get the linear index for the current coded fragment. */
     FragIndex = cpi->pb.CodedBlockList[i];
-    coded_pixels += DPCMTokenizeBlock ( cpi, FragIndex, 
-					cpi->pb.Configuration.VideoFrameWidth);
+    coded_pixels += DPCMTokenizeBlock ( cpi, FragIndex);
     
   }
 
@@ -1025,38 +1013,9 @@ ogg_uint32_t EncodeData(CP_INSTANCE *cpi){
 
 }
 
-ogg_int32_t CalculateMotionErrorforFragments(CP_INSTANCE *cpi,     
-					     ogg_int32_t CountUsingMV,
-					     ogg_int32_t *FragsUsing,
-					     MOTION_VECTOR MVect,
-					     ogg_int32_t PixelsPerLine){
-  int i;
-  ogg_int32_t NewError = 0;
-  
-  /* for now 4 motion vector is to hard to recalculate so return huge
-     error!! */
-  if( cpi->pb.FragCodingMethod[0] == CODE_INTER_FOURMV)
-        return HUGE_ERROR;
-  
-  for(i = 0 ; i < CountUsingMV ; i++) {
-    ogg_int32_t FragIndex = FragsUsing[i];
-    ogg_int32_t ThisError = GetMBInterError( cpi, 
-					     cpi->ConvDestBuffer, 
-					     cpi->pb.LastFrameRecon, 
-					     FragIndex, MVect.x, 
-					     MVect.y, PixelsPerLine );
-        
-    NewError += ThisError;
-    
-  }
-
-  return NewError;
-
-}
-
-ogg_uint32_t PickIntra( CP_INSTANCE *cpi, ogg_uint32_t SBRows, 
-			ogg_uint32_t SBCols, ogg_uint32_t HExtra, 
-			ogg_uint32_t VExtra, ogg_uint32_t PixelsPerLine){
+ogg_uint32_t PickIntra( CP_INSTANCE *cpi, 
+			ogg_uint32_t SBRows, 
+			ogg_uint32_t SBCols){
 
   ogg_int32_t	FragIndex;  /* Fragment number */
   ogg_uint32_t	MB, B;	    /* Macro-Block, Block indices */
@@ -1108,14 +1067,14 @@ ogg_uint32_t PickIntra( CP_INSTANCE *cpi, ogg_uint32_t SBRows,
   return 0;
 }
 
-void AddMotionVector(CP_INSTANCE *cpi,     
+static void AddMotionVector(CP_INSTANCE *cpi,     
 		     MOTION_VECTOR *ThisMotionVector) {
   cpi->MVList[cpi->MvListCount].x = ThisMotionVector->x;
   cpi->MVList[cpi->MvListCount].y = ThisMotionVector->y;
   cpi->MvListCount++;
 }
 
-void SetFragMotionVectorAndMode(CP_INSTANCE *cpi,     
+static void SetFragMotionVectorAndMode(CP_INSTANCE *cpi,     
 				ogg_int32_t FragIndex,
 				MOTION_VECTOR *ThisMotionVector){
   /* Note the coding mode and vector for each block */
@@ -1124,7 +1083,7 @@ void SetFragMotionVectorAndMode(CP_INSTANCE *cpi,
   cpi->pb.FragCodingMethod[FragIndex] = cpi->MBCodingMode; 
 }
 
-void SetMBMotionVectorsAndMode(CP_INSTANCE *cpi,     
+static void SetMBMotionVectorsAndMode(CP_INSTANCE *cpi,     
 			       ogg_int32_t YFragIndex,
 			       ogg_int32_t UFragIndex,
 			       ogg_int32_t VFragIndex,
@@ -1141,7 +1100,6 @@ void SetMBMotionVectorsAndMode(CP_INSTANCE *cpi,
 
 ogg_uint32_t PickModes(CP_INSTANCE *cpi, 
 		       ogg_uint32_t SBRows, ogg_uint32_t SBCols, 
-		       ogg_uint32_t HExtra, ogg_uint32_t VExtra, 
 		       ogg_uint32_t PixelsPerLine, 
 		       ogg_uint32_t *InterError, ogg_uint32_t *IntraError) {
   ogg_int32_t	YFragIndex;

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: reconstruct.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: reconstruct.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,7 +19,7 @@
 #include "encoder_internal.h"
 
 
-void SatUnsigned8( unsigned char * ResultPtr, ogg_int16_t * DataBlock, 
+static void SatUnsigned8( unsigned char * ResultPtr, ogg_int16_t * DataBlock, 
 		   ogg_uint32_t ResultLineStep, ogg_uint32_t DataLineStep ) {
   int  i;
        

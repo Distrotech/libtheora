@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_encode.c,v 1.3 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: dct_encode.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,10 +19,10 @@
 
 static int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
 
-void Sub8 (unsigned char *FiltPtr, unsigned char *ReconPtr, 
-	   ogg_int16_t *DctInputPtr, unsigned char *old_ptr1, 
-	   unsigned char *new_ptr1, ogg_uint32_t PixelsPerLine, 
-	   ogg_uint32_t ReconPixelsPerLine ) {
+static void Sub8 (unsigned char *FiltPtr, unsigned char *ReconPtr, 
+		  ogg_int16_t *DctInputPtr, unsigned char *old_ptr1, 
+		  unsigned char *new_ptr1, ogg_uint32_t PixelsPerLine, 
+		  ogg_uint32_t ReconPixelsPerLine ) {
   int i;
   
   /* For each block row */
@@ -49,9 +49,9 @@ void Sub8 (unsigned char *FiltPtr, unsigned char *ReconPtr,
   }
 }
 
-void Sub8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr, 
-	       unsigned char *old_ptr1, unsigned char *new_ptr1, 
-               ogg_uint32_t PixelsPerLine ) {
+static void Sub8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr, 
+		      unsigned char *old_ptr1, unsigned char *new_ptr1, 
+		      ogg_uint32_t PixelsPerLine ) {
   int i;
   /* For each block row */
   for ( i=0; i<BLOCK_HEIGHT_WIDTH; i++ ){
@@ -80,10 +80,11 @@ void Sub8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr,
   }
 }
 
-void Sub8Av2 (unsigned char *FiltPtr, unsigned char *ReconPtr1, 
-	      unsigned char *ReconPtr2, ogg_int16_t *DctInputPtr, 
-	      unsigned char *old_ptr1, unsigned char *new_ptr1, 
-              ogg_uint32_t PixelsPerLine, ogg_uint32_t ReconPixelsPerLine ) {
+static void Sub8Av2 (unsigned char *FiltPtr, unsigned char *ReconPtr1, 
+		     unsigned char *ReconPtr2, ogg_int16_t *DctInputPtr, 
+		     unsigned char *old_ptr1, unsigned char *new_ptr1, 
+		     ogg_uint32_t PixelsPerLine, 
+		     ogg_uint32_t ReconPixelsPerLine ) {
   int i;
   
   /* For each block row */
@@ -119,8 +120,8 @@ void Sub8Av2 (unsigned char *FiltPtr, unsigned char *ReconPtr1,
   }
 }
 
-unsigned char TokenizeDctValue (ogg_int16_t DataValue, 
-				 ogg_uint32_t * TokenListPtr ){
+static unsigned char TokenizeDctValue (ogg_int16_t DataValue, 
+				       ogg_uint32_t * TokenListPtr ){
   unsigned char tokens_added = 0;
   ogg_uint32_t AbsDataVal = abs( (ogg_int32_t)DataValue );
   
@@ -209,9 +210,9 @@ unsigned char TokenizeDctValue (ogg_int16_t DataValue,
   return tokens_added;
 }
 
-unsigned char TokenizeDctRunValue (unsigned char RunLength, 
-				   ogg_int16_t DataValue, 
-				   ogg_uint32_t * TokenListPtr ){
+static unsigned char TokenizeDctRunValue (unsigned char RunLength, 
+					  ogg_int16_t DataValue, 
+					  ogg_uint32_t * TokenListPtr ){
   unsigned char tokens_added = 0;
   ogg_uint32_t AbsDataVal = abs( (ogg_int32_t)DataValue );
   
@@ -273,8 +274,8 @@ unsigned char TokenizeDctRunValue (unsigned char RunLength,
   return tokens_added;
 }
 
-unsigned char TokenizeDctBlock (ogg_int16_t * RawData, 
-				ogg_uint32_t * TokenListPtr ) {
+static unsigned char TokenizeDctBlock (ogg_int16_t * RawData, 
+				       ogg_uint32_t * TokenListPtr ) {
   ogg_uint32_t i;  
   unsigned char  run_count;    
   unsigned char  token_count = 0;     /* Number of tokens crated. */
@@ -341,11 +342,9 @@ unsigned char TokenizeDctBlock (ogg_int16_t * RawData,
   return token_count;
 }
 
-ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex, 
-				ogg_uint32_t PixelsPerLine ) {
+ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, 
+				ogg_int32_t FragIndex){
   ogg_uint32_t  token_count;
-  Q_LIST_ENTRY  TempLastDC = 0;
-  
   
   if ( GetFrameType(&cpi->pb) == BASE_FRAME ){
     /* Key frame so code block in INTRA mode. */
@@ -366,7 +365,7 @@ ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   return BLOCK_SIZE;
 }
 
-int AllZeroDctData( Q_LIST_ENTRY * QuantList ){
+static int AllZeroDctData( Q_LIST_ENTRY * QuantList ){
   ogg_uint32_t i;
 
   for ( i = 0; i < 64; i ++ )
@@ -376,7 +375,7 @@ int AllZeroDctData( Q_LIST_ENTRY * QuantList ){
   return 1;
 }
 
-void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr, 
+static void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr, 
 			    ogg_int16_t *DctInputPtr, ogg_int32_t MvDevisor, 
 			    unsigned char* old_ptr1, unsigned char* new_ptr1, 
 			    ogg_uint32_t FragIndex,ogg_uint32_t PixelsPerLine, 
@@ -384,7 +383,6 @@ void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr,
   
   ogg_int32_t MvShift;
   ogg_int32_t MvModMask; 
-  ogg_uint32_t ReconPixelIndex = cpi->pb.recon_pixel_index_table[FragIndex];
   ogg_int32_t  AbsRefOffset;
   ogg_int32_t  AbsXOffset;             
   ogg_int32_t  AbsYOffset;
@@ -471,13 +469,6 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   int LeftEdge;		      /* Flag if block at left edge of component */
   ogg_uint32_t  ReconPixelsPerLine; /* Line length for recon buffers. */
   
-  Q_LIST_ENTRY  TempLastDC = 0;
-  double  GF_Error = 0.0;
-  double  InterNMV_Error = 0.0;
-  double  IntraScore = 0.0;
-  double  BestInterError = 0.0;	/* Measure of the best error score
-				   available by application of a
-				   limited motion vector. */
   unsigned char   *ReconPtr1;   /* DCT reconstructed image pointers */
   ogg_int32_t   MvDevisor;      /* Defines MV resolution (2 = 1/2
                                    pixel for Y or 4 = 1/4 for UV) */

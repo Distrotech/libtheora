@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: decode.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: decode.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -22,26 +22,7 @@ int GetFrameType(PB_INSTANCE *pbi){
   return pbi->FrameType; 
 }
 
-int PbBuildBitmapHeader( PB_INSTANCE *pbi, 
-			 ogg_uint32_t ImageWidth, 
-			 ogg_uint32_t ImageHeight ){
-  if(!InitFrameDetails(pbi))return 0;
-  return 1;
-}
-
-int LoadFrame(PB_INSTANCE *pbi){ 
-  
-  /* Load the frame header (including the frame size). */
-  if ( LoadFrameHeader(pbi) ){
-    /* Read in the updated block map */
-    QuadDecodeDisplayFragments( pbi );
-    return 1;
-  }
-  
-  return 0;
-}
-
-int LoadFrameHeader(PB_INSTANCE *pbi){
+static int LoadFrameHeader(PB_INSTANCE *pbi){
   unsigned char  VersionByte0;    /* Must be 0 for VP30b and later */
   unsigned char  DctQMask;
   unsigned char  SpareBits;       /* Spare cfg bits */
@@ -97,5 +78,17 @@ void SetFrameType( PB_INSTANCE *pbi,unsigned char FrType ){
     pbi->FrameType = FrType;
     break;
   }
+}
+
+int LoadFrame(PB_INSTANCE *pbi){ 
+  
+  /* Load the frame header (including the frame size). */
+  if ( LoadFrameHeader(pbi) ){
+    /* Read in the updated block map */
+    QuadDecodeDisplayFragments( pbi );
+    return 1;
+  }
+  
+  return 0;
 }
 

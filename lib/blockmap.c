@@ -11,15 +11,17 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: blockmap.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: blockmap.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
+#include "encoder_internal.h"
 
-void CreateMapping ( ogg_int32_t (*BlockMap)[4][4], ogg_uint32_t FirstSB, 
-		     ogg_uint32_t FirstFrag, ogg_uint32_t HFrags, 
-		     ogg_uint32_t VFrags ){
+static void CreateMapping ( ogg_int32_t (*BlockMap)[4][4], 
+			    ogg_uint32_t FirstSB, 
+			    ogg_uint32_t FirstFrag, ogg_uint32_t HFrags, 
+			    ogg_uint32_t VFrags ){
   ogg_uint32_t i, j;
   ogg_uint32_t xpos;
   ogg_uint32_t ypos;

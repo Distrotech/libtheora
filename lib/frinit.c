@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: frinit.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: frinit.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -20,7 +20,53 @@
 #include "encoder_internal.h"
 
 
-void CalcPixelIndexTable( PB_INSTANCE *pbi){
+void InitializeFragCoordinates(PB_INSTANCE *pbi){
+
+  ogg_uint32_t i, j;
+  
+  ogg_uint32_t HorizFrags = pbi->HFragments;
+  ogg_uint32_t VertFrags = pbi->VFragments;
+  ogg_uint32_t StartFrag = 0;
+  
+  /* Y */
+    
+  for(i = 0; i< VertFrags; i++){
+    for(j = 0; j< HorizFrags; j++){
+            
+      ogg_uint32_t ThisFrag = i * HorizFrags + j;
+      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
+      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
+      
+    }
+  }
+  
+  /* U */
+  HorizFrags >>= 1;
+  VertFrags >>= 1;
+  StartFrag = pbi->YPlaneFragments;
+
+  for(i = 0; i< VertFrags; i++) {
+    for(j = 0; j< HorizFrags; j++) {
+      ogg_uint32_t ThisFrag = StartFrag + i * HorizFrags + j;
+      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
+      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
+      
+    }
+  }
+  
+  /* V */
+  StartFrag = pbi->YPlaneFragments + pbi->UVPlaneFragments;
+  for(i = 0; i< VertFrags; i++) {
+    for(j = 0; j< HorizFrags; j++) {
+      ogg_uint32_t ThisFrag = StartFrag + i * HorizFrags + j;
+      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
+      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
+      
+    }
+  }
+}
+
+static void CalcPixelIndexTable( PB_INSTANCE *pbi){
   ogg_uint32_t i;
   ogg_uint32_t * PixelIndexTablePtr;
   
@@ -274,52 +320,6 @@ void InitFrameInfo(PB_INSTANCE * pbi, unsigned int FrameSize){
   
 }
 
-void InitializeFragCoordinates(PB_INSTANCE *pbi){
-
-  ogg_uint32_t i, j;
-  
-  ogg_uint32_t HorizFrags = pbi->HFragments;
-  ogg_uint32_t VertFrags = pbi->VFragments;
-  ogg_uint32_t StartFrag = 0;
-  
-  /* Y */
-    
-  for(i = 0; i< VertFrags; i++){
-    for(j = 0; j< HorizFrags; j++){
-            
-      ogg_uint32_t ThisFrag = i * HorizFrags + j;
-      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
-      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
-      
-    }
-  }
-  
-  /* U */
-  HorizFrags >>= 1;
-  VertFrags >>= 1;
-  StartFrag = pbi->YPlaneFragments;
-
-  for(i = 0; i< VertFrags; i++) {
-    for(j = 0; j< HorizFrags; j++) {
-      ogg_uint32_t ThisFrag = StartFrag + i * HorizFrags + j;
-      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
-      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
-      
-    }
-  }
-  
-  /* V */
-  StartFrag = pbi->YPlaneFragments + pbi->UVPlaneFragments;
-  for(i = 0; i< VertFrags; i++) {
-    for(j = 0; j< HorizFrags; j++) {
-      ogg_uint32_t ThisFrag = StartFrag + i * HorizFrags + j;
-      pbi->FragCoordinates[ ThisFrag ].x=j * BLOCK_HEIGHT_WIDTH;
-      pbi->FragCoordinates[ ThisFrag ].y=i * BLOCK_HEIGHT_WIDTH;            
-      
-    }
-  }
-}
-
 void InitFrameDetails(PB_INSTANCE *pbi){
   int FrameSize;
   
@@ -392,9 +392,4 @@ void InitFrameDetails(PB_INSTANCE *pbi){
   CalcPixelIndexTable( pbi );
 
 }
-
-void InitialiseConfiguration(PB_INSTANCE *pbi){  
-    pbi->Configuration.HFragPixels = 8;
-    pbi->Configuration.VFragPixels = 8;
-} 
 

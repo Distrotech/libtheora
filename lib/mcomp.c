@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: mcomp.c,v 1.3 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: mcomp.c,v 1.4 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -96,7 +96,7 @@ void InitMotionCompensation ( CP_INSTANCE *cpi ){
     cpi->MVPixelOffsetY[i] = (cpi->MVOffsetY[i]*LineStepY) + cpi->MVOffsetX[i];
 }
 
-ogg_uint32_t GetInterErr (unsigned char * NewDataPtr, 
+static ogg_uint32_t GetInterErr (unsigned char * NewDataPtr, 
 			  unsigned char * RefDataPtr1,  
 			  unsigned char * RefDataPtr2, 
 			  ogg_uint32_t PixelsPerLine ) {
@@ -204,11 +204,10 @@ ogg_uint32_t GetInterErr (unsigned char * NewDataPtr,
   return (( (XXSum<<6) - XSum*XSum ));
 }
 
-ogg_uint32_t GetSumAbsDiffs  (unsigned char * NewDataPtr, 
+static ogg_uint32_t GetSumAbsDiffs  (unsigned char * NewDataPtr, 
 			      unsigned char  * RefDataPtr, 
 			      ogg_uint32_t PixelsPerLine, 
-			      ogg_uint32_t ErrorSoFar, 
-			      ogg_uint32_t BestSoFar ) {
+			      ogg_uint32_t ErrorSoFar) {
   ogg_uint32_t	i;
   ogg_uint32_t	DiffVal = ErrorSoFar;
   
@@ -231,7 +230,7 @@ ogg_uint32_t GetSumAbsDiffs  (unsigned char * NewDataPtr,
   return DiffVal;  
 }
 
-ogg_uint32_t GetNextSumAbsDiffs (unsigned char * NewDataPtr, 
+static ogg_uint32_t GetNextSumAbsDiffs (unsigned char * NewDataPtr, 
 				 unsigned char * RefDataPtr, 
 				 ogg_uint32_t PixelsPerLine, 
 				 ogg_uint32_t ErrorSoFar, 
@@ -259,7 +258,7 @@ ogg_uint32_t GetNextSumAbsDiffs (unsigned char * NewDataPtr,
   return DiffVal;  
 }
 
-ogg_uint32_t GetHalfPixelSumAbsDiffs (unsigned char * SrcData, 
+static ogg_uint32_t GetHalfPixelSumAbsDiffs (unsigned char * SrcData, 
 				      unsigned char * RefDataPtr1, 
 				      unsigned char * RefDataPtr2, 
 				      ogg_uint32_t PixelsPerLine, 
@@ -274,7 +273,7 @@ ogg_uint32_t GetHalfPixelSumAbsDiffs (unsigned char * SrcData,
   if ( RefOffset == 0 ) {
     /* Simple case as for non 0.5 pixel */
     DiffVal += GetSumAbsDiffs( SrcData, RefDataPtr1, PixelsPerLine, 
-			       ErrorSoFar, BestSoFar );
+			       ErrorSoFar);
   } else  {
     for ( i=0; i < BLOCK_HEIGHT_WIDTH; i++ ) {
       DiffVal += abs( ((int)SrcData[0]) - (((int)RefDataPtr1[0] + 
@@ -306,7 +305,7 @@ ogg_uint32_t GetHalfPixelSumAbsDiffs (unsigned char * SrcData,
   return DiffVal;  
 }
 
-ogg_uint32_t GetIntraError (unsigned char * DataPtr, 
+static ogg_uint32_t GetIntraError (unsigned char * DataPtr, 
 			    ogg_uint32_t PixelsPerLine ) {
   ogg_uint32_t	i;
   ogg_uint32_t	XSum=0;
@@ -348,7 +347,6 @@ ogg_uint32_t GetMBIntraError (CP_INSTANCE *cpi, ogg_uint32_t FragIndex,
 			      ogg_uint32_t PixelsPerLine ) {
   ogg_uint32_t	LocalFragIndex = FragIndex;
   ogg_uint32_t  IntraError = 0;
-  ogg_uint32_t  TmpError = 0;
   
   /* Add together the intra errors for those blocks in the macro block
      that are coded (Y only) */
@@ -383,9 +381,12 @@ ogg_uint32_t GetMBIntraError (CP_INSTANCE *cpi, ogg_uint32_t FragIndex,
   return IntraError;
 }
 
-ogg_uint32_t GetMBInterError (CP_INSTANCE *cpi, unsigned char * SrcPtr, 
-			      unsigned char * RefPtr, ogg_uint32_t FragIndex, 
-			      ogg_int32_t LastXMV, ogg_int32_t LastYMV, 
+ogg_uint32_t GetMBInterError (CP_INSTANCE *cpi, 
+			      unsigned char * SrcPtr, 
+			      unsigned char * RefPtr, 
+			      ogg_uint32_t FragIndex, 
+			      ogg_int32_t LastXMV, 
+			      ogg_int32_t LastYMV, 
 			      ogg_uint32_t PixelsPerLine ) {
   ogg_uint32_t  RefPixelsPerLine = cpi->pb.Configuration.YStride;
   ogg_uint32_t	LocalFragIndex = FragIndex;
@@ -394,7 +395,6 @@ ogg_uint32_t GetMBInterError (CP_INSTANCE *cpi, unsigned char * SrcPtr,
   ogg_int32_t   RefPixelOffset;
   ogg_int32_t   RefPtr2Offset;
   
-  ogg_uint32_t  TmpError = 0;
   ogg_uint32_t  InterError = 0;
   
   unsigned char * SrcPtr1;
@@ -519,19 +519,19 @@ ogg_uint32_t GetMBMVInterError (CP_INSTANCE *cpi,
   /* Check the 0,0 candidate. */
   if ( MBlockDispFrags[0] ) {
     Error = GetSumAbsDiffs( SrcPtr[0], RefPtr, 
-			 PixelsPerLine, Error, HUGE_ERROR );
+			 PixelsPerLine, Error);
   }
   if ( MBlockDispFrags[1] ) {
     Error = GetSumAbsDiffs( SrcPtr[1], RefPtr + 8, 
-			 PixelsPerLine, Error, HUGE_ERROR );         
+			 PixelsPerLine, Error);         
   }
   if ( MBlockDispFrags[2] ) {
     Error = GetSumAbsDiffs( SrcPtr[2], RefPtr + RefRow2Offset, 
-			 PixelsPerLine, Error, HUGE_ERROR );        
+			 PixelsPerLine, Error);        
   }
   if ( MBlockDispFrags[3] ) {
     Error = GetSumAbsDiffs( SrcPtr[3], RefPtr + RefRow2Offset + 8, 
-			 PixelsPerLine, Error, HUGE_ERROR );
+			 PixelsPerLine, Error);
   }
   
   /* Set starting values to results of 0, 0 vector. */
@@ -555,7 +555,7 @@ ogg_uint32_t GetMBMVInterError (CP_INSTANCE *cpi,
       /* Get the score for the current offset */
       if ( MBlockDispFrags[0] ) {
 	Error = GetSumAbsDiffs( SrcPtr[0], CandidateBlockPtr, 
-			     PixelsPerLine, Error, MinError );
+			     PixelsPerLine, Error);
       }
 
       if ( MBlockDispFrags[1] && (Error < MinError) ) {
@@ -718,19 +718,19 @@ ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi,
       /* Summ errors for each block. */
       if ( MBlockDispFrags[0] ) {
 	Error = GetSumAbsDiffs( SrcPtr[0], CandidateBlockPtr, 
-			     PixelsPerLine, Error, HUGE_ERROR );
+			     PixelsPerLine, Error);
       }
       if ( MBlockDispFrags[1] ){
 	Error = GetSumAbsDiffs( SrcPtr[1], CandidateBlockPtr + 8, 
-			     PixelsPerLine, Error, HUGE_ERROR );         
+			     PixelsPerLine, Error);         
       }
       if ( MBlockDispFrags[2] ){
 	Error = GetSumAbsDiffs( SrcPtr[2], CandidateBlockPtr + RefRow2Offset, 
-			     PixelsPerLine, Error, HUGE_ERROR );        
+			     PixelsPerLine, Error);        
       }
       if ( MBlockDispFrags[3] ){
 	Error = GetSumAbsDiffs( SrcPtr[3], CandidateBlockPtr + RefRow2Offset + 8, 
-			     PixelsPerLine, Error, HUGE_ERROR );
+			     PixelsPerLine, Error);
       }
       
       /* Was this the best so far */
@@ -812,11 +812,11 @@ ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi,
   return InterMVError;
 }
 
-ogg_uint32_t GetBMVExhaustiveSearch (CP_INSTANCE *cpi, 
-				     unsigned char * RefFramePtr, 
-				     ogg_uint32_t FragIndex, 
-				     ogg_uint32_t PixelsPerLine, 
-				     MOTION_VECTOR *MV ) {
+static ogg_uint32_t GetBMVExhaustiveSearch (CP_INSTANCE *cpi, 
+					    unsigned char * RefFramePtr, 
+					    ogg_uint32_t FragIndex, 
+					    ogg_uint32_t PixelsPerLine, 
+					    MOTION_VECTOR *MV ) {
   ogg_uint32_t	Error = 0;
   ogg_uint32_t	MinError = HUGE_ERROR;
   ogg_uint32_t  InterMVError = 0;
@@ -851,7 +851,7 @@ ogg_uint32_t GetBMVExhaustiveSearch (CP_INSTANCE *cpi,
     for ( j = 0; j < (ogg_int32_t)MAX_MV_EXTENT; j++ ){
       /* Get the block error score. */
       Error = GetSumAbsDiffs( SrcPtr, CandidateBlockPtr, 
-			   PixelsPerLine, 0, HUGE_ERROR );
+			   PixelsPerLine, 0);
       
       /* Was this the best so far */
       if ( Error < MinError ) {

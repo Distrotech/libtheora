@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -685,8 +685,135 @@ typedef struct{
 /*#define clamp255(x) (((ogg_int32_t)(x)&~0xff)?((ogg_int32_t)(x))>>31:(x))*/
 #define clamp255(val)  ( val<0 ? 0: ( val>255 ? 255:val ) )
 
+extern void ConfigurePP( PP_INSTANCE *ppi, int Level ) ;
+extern ogg_uint32_t YUVAnalyseFrame( PP_INSTANCE *ppi, 
+				     ogg_uint32_t * KFIndicator );
+
 extern void ClearPPInstance(PP_INSTANCE *ppi);
 extern void InitPPInstance(PP_INSTANCE *ppi);
 extern int GetFrameType(PB_INSTANCE *pbi);
+
+
+extern void IDctSlow(  Q_LIST_ENTRY * InputData, 
+		       ogg_int16_t *QuantMatrix, 
+		       ogg_int16_t * OutputData ) ;
+
+extern void IDct10( Q_LIST_ENTRY * InputData, 
+		    ogg_int16_t *QuantMatrix, 
+		    ogg_int16_t * OutputData );
+
+extern void IDct1( Q_LIST_ENTRY * InputData, 
+		   ogg_int16_t *QuantMatrix, 
+		   ogg_int16_t * OutputData );
+
+extern void ReconIntra( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
+			ogg_uint16_t * ChangePtr, ogg_uint32_t LineStep );
+
+extern void ReconInter( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
+			unsigned char * RefPtr, ogg_int16_t * ChangePtr, 
+			ogg_uint32_t LineStep ) ;
+
+extern void ReconInterHalfPixel2( PB_INSTANCE *pbi, unsigned char * ReconPtr, 
+				  unsigned char * RefPtr1, 
+				  unsigned char * RefPtr2, 
+				  ogg_int16_t * ChangePtr, 
+				  ogg_uint32_t LineStep ) ;
+
+extern void SetupLoopFilter(PB_INSTANCE *pbi);
+extern void CopyBlock(unsigned char *src, 
+		      unsigned char *dest, 
+		      unsigned int srcstride);
+extern void LoopFilter(PB_INSTANCE *pbi);
+extern void ReconRefFrames (PB_INSTANCE *pbi);
+extern void ExpandToken( Q_LIST_ENTRY * ExpandedBlock, 
+			 unsigned char * CoeffIndex, ogg_uint32_t Token, 
+			 ogg_int32_t ExtraBits );
+extern void ClearDownQFragData(PB_INSTANCE *pbi);
+extern void select_Y_quantiser ( PB_INSTANCE *pbi );
+extern void select_Inter_quantiser ( PB_INSTANCE *pbi );
+extern void select_UV_quantiser ( PB_INSTANCE *pbi );
+extern void select_InterUV_quantiser ( PB_INSTANCE *pbi );
+extern void quantize( PB_INSTANCE *pbi, 
+		      ogg_int16_t * DCT_block, 
+		      Q_LIST_ENTRY * quantized_list);
+extern void UpdateQ( PB_INSTANCE *pbi, ogg_uint32_t NewQ );
+extern void UpdateQC( CP_INSTANCE *cpi, ogg_uint32_t NewQ );
+extern void fdct_short ( ogg_int16_t * InputData, ogg_int16_t * OutputData );
+extern ogg_uint32_t DPCMTokenizeBlock (CP_INSTANCE *cpi, 
+				       ogg_int32_t FragIndex);
+extern void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex, 
+				    ogg_uint32_t PixelsPerLine ) ;
+extern void ClearFragmentInfo(PB_INSTANCE * pbi);
+extern void InitFragmentInfo(PB_INSTANCE * pbi);
+extern void ClearFrameInfo(PB_INSTANCE * pbi);
+extern void InitFrameInfo(PB_INSTANCE * pbi, unsigned int FrameSize);
+extern void InitializeFragCoordinates(PB_INSTANCE *pbi);
+extern void InitFrameDetails(PB_INSTANCE *pbi);
+extern void InitQTables( PB_INSTANCE *pbi );
+extern void InitHuffmanSet( PB_INSTANCE *pbi );
+extern void ClearHuffmanSet( PB_INSTANCE *pbi );
+extern void QuadDecodeDisplayFragments ( PB_INSTANCE *pbi );
+extern void PackAndWriteDFArray( CP_INSTANCE *cpi );
+extern void UpdateFragQIndex(PB_INSTANCE *pbi);
+extern void PostProcess(PB_INSTANCE *pbi);
+extern void InitMotionCompensation ( CP_INSTANCE *cpi );
+extern ogg_uint32_t GetMBIntraError (CP_INSTANCE *cpi, ogg_uint32_t FragIndex, 
+				     ogg_uint32_t PixelsPerLine ) ;
+extern ogg_uint32_t GetMBInterError (CP_INSTANCE *cpi, 
+				     unsigned char * SrcPtr, 
+				     unsigned char * RefPtr, 
+				     ogg_uint32_t FragIndex, 
+				     ogg_int32_t LastXMV, 
+				     ogg_int32_t LastYMV, 
+				     ogg_uint32_t PixelsPerLine ) ;
+extern void WriteFrameHeader( CP_INSTANCE *cpi) ;
+extern ogg_uint32_t GetMBMVInterError (CP_INSTANCE *cpi, 
+				       unsigned char * RefFramePtr, 
+				       ogg_uint32_t FragIndex, 
+				       ogg_uint32_t PixelsPerLine, 
+				       ogg_int32_t *MVPixelOffset, 
+				       MOTION_VECTOR *MV );
+extern ogg_uint32_t GetMBMVExhaustiveSearch (CP_INSTANCE *cpi, 
+					     unsigned char * RefFramePtr, 
+					     ogg_uint32_t FragIndex, 
+					     ogg_uint32_t PixelsPerLine, 
+					     MOTION_VECTOR *MV );
+extern ogg_uint32_t GetFOURMVExhaustiveSearch (CP_INSTANCE *cpi, 
+					       unsigned char * RefFramePtr, 
+					       ogg_uint32_t FragIndex, 
+					       ogg_uint32_t PixelsPerLine, 
+					       MOTION_VECTOR *MV ) ;
+extern ogg_uint32_t EncodeData(CP_INSTANCE *cpi);
+extern ogg_uint32_t PickIntra( CP_INSTANCE *cpi, 
+			       ogg_uint32_t SBRows, 
+			       ogg_uint32_t SBCols);
+extern ogg_uint32_t PickModes(CP_INSTANCE *cpi, 
+			      ogg_uint32_t SBRows, 
+			      ogg_uint32_t SBCols, 
+			      ogg_uint32_t PixelsPerLine, 
+			      ogg_uint32_t *InterError, 
+			      ogg_uint32_t *IntraError) ;
+
+extern CODING_MODE FrArrayUnpackMode(PB_INSTANCE *pbi);
+extern void CreateBlockMapping ( ogg_int32_t  (*BlockMap)[4][4], 
+				 ogg_uint32_t YSuperBlocks, 
+				 ogg_uint32_t UVSuperBlocks, 
+				 ogg_uint32_t HFrags, ogg_uint32_t VFrags );
+extern void UpRegulateDataStream (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
+				  ogg_int32_t RecoveryBlocks ) ;
+extern void RegulateQ( CP_INSTANCE *cpi, ogg_int32_t UpdateScore );
+extern void ConfigureQuality( CP_INSTANCE *cpi, ogg_uint32_t QualityValue ) ;
+extern void CopyBackExtraFrags(CP_INSTANCE *cpi);
+extern void UpdateUMVBorder( PB_INSTANCE *pbi, 
+			     unsigned char * DestReconPtr );
+extern void PInitFrameInfo(PP_INSTANCE * ppi);
+extern int GetFrameType(PB_INSTANCE *pbi);
+extern void SetFrameType( PB_INSTANCE *pbi,unsigned char FrType );
+extern int LoadFrame(PB_INSTANCE *pbi);
+extern double GetEstimatedBpb( CP_INSTANCE *cpi, ogg_uint32_t TargetQ );
+extern void ClearTmpBuffers(PB_INSTANCE * pbi);
+extern void InitTmpBuffers(PB_INSTANCE * pbi);
+extern void ScanYUVInit( PP_INSTANCE *  ppi, 
+			 SCAN_CONFIG_DATA * ScanConfigPtr);
 
 

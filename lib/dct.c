@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct.c,v 1.1 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: dct.c,v 1.2 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -25,13 +25,6 @@ static ogg_int32_t xC4S4 = 46341;
 static ogg_int32_t xC5S3 = 36410;
 static ogg_int32_t xC6S2 = 25080;
 static ogg_int32_t xC7S1 = 12785;
-
-static ogg_int32_t xSUM17=77062;
-static ogg_int32_t xDIF17=51492;
-static ogg_int32_t xSUM35=90901;
-static ogg_int32_t xDIF35=18081;
-static ogg_int32_t xSUM26=85637;
-static ogg_int32_t xDIF26=35467;
 
 #define SIGNBITDUPPED(X) ((signed )(((X) & 0x80000000)) >> 31)
 #define DOROUND(X) ( (SIGNBITDUPPED(X) & (0xffff)) + (X) )

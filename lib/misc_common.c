@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: misc_common.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: misc_common.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -71,7 +71,7 @@ double GetEstimatedBpb( CP_INSTANCE *cpi, ogg_uint32_t TargetQ ){
   return BytesPerBlock;
 }
 
-void UpRegulateMB( CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
+static void UpRegulateMB( CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
 		   ogg_uint32_t SB, ogg_uint32_t MB, int NoCheck ) {
   ogg_int32_t  FragIndex;
   ogg_uint32_t B; 
@@ -125,7 +125,7 @@ void UpRegulateMB( CP_INSTANCE *cpi, ogg_uint32_t RegulationQ,
   }
 }
 
-void UpRegulateBlocks (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
+static void UpRegulateBlocks (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ, 
 		       ogg_int32_t RecoveryBlocks, 
 		       ogg_uint32_t * LastSB, ogg_uint32_t * LastMB ) {
 
@@ -177,8 +177,6 @@ void UpRegulateDataStream (CP_INSTANCE *cpi, ogg_uint32_t RegulationQ,
 			   ogg_int32_t RecoveryBlocks ) {  
   ogg_uint32_t LastPassMBPos = 0;
   ogg_uint32_t StdLastMBPos = 0;
-  ogg_uint32_t i = 0;   
-  ogg_uint32_t LoopTimesRound = 0;
   
   ogg_uint32_t MaxSB = cpi->pb.YSBRows * 
     cpi->pb.YSBCols;    /* Tot super blocks in image */

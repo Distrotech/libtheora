@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: idct.c,v 1.2 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: idct.c,v 1.3 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -28,7 +28,7 @@
 #define xC6S2 25080
 #define xC7S1 12785
 
-void dequant_slow( ogg_int16_t * dequant_coeffs, 
+static void dequant_slow( ogg_int16_t * dequant_coeffs, 
 		   ogg_int16_t * quantized_list, 
 		   ogg_int32_t * DCT_block) {
   int i;
@@ -244,18 +244,18 @@ void IDctSlow(  Q_LIST_ENTRY * InputData,
   }
 }
 
-/*////////////////////////
-// x  x  x  x  0  0  0  0 
-// x  x  x  0  0  0  0  0
-// x  x  0  0  0  0  0  0
-// x  0  0  0  0  0  0  0 
-// 0  0  0  0  0  0  0  0
-// 0  0  0  0  0  0  0  0
-// 0  0  0  0  0  0  0  0
-// 0  0  0  0  0  0  0  0
-////////////////////////*/
+/************************
+  x  x  x  x  0  0  0  0 
+  x  x  x  0  0  0  0  0
+  x  x  0  0  0  0  0  0
+  x  0  0  0  0  0  0  0 
+  0  0  0  0  0  0  0  0
+  0  0  0  0  0  0  0  0
+  0  0  0  0  0  0  0  0
+  0  0  0  0  0  0  0  0
+*************************/
 
-void dequant_slow10( ogg_int16_t * dequant_coeffs, 
+static void dequant_slow10( ogg_int16_t * dequant_coeffs, 
 		     ogg_int16_t * quantized_list, 
 		     ogg_int32_t * DCT_block){
   int i;
@@ -446,16 +446,16 @@ void IDct10( Q_LIST_ENTRY * InputData,
   }
 }
 
-/*//////////////////////////
-// x   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-// 0   0   0  0  0  0  0  0	
-/////////////////////////*/
+/***************************
+  x   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+  0   0   0  0  0  0  0  0	
+**************************/
 
 void IDct1( Q_LIST_ENTRY * InputData, 
 	    ogg_int16_t *QuantMatrix, 

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.2 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: huffman.c,v 1.3 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -20,8 +20,8 @@
 #include "encoder_internal.h"
 #include "hufftables.h"
 
-void CreateHuffmanList(HUFF_ENTRY ** HuffRoot, 
-		       ogg_uint32_t HIndex, ogg_uint32_t *FreqList ) {
+static void CreateHuffmanList(HUFF_ENTRY ** HuffRoot, 
+			      ogg_uint32_t HIndex, ogg_uint32_t *FreqList ) {
   int i;
   HUFF_ENTRY *entry_ptr;
   HUFF_ENTRY *search_ptr;
@@ -78,7 +78,7 @@ void CreateHuffmanList(HUFF_ENTRY ** HuffRoot,
   }
 }
 
-void CreateCodeArray( HUFF_ENTRY * HuffRoot, 
+static void CreateCodeArray( HUFF_ENTRY * HuffRoot, 
 		      ogg_uint32_t *HuffCodeArray, 
 		      unsigned char *HuffCodeLengthArray, 
 		      ogg_uint32_t CodeValue, 
@@ -97,7 +97,7 @@ void CreateCodeArray( HUFF_ENTRY * HuffRoot,
   }
 }
 
-void  BuildHuffmanTree( HUFF_ENTRY **HuffRoot, 
+static void  BuildHuffmanTree( HUFF_ENTRY **HuffRoot, 
 			ogg_uint32_t *HuffCodeArray, 
 			unsigned char *HuffCodeLengthArray, 
 			ogg_uint32_t HIndex, 
@@ -174,7 +174,7 @@ void  BuildHuffmanTree( HUFF_ENTRY **HuffRoot,
 		   HuffCodeLengthArray, 0, 0);
 }
 
-void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
+static void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
   if (root_ptr){
     if ( root_ptr->ZeroChild )
       DestroyHuffTree(root_ptr->ZeroChild);
@@ -188,8 +188,6 @@ void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
 
 void ClearHuffmanSet( PB_INSTANCE *pbi ){    
   int i;
-  
-  HUFF_ENTRY **HuffRoot = pbi->HuffRoot_VP3x ;
   
   for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
     if (pbi->HuffRoot_VP3x[i]) DestroyHuffTree(pbi->HuffRoot_VP3x[i]);

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.5 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -298,17 +298,8 @@ static void AdjustKeyFrameContext(CP_INSTANCE *cpi) {
 }
 
 void UpdateFrame(CP_INSTANCE *cpi){
-  ogg_int32_t AvKeyFrameFrequency = 
-    (ogg_int32_t) (cpi->CurrentFrame / cpi->KeyFrameCount);  
-  ogg_int32_t AvKeyFrameBytes = 
-    (ogg_int32_t) (cpi->TotKeyFrameBytes / cpi->KeyFrameCount);
-  ogg_int32_t TotalWeight = 0;
   
   double CorrectionFactor;
-  ogg_uint32_t  fragment_count = 0;                               
-  
-  ogg_uint32_t diff_tokens = 0;                  
-  ogg_uint32_t  bits_per_token = 0;
   
   /* Reset the DC predictors. */
   cpi->pb.LastIntraDC = 0;
@@ -476,9 +467,8 @@ static void CompressFirstFrame(CP_INSTANCE *cpi) {
     cpi->FragmentLastQ[i] = cpi->pb.ThisFrameQualityValue;
 
   /* Compress and output the frist frame. */
-  PickIntra( cpi, cpi->pb.YSBRows, cpi->pb.YSBCols, 
-	     cpi->pb.HFragments%4, cpi->pb.VFragments%4, 
-	     cpi->pb.Configuration.VideoFrameWidth);
+  PickIntra( cpi,
+	     cpi->pb.YSBRows, cpi->pb.YSBCols);
   UpdateFrame(cpi);  
   
   /* Initialise the carry over rate targeting variables. */
@@ -489,12 +479,6 @@ static void CompressFirstFrame(CP_INSTANCE *cpi) {
 static void CompressKeyFrame(CP_INSTANCE *cpi){                  
   ogg_uint32_t  i;   
   
-  /*  Average key frame frequency and size */
-  ogg_int32_t AvKeyFrameFrequency = 
-    (ogg_int32_t) (cpi->CurrentFrame / cpi->KeyFrameCount);  
-  ogg_int32_t AvKeyFrameBytes = 
-    (ogg_int32_t) (cpi->TotKeyFrameBytes / cpi->KeyFrameCount);
-
   /* Before we compress reset the carry over to the actual frame carry over */
   cpi->CarryOver = cpi->Configuration.TargetBandwidth * cpi->CurrentFrame  / 
     cpi->Configuration.OutputFrameRate - cpi->TotalByteCount;
@@ -533,14 +517,13 @@ static void CompressKeyFrame(CP_INSTANCE *cpi){
   
   
   /* Compress and output the frist frame. */
-  PickIntra( cpi, cpi->pb.YSBRows, cpi->pb.YSBCols, 
-	     cpi->pb.HFragments%4, cpi->pb.VFragments%4, 
-	     cpi->pb.Configuration.VideoFrameWidth);
+  PickIntra( cpi,
+	     cpi->pb.YSBRows, cpi->pb.YSBCols);
   UpdateFrame(cpi);  
   
 }
 
-static void CompressFrame( CP_INSTANCE *cpi, ogg_uint32_t FrameNumber ) {
+static void CompressFrame( CP_INSTANCE *cpi) {
   ogg_int32_t min_blocks_per_frame;
   ogg_uint32_t	i; 
   int DropFrame = 0;
@@ -730,8 +713,8 @@ static void CompressFrame( CP_INSTANCE *cpi, ogg_uint32_t FrameNumber ) {
 
     /* Select modes and motion vectors for each of the blocks : return
        an error score for inter and intra */
-    PickModes( cpi, cpi->pb.YSBRows, cpi->pb.YSBCols, cpi->pb.HFragments%4, 
-	       cpi->pb.VFragments%4, cpi->pb.Configuration.VideoFrameWidth, 
+    PickModes( cpi, cpi->pb.YSBRows, cpi->pb.YSBCols, 
+	       cpi->pb.Configuration.VideoFrameWidth, 
 	       &InterError, &IntraError );
 
     /* decide whether we really should have made this frame a key frame */
@@ -1010,7 +993,7 @@ int theora_encode_YUVin( CP_INSTANCE *cpi,
     cpi->ThisIsKeyFrame = 0;
   } else  {
     /* Compress the frame. */
-    CompressFrame( cpi, (unsigned int) cpi->CurrentFrame );
+    CompressFrame( cpi );
   }
 
   /* Update stats variables. */

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: scan.c,v 1.2 2002/09/20 09:45:02 xiphmont Exp $
+  last mod: $Id: scan.c,v 1.3 2002/09/20 22:01:43 xiphmont Exp $
 
  ********************************************************************/
 
@@ -356,7 +356,6 @@ static void CreateOutputDisplayMap( PP_INSTANCE *ppi,
 				    unsigned char *ExternalFragmentsPtr ) { 
   ogg_uint32_t i;
   ogg_uint32_t HistoryBlocksAdded = 0;
-  ogg_uint32_t KFScore = 0;
   ogg_uint32_t YBand =  (ppi->ScanYPlaneFragments/8);   /* 1/8th of Y image. */
   
   ppi->OutputBlocksUpdated = 0;
@@ -1016,7 +1015,6 @@ static void RowChangedLocalsScan( PP_INSTANCE *ppi,
 				  unsigned char   RowType ){
 
   unsigned char changed_locals = 0; 
-  unsigned char Score = 0;    
   unsigned char * PixelsChangedPtr0;
   unsigned char * PixelsChangedPtr1;
   unsigned char * PixelsChangedPtr2;
@@ -1790,16 +1788,10 @@ static void RowCopy( PP_INSTANCE *ppi, ogg_uint32_t BlockMapIndex ){
 }
 
 static void RowBarEnhBlockMap( PP_INSTANCE *ppi, 
-			       ogg_uint32_t * FragScorePtr, 
-			       signed char   * FragSgcPtr,
 			       signed char   * UpdatedBlockMapPtr,
 			       signed char   * BarBlockMapPtr,
 			       ogg_uint32_t RowNumber ){
-  /* For boundary blocks relax thresholds */
-  ogg_uint32_t BarBlockThresh = ppi->BlockThreshold / 10;
-  ogg_uint32_t BarSGCThresh = ppi->BlockSgcThresh / 2;
-  
-  ogg_int32_t i;
+  int i;
   
   /* Start by blanking the row in the bar block map structure. */
   memset( BarBlockMapPtr, BLOCK_NOT_CODED, ppi->PlaneHFragments );
@@ -2270,8 +2262,7 @@ static void AnalysePlane( PP_INSTANCE *ppi,
     /* BAR algorithm */
     if ( (RowNumber3 >= 0) && (RowNumber3 < ppi->PlaneVFragments) ){
       ScoreFragIndex3 = (RowNumber3 * ppi->PlaneHFragments) + FragArrayOffset;
-      RowBarEnhBlockMap(ppi,  &ppi->FragScores[ScoreFragIndex3], 
-			&ppi->SameGreyDirPixels[ScoreFragIndex3],
+      RowBarEnhBlockMap(ppi,
 			&ppi->ScanDisplayFragments[ScoreFragIndex3],
 			&ppi->BarBlockMap[(RowNumber3 % 3) * 
 					 ppi->PlaneHFragments],
@@ -2295,9 +2286,7 @@ static void AnalysePlane( PP_INSTANCE *ppi,
 }
 
 ogg_uint32_t YUVAnalyseFrame( PP_INSTANCE *ppi, ogg_uint32_t * KFIndicator ){
-  ogg_uint32_t UpdatedYBlocks = 0;
-  ogg_uint32_t UpdatedUVBlocks = 0;
-  
+ 
   /* Initialise the map arrays. */
   InitScanMapArrays(ppi);
   
