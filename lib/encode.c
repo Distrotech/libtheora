@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encode.c,v 1.12 2003/06/11 02:24:29 tterribe Exp $
+  last mod: $Id: encode.c,v 1.13 2003/06/15 04:29:04 tterribe Exp $
 
  ********************************************************************/
 
@@ -22,9 +22,9 @@
 #include "encoder_lookup.h"
 #include "block_inline.h"
 
-#define PUL 8
+#define PUR 8
 #define PU 4
-#define PUR 2
+#define PUL 2
 #define PL 1
 #define HIGHBITDUPPED(X) (((ogg_int16_t) X)  >> 15)
 
@@ -670,45 +670,56 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
   int           QIndex;
   int k,m,n;
 
-  /* predictor multiplier up-left, up, up-right,left, shift */
-  ogg_int16_t pc[16][6]={
+  /* predictor multiplier up-left, up, up-right,left, shift
+     Entries are packed in the order L, UL, U, UR, with missing entries
+      moved to the end (before the shift parameters). */
+  static const ogg_int16_t pc[16][6]={
     {0,0,0,0,0,0},
-    {0,0,0,1,0,0},      /* PL */
-    {0,0,1,0,0,0},      /* PUR */
-    {0,0,53,75,7,127},  /* PUR|PL */
-    {0,1,0,0,0,0},      /* PU */
-    {0,1,0,1,1,1},      /* PU|PL */
-    {0,1,0,0,0,0},      /* PU|PUR */
-    {0,0,53,75,7,127},  /* PU|PUR|PL */
-    {1,0,0,0,0,0},      /* PUL| */
-    {0,0,0,1,0,0},      /* PUL|PL */
-    {1,0,1,0,1,1},      /* PUL|PUR */
-    {0,0,53,75,7,127},  /* PUL|PUR|PL */
-    {0,1,0,0,0,0},      /* PUL|PU */
-    {-26,29,0,29,5,31}, /* PUL|PU|PL */
-    {3,10,3,0,4,15},    /* PUL|PU|PUR */
-    {-26,29,0,29,5,31}  /* PUL|PU|PUR|PL */
+    {1,0,0,0,0,0},      /* PL */
+    {1,0,0,0,0,0},      /* PUL */
+    {1,0,0,0,0,0},      /* PUL|PL */
+    {1,0,0,0,0,0},      /* PU */
+    {1,1,0,0,1,1},      /* PU|PL */
+    {0,1,0,0,0,0},      /* PU|PUL */
+    {29,-26,29,0,5,31}, /* PU|PUL|PL */
+    {1,0,0,0,0,0},      /* PUR */
+    {75,53,0,0,7,127},  /* PUR|PL */
+    {1,1,0,0,1,1},      /* PUR|PUL */
+    {75,0,53,0,7,127},  /* PUR|PUL|PL */
+    {1,0,0,0,0,0},      /* PUR|PU */
+    {75,0,53,0,7,127},  /* PUR|PU|PL */
+    {3,10,3,0,4,15},    /* PUR|PU|PUL */
+    {29,-26,29,0,5,31}  /* PUR|PU|PUL|PL */
   };
 
-  struct SearchPoints {
-    int RowOffset;
-    int ColOffset;
-  } DCSearchPoints[]= {
-    {0,-2},{-2,0},{-1,-2},{-2,-1},{-2,1},{-1,2},{-2,-2},{-2,2},{0,-3},
-    {-3,0},{-1,-3},{-3,-1},{-3,1},{-1,3},{-2,-3},{-3,-2},{-3,2},{-2,3},
-    {0,-4},{-4,0},{-1,-4},{-4,-1},{-4,1},{-1,4},{-3,-3},{-3,3}
+  /* boundary case bit masks. */
+  static const int bc_mask[8]={
+    /* normal case no boundary condition */
+    PUR|PU|PUL|PL,
+    /* left column */
+    PUR|PU,
+    /* top row */
+    PL,
+    /* top row, left column */
+    0,
+    /* right column */
+    PU|PUL|PL,
+    /* right and left column */
+    PU,
+    /* top row, right column */
+    PL,
+    /* top row, right and left column */
+    0
   };
-
-  int DCSearchPointCount = 0;
-
-  /* fragment left fragment up-left, fragment up, fragment up-right */
-  int fl,ful,fu,fur;
 
   /* value left value up-left, value up, value up-right */
-  int vl,vul,vu,vur;
+  int v[4];
 
   /* fragment number left, up-left, up, up-right */
-  int l,ul,u,ur;
+  int fn[4];
+
+  /* predictor count. */
+  int pcount;
 
   /*which predictor constants to use */
   ogg_int16_t wpc;
@@ -779,7 +790,8 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
       FragsAcross = cpi->pb.HFragments >> 1;
       FragsDown = cpi->pb.VFragments >> 1;
       break;
-    case 2: /* v */
+    /*case 2:  v */
+    default:
       FromFragment = cpi->pb.YPlaneFragments + cpi->pb.UVPlaneFragments;
       ToFragment = cpi->pb.YPlaneFragments + (2 * cpi->pb.UVPlaneFragments) ;
       FragsAcross = cpi->pb.HFragments >> 1;
@@ -806,137 +818,37 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
           /* Check Borderline Cases */
           WhichCase = (n==0) + ((m==0) << 1) + ((n+1 == FragsAcross) << 2);
 
-          switch(WhichCase) {
-          case 0: /* normal case no border condition */
+          fn[0]=i-1;
+          fn[1]=i-FragsAcross-1;
+          fn[2]=i-FragsAcross;
+          fn[3]=i-FragsAcross+1;
 
-            /* calculate values left, up, up-right and up-left */
-            l = i-1;
-            u = i - FragsAcross;
-            ur = i - FragsAcross + 1;
-            ul = i - FragsAcross - 1;
-
-            /* calculate values */
-            vl = cpi->OriginalDC[l];
-            vu = cpi->OriginalDC[u];
-            vur = cpi->OriginalDC[ur];
-            vul = cpi->OriginalDC[ul];
-
-            /* fragment valid for prediction use if coded and it comes
-               from same frame as the one we are predicting */
-            fl = cpi->pb.display_fragments[l] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[l]] == WhichFrame);
-            fu = cpi->pb.display_fragments[u] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[u]] == WhichFrame);
-            fur = cpi->pb.display_fragments[ur] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[ur]] == WhichFrame);
-            ful = cpi->pb.display_fragments[ul] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[ul]] == WhichFrame);
-
-            /* calculate which predictor to use */
-            wpc = (fl*PL) | (fu*PU) | (ful*PUL) | (fur*PUR);
-
-            break;
-
-          case 1: /* n == 0 Left Column */
-
-            /* calculate values left, up, up-right and up-left */
-            u = i - FragsAcross;
-            ur = i - FragsAcross + 1;
-
-            /* calculate values */
-            vu = cpi->OriginalDC[u];
-            vur = cpi->OriginalDC[ur];
-
-            /* fragment valid for prediction if coded and it comes
-               from same frame as the one we are predicting */
-            fu = cpi->pb.display_fragments[u] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[u]] == WhichFrame);
-            fur = cpi->pb.display_fragments[ur] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[ur]] == WhichFrame);
-
-            /* calculate which predictor to use  */
-            wpc = (fu*PU) | (fur*PUR);
-
-            break;
-
-          case 2: /* m == 0 Top Row */
-          case 6: /* m == 0 and n+1 == FragsAcross or Top Row Right Column */
-
-            /* calculate values left, up, up-right and up-left */
-            l = i-1;
-
-            /* calculate values */
-            vl = cpi->OriginalDC[l];
-
-            /* fragment valid for prediction if coded and it comes
-               from same frame as the one we are predicting */
-            fl = cpi->pb.display_fragments[l] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[l]] == WhichFrame);
-
-            /* calculate which predictor to use */
-            wpc = (fl*PL) ;
-
-            break;
-
-          case 3: /* n == 0 & m == 0 Top Row Left Column */
-
-            wpc = 0;
-            break;
-
-          case 4: /* n+1 == FragsAcross : Right Column */
-
-            /* calculate values left, up, up-right and up-left */
-            l = i-1;
-            u = i - FragsAcross;
-            ul = i - FragsAcross - 1;
-
-            /*  calculate values */
-            vl = cpi->OriginalDC[l];
-            vu = cpi->OriginalDC[u];
-            vul = cpi->OriginalDC[ul];
-
-            /* fragment valid for prediction if coded and it comes
-                from same frame as the one we are predicting */
-            fl = cpi->pb.display_fragments[l] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[l]] == WhichFrame);
-            fu = cpi->pb.display_fragments[u] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[u]] == WhichFrame);
-            ful = cpi->pb.display_fragments[ul] &&
-              (Mode2Frame[cpi->pb.FragCodingMethod[ul]] == WhichFrame);
-
-            /* calculate which predictor to use */
-            wpc = (fl*PL) | (fu*PU) | (ful*PUL) ;
-            break;
-
+          /* fragment valid for prediction use if coded and it comes
+             from same frame as the one we are predicting */
+          for(k=pcount=wpc=0; k<4; k++) {
+            int pflag;
+            pflag=1<<k;
+            if((bc_mask[WhichCase]&pflag) &&
+               cpi->pb.display_fragments[fn[k]] &&
+               (Mode2Frame[cpi->pb.FragCodingMethod[fn[k]]] == WhichFrame)){
+              v[pcount]=cpi->OriginalDC[fn[k]];
+              wpc|=pflag;
+              pcount++;
+            }
           }
 
           if(wpc==0) {
-            FragIndex = 1;
 
-            /* find the nearest one that is coded  */
-            for( k = 0; k < DCSearchPointCount ; k++) {
-              FragIndex = i + DCSearchPoints[k].RowOffset *
-                FragsAcross + DCSearchPoints[k].ColOffset;
-
-              if( FragIndex - FromFragment > 0 ) {
-                if(cpi->pb.display_fragments[FragIndex] &&
-                   (Mode2Frame[cpi->pb.FragCodingMethod[FragIndex]] ==
-                    WhichFrame)) {
-                  cpi->pb.QFragData[i][0] -= cpi->OriginalDC[FragIndex];
-                  FragIndex = 0;
-                  break;
-                }
-              }
-            }
-
-            /* if none matched fall back to the last one ever */
-            if(FragIndex) cpi->pb.QFragData[i][0] -= Last[WhichFrame];
+            /* fall back to the last coded fragment */
+            cpi->pb.QFragData[i][0] -= Last[WhichFrame];
 
           } else {
 
             /* don't do divide if divisor is 1 or 0 */
-            PredictedDC = (pc[wpc][0]*vul + pc[wpc][1] * vu +
-                           pc[wpc][2] * vur + pc[wpc][3] * vl );
+            PredictedDC = pc[wpc][0]*v[0];
+            for(k=1; k<pcount; k++){
+              PredictedDC += pc[wpc][k]*v[k];
+            }
 
             /* if we need to do a shift */
             if(pc[wpc][4] != 0 ) {
@@ -949,16 +861,14 @@ static ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
             }
 
             /* check for outranging on the two predictors that can outrange */
-            switch(wpc) {
-            case 13: /*  pul pu pl */
-            case 15: /* pul pu pur pl */
-              if( abs(PredictedDC - vu) > 128)
-                PredictedDC = vu;
-              else if( abs(PredictedDC - vl) > 128)
-                PredictedDC = vl;
-              else if( abs(PredictedDC - vul) > 128)
-                PredictedDC = vul;
-              break;
+            if((wpc&(PU|PUL|PL)) == (PU|PUL|PL)){
+              if( abs(PredictedDC - v[2]) > 128) {
+                PredictedDC = v[2];
+              } else if( abs(PredictedDC - v[0]) > 128) {
+                PredictedDC = v[0];
+              } else if( abs(PredictedDC - v[1]) > 128) {
+                PredictedDC = v[1];
+              }
             }
 
             cpi->pb.QFragData[i][0] -= PredictedDC;
