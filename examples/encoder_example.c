@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis 
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.11 2003/05/19 19:30:22 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.12 2003/05/30 20:40:16 mauricio Exp $
 
  ********************************************************************/
 
@@ -31,6 +31,19 @@
 #include "theora/theora.h"
 #include "vorbis/codec.h"
 #include "vorbis/vorbisenc.h"
+
+#ifdef _WIN32
+/*supply missing headers and functions to Win32. going to hell, I know*/
+#include <fcntl.h>
+
+static double rint(double x)
+{
+    if (x < 0.0)
+        (double)(int)(x - 0.5);
+    else
+        (double)(int)(x + 0.5);
+}
+#endif
 
 const char *optstring = "o:a:A:v:V:";
 struct option options [] = {

@@ -1,3 +1,6 @@
+05/30/03
+Updated to use the common encoder_sample.c source in theora/examples.
+
 05/23/03
 
 Very simple port of the sample encoder for Windows, for testing.
