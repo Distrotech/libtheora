@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: read/write and client interface for comment header packet
-  last mod: $Id: comment.c,v 1.1 2003/05/12 00:20:06 giles Exp $
+  last mod: $Id: comment.c,v 1.2 2003/05/12 00:29:46 giles Exp $
 
  ********************************************************************/
 
@@ -19,8 +19,6 @@
 #include <ogg/ogg.h>
 #include <theora/theora.h>
 #include "encoder_internal.h"
-
-#define CommentString "Xiph.Org libTheora I 20020916 3 1 0"
 
 void theora_comment_init(theora_comment *tc){
   memset(tc,0,sizeof(*tc));

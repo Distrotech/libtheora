@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.16 2003/05/12 00:20:06 giles Exp $
+  last mod: $Id: toplevel.c,v 1.17 2003/05/12 00:29:46 giles Exp $
 
  ********************************************************************/
 
@@ -21,13 +21,14 @@
 #include "encoder_internal.h"
 #include "toplevel_lookup.h"
 
-#define A_TABLE_SIZE	    29
-#define DF_CANDIDATE_WINDOW 5
 #define VERSION_MAJOR 3
 #define VERSION_MINOR 1
 #define VERSION_SUB 0
 
-#define CommentString "Xiph.Org libTheora I 20020916 3 1 0"
+#define VENDOR_STRING "Xiph.Org libTheora I 20030511 3 1 0"
+
+#define A_TABLE_SIZE	    29
+#define DF_CANDIDATE_WINDOW 5
 
 static void EClearFragmentInfo(CP_INSTANCE * cpi){
   if(cpi->extra_fragments)
@@ -772,7 +773,7 @@ static int _ilog(unsigned int v){
 /********************** The toplevel: encode ***********************/
 
 const char *theora_version_string(void){
-  return CommentString;
+  return VENDOR_STRING;
 }
 
 ogg_uint32_t theora_version_number(void){
