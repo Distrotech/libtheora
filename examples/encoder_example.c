@@ -12,7 +12,7 @@
 
   function: example encoder application; makes an Ogg Theora/Vorbis
             file from YUV4MPEG2 and WAV input
-  last mod: $Id: encoder_example.c,v 1.23 2003/06/14 01:08:10 giles Exp $
+  last mod: $Id: encoder_example.c,v 1.24 2003/07/07 20:17:21 mauricio Exp $
 
  ********************************************************************/
 
@@ -46,13 +46,17 @@ static double rint(double x)
 }
 #endif
 
-const char *optstring = "o:a:A:v:V:";
+const char *optstring = "o:a:A:v:V:s:S:f:F:";
 struct option options [] = {
   {"output",required_argument,NULL,'o'},
   {"audio-rate-target",required_argument,NULL,'A'},
   {"video-rate-target",required_argument,NULL,'V'},
   {"audio-quality",required_argument,NULL,'a'},
   {"video-quality",required_argument,NULL,'v'},
+  {"aspect-numerator",required_argument,NULL,'s'},
+  {"aspect-denominator",required_argument,NULL,'S'},
+  {"framerate-numerator",required_argument,NULL,'f'},
+  {"framerate-denominator",required_argument,NULL,'F'},
   {NULL,0,NULL,0}
 };
 
@@ -73,10 +77,10 @@ int frame_x=0;
 int frame_y=0;
 int frame_x_offset=0;
 int frame_y_offset=0;
-int video_hzn=0;
-int video_hzd=0;
-int video_an=0;
-int video_ad=0;
+int video_hzn=-1;
+int video_hzd=-1;
+int video_an=-1;
+int video_ad=-1;
 
 int video_r=-1;
 int video_q=16;
@@ -85,23 +89,33 @@ static void usage(void){
   fprintf(stderr,
           "Usage: encoder_example [options] [audio_file] video_file\n\n"
           "Options: \n\n"
-          "  -o --output <filename.ogg>  file name for encoded output;\n"
-          "                              If this option is not given, the\n"
-          "                              compressed data is sent to stdout.\n\n"
-          "  -A --audio-rate-target <n>  bitrate target for Vorbis audio;\n"
-          "                              use -a and not -A if at all possible,\n"
-          "                              as -a gives higher quality for a given\n"
-          "                              bitrate.\n\n"
-          "  -V --video-rate-target <n>  bitrate target for Theora video\n\n"
-          "  -a --audio-quality <n>      Vorbis quality selector from -1 to 10\n"
-          "                              (-1 yields smallest files but lowest\n"
-          "                              fidelity; 10 yields highest fidelity\n"
-          "                              but large files. '2' is a reasonable\n"
-          "                              default).\n\n"
-          "   -v --video-quality <n>     Theora quality selector fro 0 to 10\n"
-          "                              (0 yields smallest files but lowest\n"
-          "                              video quality. 10 yields highest\n"
-          "                              fidelity but large files).\n\n"
+          "  -o --output <filename.ogg>     file name for encoded output;\n"
+          "                                 If this option is not given, the\n"
+          "                                 compressed data is sent to stdout.\n\n"
+          "  -A --audio-rate-target <n>     bitrate target for Vorbis audio;\n"
+          "                                 use -a and not -A if at all possible,\n"
+          "                                 as -a gives higher quality for a given\n"
+          "                                 bitrate.\n\n"
+          "  -V --video-rate-target <n>     bitrate target for Theora video\n\n"
+          "  -a --audio-quality <n>         Vorbis quality selector from -1 to 10\n"
+          "                                 (-1 yields smallest files but lowest\n"
+          "                                 fidelity; 10 yields highest fidelity\n"
+          "                                 but large files. '2' is a reasonable\n"
+          "                                 default).\n\n"
+          "   -v --video-quality <n>        Theora quality selector fro 0 to 10\n"
+          "                                 (0 yields smallest files but lowest\n"
+          "                                 video quality. 10 yields highest\n"
+          "                                 fidelity but large files).\n\n"
+          "   -s --aspect-numerator <n>     Aspect ratio numerator, default is 0\n"
+          "                                 or extracted from YUV input file\n"
+          "   -S --aspect-denominator <n>   Aspect ratio denominator, default is 0\n"
+          "                                 or extracted from YUV input file\n"
+          "   -f --framerate-numerator <n>  Frame rate numerator, can be extracted\n"
+          "                                 from YUV input file. ex: 30000000\n"
+          "   -F --framerate-denominator <n>Frame rate denominator, can be extracted\n"
+          "                                 from YUV input file. ex: 1000000\n"
+          "                                 The frame rate nominator divided by this\n"
+          "                                 determinates the frame rate in units per tick\n"
           "encoder_example accepts only uncompressed RIFF WAV format audio and\n"
           "YUV4MPEG2 uncompressed video.\n\n");
   exit(1);
@@ -111,6 +125,7 @@ static void id_file(char *f){
   FILE *test;
   unsigned char buffer[80];
   int ret;
+  int tmp_video_hzn, tmp_video_hzd, tmp_video_an, tmp_video_ad;
 
   /* open it, look for magic */
 
@@ -225,12 +240,18 @@ static void id_file(char *f){
       }
 
       ret=sscanf(buffer,"MPEG2 W%d H%d F%d:%d I%c A%d:%d",
-                 &frame_x,&frame_y,&video_hzn,&video_hzd,&interlace,
-                 &video_an,&video_ad);
+                 &frame_x,&frame_y,&tmp_video_hzn,&tmp_video_hzd,&interlace,
+                 &tmp_video_an,&tmp_video_ad);
       if(ret<7){
         fprintf(stderr,"Error parsing YUV4MPEG2 header in file %s.\n",f);
         exit(1);
       }
+
+      /*update fps and aspect ratio globals if not specified in the command line*/
+      if (video_hzn==-1) video_hzn = tmp_video_hzn;
+      if (video_hzd==-1) video_hzn = tmp_video_hzd;
+      if (video_an==-1) video_hzn = tmp_video_an;
+      if (video_ad==-1) video_hzn = tmp_video_ad;
 
       if(interlace!='p'){
         fprintf(stderr,"Input video is interlaced; Theora handles only progressive scan\n");
@@ -548,6 +569,23 @@ int main(int argc,char *argv[]){
       }
       video_q=0;
      break;
+
+    case 's':
+      video_an=rint(atof(optarg));
+      break;
+
+    case 'S':
+      video_ad=rint(atof(optarg));
+      break;
+
+    case 'f':
+      video_hzn=rint(atof(optarg));
+      break;
+
+    case 'F':
+      video_hzd=rint(atof(optarg));
+      break;
+
     default:
       usage();
     }
