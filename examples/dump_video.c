@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: example dumpvid application; dumps  Theora streams
-  last mod: $Id: dump_video.c,v 1.6 2003/10/26 21:49:59 giles Exp $
+  last mod: $Id: dump_video.c,v 1.7 2003/11/15 17:27:12 tterribe Exp $
 
  ********************************************************************/
 
@@ -30,12 +30,20 @@
 /*#include <sys/time.h>*/
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <io.h>
 #include <fcntl.h>
 #include <math.h>
 #include <signal.h>
+#include "getopt.h"
 #include "theora/theora.h"
 
 
+
+const char *optstring = "o:";
+struct option options [] = {
+  {"output",required_argument,NULL,'o'},
+  {NULL,0,NULL,0}
+};
 
 /* Helper; just grab some more compressed bitstream and sync it for
    page extraction */
@@ -83,10 +91,10 @@ static void video_write(void){
 
   for(i=0;i<yuv.y_height;i++)
     fwrite(yuv.y+yuv.y_stride*i, 1, yuv.y_width, outfile);
-  for(i=0;i<yuv.uv_height;i++){
+  for(i=0;i<yuv.uv_height;i++)
     fwrite(yuv.v+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
-  fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
-  }
+  for(i=0;i<yuv.uv_height;i++)
+    fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
 
 }
 /* dump the theora (or vorbis) comment header */
@@ -130,11 +138,14 @@ static void usage(void){
 
 int main(int argc,char *argv[]){
 
-  int i,j;
   ogg_packet op;
+
+  int long_option_index;
+  int c;
 
   FILE *infile = stdin;
   outfile = stdout;
+
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode. Damn windows. */
   /* Beware the evil ifdef. We avoid these where we can, but this one we
@@ -143,17 +154,31 @@ int main(int argc,char *argv[]){
   _setmode( _fileno( stdout ), _O_BINARY );
 #endif
 
-  /* open the input file if any */
-  if(argc==2){
-    infile=fopen(argv[1],"rb");
-    if(infile==NULL){
-      fprintf(stderr,"Unable to open '%s' for extraction.\n", argv[1]);
-      exit(1);
+  /* Process option arguments. */
+  while((c=getopt_long(argc,argv,optstring,options,&long_option_index))!=EOF){
+    switch(c){
+      case 'o':
+      outfile=fopen(optarg,"wb");
+      if(outfile==NULL){
+        fprintf(stderr,"Unable to open output file '%s'\n", optarg);
+        exit(1);
+      }
+      break;
+
+      default:
+        usage();
     }
   }
-  if(argc>2){
+  if(optind<argc){
+    infile=fopen(argv[optind],"rb");
+    if(infile==NULL){
+      fprintf(stderr,"Unable to open '%s' for extraction.\n", argv[optind]);
+      exit(1);
+    }
+    if(++optind<argc){
       usage();
       exit(1);
+    }
   }
 
   /* start up Ogg stream synchronization layer */
@@ -278,10 +303,10 @@ int main(int argc,char *argv[]){
         queue_page(&og);
       }
     }
-
     /* dumpvideo frame, and get new one */
-      video_write();
-      videobuf_ready=0;
+    else video_write();
+
+    videobuf_ready=0;
   }
 
   /* close everything */
