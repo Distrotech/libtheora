@@ -86,6 +86,7 @@ XIPH_PATH_OGG(, AC_MSG_ERROR([
     please see http://www.xiph.org/ for how to
     obtain a copy.
 ]))
+CFLAGS="$CFLAGS $OGG_CFLAGS"
 LIBS="$LIBS $OGG_LIBS"
 AC_CHECK_FUNC(oggpackB_read, , [
   AC_MSG_ERROR([newer libogg version (>1.0) required])
