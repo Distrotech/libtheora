@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: decode.c,v 1.5 2003/06/10 01:31:33 tterribe Exp $
+  last mod: $Id: decode.c,v 1.6 2003/06/18 23:01:27 tterribe Exp $
 
  ********************************************************************/
 
@@ -20,13 +20,7 @@
 #include "encoder_internal.h"
 #include "block_inline.h"
 
-CODING_MODE  ModeAlphabet[MODE_METHODS-1][MAX_MODES] = {
-
-  /* Reserved for custom alphabet. */
-  {    (CODING_MODE)0,        (CODING_MODE)0,
-       (CODING_MODE)0,        (CODING_MODE)0,
-       (CODING_MODE)0,        (CODING_MODE)0,
-       (CODING_MODE)0,        (CODING_MODE)0 },
+static const CODING_MODE  ModeAlphabet[MODE_METHODS-2][MAX_MODES] = {
 
   /* Last motion vector dominates */
   {    CODE_INTER_LAST_MV,    CODE_INTER_PRIOR_LAST,
@@ -144,7 +138,9 @@ static void DecodeModes (PB_INSTANCE *pbi,
       pbi->FragCodingMethod[i] = CODE_INTRA;
     }
   }else{
-    ogg_uint32_t  ModeEntry; /* Mode bits read */
+    ogg_uint32_t        ModeEntry; /* Mode bits read */
+    CODING_MODE         CustomModeAlphabet[MAX_MODES];
+    const CODING_MODE  *ModeList;
 
     /* Read the coding method */
     CodingScheme = oggpackB_read( &pbi->opb,  MODE_METHOD_BITS );
@@ -154,8 +150,12 @@ static void DecodeModes (PB_INSTANCE *pbi,
     if ( CodingScheme == 0 ){
       /* Read the coding scheme. */
       for ( i = 0; i < MAX_MODES; i++ ){
-        ModeAlphabet[0][ oggpackB_read( &pbi->opb,  MODE_BITS) ] = i;
+        CustomModeAlphabet[oggpackB_read(&pbi->opb, MODE_BITS)]=i;
       }
+      ModeList=CustomModeAlphabet;
+    }
+    else{
+      ModeList=ModeAlphabet[CodingScheme-1];
     }
 
     /* Unravel the quad-tree */
@@ -179,7 +179,7 @@ static void DecodeModes (PB_INSTANCE *pbi,
                                                            MODE_BITS );
               }else{
                 ModeEntry = FrArrayUnpackMode(pbi);
-                CodingMethod =  ModeAlphabet[CodingScheme][ ModeEntry ];
+                CodingMethod = ModeList[ModeEntry];
               }
 
               /* Note the coding mode for each block in macro block. */
