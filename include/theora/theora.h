@@ -11,12 +11,17 @@
  ********************************************************************
 
   function:
-  last mod: $Id: theora.h,v 1.17 2003/12/06 18:06:19 arc Exp $
+  last mod: $Id: theora.h,v 1.18 2004/03/09 06:18:44 msmith Exp $
 
  ********************************************************************/
 
 #ifndef _O_THEORA_H_
 #define _O_THEORA_H_
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif /* __cplusplus */
 
 #ifndef LIBOGG2
 #include <ogg/ogg.h>
@@ -136,6 +141,8 @@ extern char *theora_comment_query(theora_comment *tc, char *tag, int count);
 extern int   theora_comment_query_count(theora_comment *tc, char *tag);
 extern void  theora_comment_clear(theora_comment *tc);
 
-
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* _O_THEORA_H_ */
