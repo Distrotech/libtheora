@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: encoder_internal.h,v 1.20 2004/03/08 06:44:27 giles Exp $
+  last mod: $Id: encoder_internal.h,v 1.21 2004/03/09 02:02:56 giles Exp $
 
  ********************************************************************/
 
@@ -260,6 +260,8 @@ typedef struct codec_setup_info {
   Q_LIST_ENTRY Inter_coeffs[64];
 
   HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES];
+
+  unsigned char LoopFilterLimitValues[Q_TABLE_SIZE];
 } codec_setup_info;
 
 typedef struct PB_INSTANCE {
@@ -430,6 +432,7 @@ typedef struct PB_INSTANCE {
   ogg_int16_t   *TmpDataBuffer;
 
   /* Loop filter bounding values */
+  unsigned char  LoopFilterLimits[Q_TABLE_SIZE];
   ogg_int32_t    FiltBoundingValue[512];
 
   /* Dequantiser and rounding tables */
@@ -473,7 +476,6 @@ typedef struct PB_INSTANCE {
   short         *ModifierPointer[4];
 
   unsigned char *DataOutputInPtr;
-
 
 } PB_INSTANCE;
 
@@ -741,6 +743,10 @@ extern void WriteHuffmanTrees(HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES],
                               oggpack_buffer *opb);
 extern void InitHuffmanTrees(PB_INSTANCE *pbi, const codec_setup_info *ci);
 extern void ClearHuffmanTrees(HUFF_ENTRY *HuffRoot[NUM_HUFF_TABLES]);
+extern void WriteFilterTables(PB_INSTANCE *pbi, oggpack_buffer *opb);
+extern int  ReadFilterTables(codec_setup_info *ci, oggpack_buffer *opb);
+extern void CopyFilterTables(PB_INSTANCE *pbi, codec_setup_info *ci);
+extern void InitFilterTables(PB_INSTANCE *pbi);
 extern void QuadDecodeDisplayFragments ( PB_INSTANCE *pbi );
 extern void PackAndWriteDFArray( CP_INSTANCE *cpi );
 extern void UpdateFragQIndex(PB_INSTANCE *pbi);

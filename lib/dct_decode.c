@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: dct_decode.c,v 1.9 2003/12/03 08:59:39 arc Exp $
+  last mod: $Id: dct_decode.c,v 1.10 2004/03/09 02:02:56 giles Exp $
 
  ********************************************************************/
 
@@ -27,7 +27,9 @@
 #define PL 1
 #define HIGHBITDUPPED(X) (((signed short) X)  >> 15)
 
-static const ogg_uint32_t LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
+/* in-loop filter tables. one of these is used in dct_decode.c */
+
+static const unsigned char LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
   30, 25, 20, 20, 15, 15, 14, 14,
   13, 13, 12, 12, 11, 11, 10, 10,
   9,  9,  8,  8,  7,  7,  7,  7,
@@ -38,7 +40,7 @@ static const ogg_uint32_t LoopFilterLimitValuesV1[Q_TABLE_SIZE] = {
   0,  0,  0,  0,  0,  0,  0,  0
 };
 
-static const ogg_uint32_t LoopFilterLimitValuesV2[Q_TABLE_SIZE] = {
+static const unsigned char LoopFilterLimitValuesV2[Q_TABLE_SIZE] = {
   30, 25, 20, 20, 15, 15, 14, 14,
   13, 13, 12, 12, 11, 11, 10, 10,
   9,  9,  8,  8,  7,  7,  7,  7,
@@ -67,10 +69,42 @@ static void SetupBoundingValueArray_Generic(PB_INSTANCE *pbi,
   }
 }
 
+/* handle the in-loop filter limit value table */
+
+void WriteFilterTables(PB_INSTANCE *pbi, oggpack_buffer *opb){
+  int i;
+  for(i=0;i<Q_TABLE_SIZE;i++)
+    oggpackB_write(opb, pbi->LoopFilterLimits[i],7);
+}
+
+int ReadFilterTables(codec_setup_info *ci, oggpack_buffer *opb){
+  int i, bits;
+
+  for(i=0;i<Q_TABLE_SIZE;i++){
+    theora_read(opb,7,&bits);
+    ci->LoopFilterLimitValues[i]=bits;
+  }
+  if(bits<0)return OC_BADHEADER;
+
+  return 0;
+}
+
+/* copy in-loop filter limits from the bitstream header into our instance */
+void CopyFilterTables(PB_INSTANCE *pbi, codec_setup_info *ci){
+  memcpy(pbi->LoopFilterLimits, ci->LoopFilterLimitValues, Q_TABLE_SIZE);
+}
+
+/* initialize the filter limits from our static table */
+void InitFilterTables(PB_INSTANCE *pbi){
+  memcpy(pbi->LoopFilterLimits, LoopFilterLimitValuesV1, Q_TABLE_SIZE);
+}
+
 void SetupLoopFilter(PB_INSTANCE *pbi){
   ogg_int32_t FLimit;
 
-  FLimit = LoopFilterLimitValuesV2[pbi->FrameQIndex];
+  /* nb: this was using the V2 values rather than V1
+     we think is was a mistake; the results were not used */
+  FLimit = pbi->LoopFilterLimits[pbi->FrameQIndex];
   SetupBoundingValueArray_Generic(pbi, FLimit);
 }
 
@@ -719,13 +753,9 @@ void LoopFilter(PB_INSTANCE *pbi){
     QIndex --;
   }
 
-  /* Encoder version specific clause */
-  FLimit = LoopFilterLimitValuesV1[QIndex];
-
+  FLimit = pbi->LoopFilterLimits[QIndex];
   if ( FLimit == 0 ) return;
-
   SetupBoundingValueArray_Generic(pbi, FLimit);
-
 
   for ( j = 0; j < 3 ; j++){
     switch(j) {

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function:
-  last mod: $Id: toplevel.c,v 1.36 2004/03/05 17:44:28 giles Exp $
+  last mod: $Id: toplevel.c,v 1.37 2004/03/09 02:02:56 giles Exp $
 
  ********************************************************************/
 
@@ -880,6 +880,7 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->ScanConfig.VideoFrameWidth = cpi->pb.info.width;
 
   InitFrameDetails(&cpi->pb);
+  InitFilterTables(&cpi->pb);
   EInitFragmentInfo(cpi);
   EInitFrameInfo(cpi);
 
@@ -1187,6 +1188,7 @@ int theora_encode_tables(theora_state *t, ogg_packet *op){
 
   WriteQTables(&cpi->pb,cpi->oggbuffer);
   WriteHuffmanTrees(cpi->pb.HuffRoot_VP3x,cpi->oggbuffer);
+  WriteFilterTables(&cpi->pb,cpi->oggbuffer);
 
 #ifndef LIBOGG2
   op->packet=oggpackB_get_buffer(cpi->oggbuffer);
@@ -1341,13 +1343,18 @@ parse_err:
 
 static int _theora_unpack_tables(theora_info *c, oggpack_buffer *opb){
   codec_setup_info *ci;
-  int               ret;
+  int ret;
 
   ci=(codec_setup_info *)c->codec_setup;
 
   ret=ReadQTables(ci, opb);
   if(ret)return ret;
-  return ReadHuffmanTrees(ci, opb);
+  ret=ReadHuffmanTrees(ci, opb);
+  if(ret)return ret;
+  ret=ReadFilterTables(ci, opb);
+  if(ret)return ret;
+
+  return ret;
 }
 
 int theora_decode_header(theora_info *ci, theora_comment *cc, ogg_packet *op){
@@ -1458,8 +1465,9 @@ int theora_decode_init(theora_state *th, theora_info *c){
   /* Clear down the YUVtoRGB conversion skipped list. */
   memset(pbi->skipped_display_fragments, 0, pbi->UnitFragments );
 
-  /* Initialise version specific quantiser values */
+  /* Initialise version specific quantiser and in-loop filter values */
   CopyQTables(pbi, ci);
+  CopyFilterTables(pbi, ci);
 
   /* Huffman setup */
   InitHuffmanTrees(pbi, ci);
