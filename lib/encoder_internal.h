@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encoder_internal.h,v 1.3 2002/09/18 08:56:56 xiphmont Exp $
+  last mod: $Id: encoder_internal.h,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
@@ -54,6 +54,8 @@
 #define VERY_BEST_Q            10
 #define MIN_BPB_FACTOR        0.3
 #define MAX_BPB_FACTOR        3.0
+
+#define MAX_MV_EXTENT 31  /* Max search distance in half pixel increments */
 
 typedef enum{       
         SCP_CONFIGURE_PP
@@ -186,7 +188,8 @@ typedef struct PP_INSTANCE {
   
   /* Block Thresholds. */
   ogg_uint32_t  PrimaryBlockThreshold;
-  
+  unsigned char LineSearchTripTresh;
+
   int   PAKEnabled;
   
   int   LevelThresh; 
@@ -198,11 +201,8 @@ typedef struct PP_INSTANCE {
   
   /* Threshold lookup tables */
   unsigned char SrfPakThreshTable[512];
-  unsigned char * SrfPakThreshTablePtr;
   unsigned char SrfThreshTable[512];
-  unsigned char * SrfThreshTablePtr;
   unsigned char SgcThreshTable[512];
-  unsigned char * SgcThreshTablePtr;
   
   /* Variables controlling S.A.D. break outs. */
   ogg_uint32_t GrpLowSadThresh;
@@ -233,13 +233,6 @@ typedef struct PP_INSTANCE {
 } PP_INSTANCE;
 
 
-typedef struct {
-  int bitsinremainder;    /* # of bits still used in remainder */
-  ogg_uint32_t remainder; /* remaining bits from original long */
-  unsigned char *position;/* character pointer position within data */
-  unsigned char *origin;  /* starting point of original data */
-} BITREADER;
-
 typedef enum{
   CODE_INTER_NO_MV        = 0x0, /* INTER prediction, (0,0) motion
                                     vector implied.  */
@@ -264,12 +257,7 @@ typedef struct HUFF_ENTRY {
 } HUFF_ENTRY; 
 
 typedef struct PB_INSTANCE {
-  /***********************************************************************
-   Bitstream input and Output Pointers
-  ************************************************************************/
-
-  /* Current access points for input and output buffers */
-  BITREADER br;
+  oggpack_buffer opb;
 
   /***********************************************************************/
   /* Decoder and Frame Type Information */
@@ -283,9 +271,6 @@ typedef struct PB_INSTANCE {
   int           PostProcessEnabled;
   
   ogg_uint32_t  PostProcessingLevel;    /* Perform post processing */
-  ogg_uint32_t  ProcessorFrequency;     /* CPU frequency     */
-  ogg_uint32_t  CPUFree;
-  
   
   /* Frame Info */
   CODING_MODE   CodingMode;
@@ -457,6 +442,7 @@ typedef struct PB_INSTANCE {
   HUFF_ENTRY   **HuffRoot_VP3x;
   ogg_uint32_t **HuffCodeArray_VP3x;
   unsigned char **HuffCodeLengthArray_VP3x;
+  unsigned char *ExtraBitLengths_VP3x;
   
   /* Quantiser and rounding tables */
   ogg_int32_t    fp_quant_UV_coeffs[64];
@@ -696,6 +682,11 @@ typedef struct{
 
 } YUV_INPUT_BUFFER_CONFIG;
 
+/*#define clamp255(x) (((ogg_int32_t)(x)&~0xff)?((ogg_int32_t)(x))>>31:(x))*/
+#define clamp255(val)  ( val<0 ? 0: ( val>255 ? 255:val ) )
 
 extern void ClearPPInstance(PP_INSTANCE *ppi);
 extern void InitPPInstance(PP_INSTANCE *ppi);
+extern int GetFrameType(PB_INSTANCE *pbi);
+
+

@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: toplevel.c,v 1.3 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: toplevel.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
@@ -19,7 +19,7 @@
 #include <ogg/ogg.h>
 #include <theora/theora.h>
 #include "encoder_internal.h"
-#include "encoder_lookup.h"
+#include "toplevel_lookup.h"
 
 #define A_TABLE_SIZE	    29
 #define DF_CANDIDATE_WINDOW 5
@@ -79,14 +79,14 @@ static void EClearFragmentInfo(CP_INSTANCE * cpi){
   cpi->BlockCodedFlags = 0;
 }
 
-static void EAllocateFragmentInfo(CP_INSTANCE * cpi){
+static void EInitFragmentInfo(CP_INSTANCE * cpi){
   
   /* clear any existing info */
-  EDeleteFragmentInfo(cpi);
+  EClearFragmentInfo(cpi);
   
   /* Perform Fragment Allocations */
   cpi->extra_fragments =  
-    _ogg_malloc(32+cpi->pb.UnitFragments*sizeof(unsigned char));
+    _ogg_malloc(cpi->pb.UnitFragments*sizeof(unsigned char));
   
   /* A note to people reading and wondering why malloc returns aren't
      checked:
@@ -188,11 +188,11 @@ void EClearFrameInfo(CP_INSTANCE * cpi) {
   
 }
 
-void EateFrameInfo(CP_INSTANCE * cpi){
+void EInitFrameInfo(CP_INSTANCE * cpi){
   int FrameSize = cpi->pb.ReconYPlaneSize + 2 * cpi->pb.ReconUVPlaneSize;
 
   /* clear any existing info */
-  EDeleteFrameInfo(cpi);
+  EClearFrameInfo(cpi);
 
   /* allocate frames */
   cpi->ConvDestBuffer = 
@@ -660,7 +660,7 @@ static void CompressFrame( CP_INSTANCE *cpi, ogg_uint32_t FrameNumber ) {
     
     
     /* Set Baseline filter level. */
-    SetScanParam( &cpi->pp, SCP_CONFIGURE_PP, cpi->PreProcFilterLevel );
+    ConfigurePP( &cpi->pp, cpi->PreProcFilterLevel );
     
     /* Score / analyses the fragments. */ 
     cpi->MotionScore = YUVAnalyseFrame(&cpi->pp, &KFIndicator );
@@ -800,8 +800,8 @@ int theora_encode_init(theora_state *th, theora_info *c){
   c->version_minor=VERSION_MINOR;
   c->version_subminor=VERSION_SUB;
 
-  AllocateTmpBuffers(&cpi->pb);
-  CreatePPInstance(&cpi->pp);
+  InitTmpBuffers(&cpi->pb);
+  InitPPInstance(&cpi->pp);
 
   /* Initialise Configuration structure to legal values */
   cpi->Configuration.BaseQ = 32;
@@ -882,8 +882,8 @@ int theora_encode_init(theora_state *th, theora_info *c){
   
   /* Initialise image format details */
   InitFrameDetails(&cpi->pb);
-  EAllocateFragmentInfo(cpi);
-  EAllocateFrameInfo(cpi);
+  EInitFragmentInfo(cpi);
+  EInitFrameInfo(cpi);
 
   /* Set up pre-processor config pointers. */
   cpi->ScanConfig.Yuv0ptr = cpi->yuv0ptr;
@@ -940,8 +940,7 @@ int theora_encode_init(theora_state *th, theora_info *c){
   cpi->ResidueLastEndSB = 0;  /* Where we were in the residue update
                                  loop last time. */
   
-  /* Select the appropriate huffman set. */
-  SelectHuffmanSet(&cpi->pb);
+  InitHuffmanSet(&cpi->pb);
 
   /* This makes sure encoder version specific tables are initialised */
   InitQTables(&cpi->pb);  
@@ -1086,10 +1085,11 @@ int theora_encode_header(CP_INSTANCE *cpi, ogg_packet *op){
 void theora_encode_clear(CP_INSTANCE *cpi){
   if(cpi){
     
+    ClearHuffmanSet(&cpi->pb);
     ClearFragmentInfo(&cpi->pb);
     ClearFrameInfo(&cpi->pb);
     EClearFragmentInfo(cpi);
-    ECleadFrameInfo(cpi);		
+    EClearFrameInfo(cpi);		
     ClearTmpBuffers(&cpi->pb);
     ClearPPInstance(&cpi->pp);
     

@@ -11,11 +11,9 @@
  ********************************************************************
 
   function: simple static lookups for VP3 frame encoder
-  last mod: $Id: encoder_lookup.h,v 1.2 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: encoder_lookup.h,v 1.3 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
-
-#define MAX_MV_EXTENT 31  /* Max search distance in half pixel increments */
 
 ogg_uint32_t MvPattern[(MAX_MV_EXTENT * 2) + 1] = {   
   0x000000ff, 0x000000fd, 0x000000fb, 0x000000f9, 
@@ -122,37 +120,3 @@ ogg_uint32_t MVChangeFactorTable[Q_TABLE_SIZE] = {
   15, 15, 15, 15, 15, 15, 15, 15
 };  
 
-
-ogg_uint32_t PriorKeyFrameWeight[KEY_FRAME_CONTEXT] = { 1,2,3,4,5 };
-
-/* Data structures controlling addition of residue blocks */
-ogg_uint32_t ResidueErrorThresh[Q_TABLE_SIZE] =  {    
-  750, 700, 650, 600, 590, 580, 570, 560, 
-  550, 540, 530, 520, 510, 500, 490, 480,  
-  470, 460, 450, 440, 430, 420, 410, 400, 
-  390, 380, 370, 360, 350, 340, 330, 320, 
-  310, 300, 290, 280, 270, 260, 250, 245, 
-  240, 235, 230, 225, 220, 215, 210, 205, 
-  200, 195, 190, 185, 180, 175, 170, 165,
-  160, 155, 150, 145, 140, 135, 130, 130 };
-ogg_uint32_t ResidueBlockFactor[Q_TABLE_SIZE] =  {    
-  3,   3,   3,   3,   3,   3,   3,   3,
-  3,   3,   3,   3,   3,   3,   3,   3,
-  3,   3,   3,   3,   3,   3,   3,   3,
-  3,   3,   3,   3,   3,   3,   3,   3,
-  2,   2,   2,   2,   2,   2,   2,   2,
-  2,   2,   2,   2,   2,   2,   2,   2,
-  2,   2,   2,   2,   2,   2,   2,   2,
-  2,   2,   2,   2,   2,   2,   2,   2 };
-
-/* Quantization zigzag pattern */
-ogg_uint32_t dequant_index[64] = {
-  0,  1,  8,  16,  9,  2,  3, 10,
-  17, 24, 32, 25, 18, 11,  4,  5,
-  12, 19, 26, 33, 40, 48, 41, 34,
-  27, 20, 13,  6,  7, 14, 21, 28,
-  35, 42, 49, 56, 57, 50, 43, 36, 
-  29, 22, 15, 23, 30, 37, 44, 51,
-  58, 59, 52, 45, 38, 31, 39, 46,
-  53, 60, 61, 54, 47, 55, 62, 63
-};

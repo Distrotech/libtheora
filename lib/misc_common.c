@@ -11,12 +11,13 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: misc_common.c,v 1.3 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: misc_common.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
+#include "block_inline.h"
 
 #define FIXED_Q	                150
 #define MAX_UP_REG_LOOPS        2    
@@ -313,7 +314,7 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
     /* We are only interested in updated fragments. */
     if ( cpi->extra_fragments[i] ) {
       /* Get the start index for the fragment. */
-      PixelIndex = GetFragIndex(cpi->pb.pixel_index_table, i);
+      PixelIndex = cpi->pb.pixel_index_table[i];
       SrcPtr = &cpi->yuv1ptr[PixelIndex];
       DestPtr = &cpi->ConvDestBuffer[PixelIndex];
       
@@ -335,7 +336,7 @@ void CopyBackExtraFrags(CP_INSTANCE *cpi){
     /* We are only interested in updated fragments. */
     if ( cpi->extra_fragments[i] ) {
       /* Get the start index for the fragment. */
-      PixelIndex = GetFragIndex(cpi->pb.pixel_index_table, i);
+      PixelIndex = cpi->pb.pixel_index_table[i];
       SrcPtr = &cpi->yuv1ptr[PixelIndex];
       DestPtr = &cpi->ConvDestBuffer[PixelIndex];
       

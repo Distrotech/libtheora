@@ -11,15 +11,15 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: dct_encode.c,v 1.2 2002/09/18 08:56:56 xiphmont Exp $
+  last mod: $Id: dct_encode.c,v 1.3 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
 #include "encoder_internal.h"
 
-int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
+static int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
 
-void SUB8 (unsigned char *FiltPtr, unsigned char *ReconPtr, 
+void Sub8 (unsigned char *FiltPtr, unsigned char *ReconPtr, 
 	   ogg_int16_t *DctInputPtr, unsigned char *old_ptr1, 
 	   unsigned char *new_ptr1, ogg_uint32_t PixelsPerLine, 
 	   ogg_uint32_t ReconPixelsPerLine ) {
@@ -49,7 +49,7 @@ void SUB8 (unsigned char *FiltPtr, unsigned char *ReconPtr,
   }
 }
 
-void SUB8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr, 
+void Sub8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr, 
 	       unsigned char *old_ptr1, unsigned char *new_ptr1, 
                ogg_uint32_t PixelsPerLine ) {
   int i;
@@ -80,7 +80,7 @@ void SUB8_128 (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr,
   }
 }
 
-void SUB8AV2 (unsigned char *FiltPtr, unsigned char *ReconPtr1, 
+void Sub8Av2 (unsigned char *FiltPtr, unsigned char *ReconPtr1, 
 	      unsigned char *ReconPtr2, ogg_int16_t *DctInputPtr, 
 	      unsigned char *old_ptr1, unsigned char *new_ptr1, 
               ogg_uint32_t PixelsPerLine, ogg_uint32_t ReconPixelsPerLine ) {
@@ -126,90 +126,87 @@ unsigned char TokenizeDctValue (ogg_int16_t DataValue,
   
   /* Values are tokenised as category value and a number of additional
      bits that define the position within the category.  */
-
-    if ( DataValue == 0 ) {
-      IssueWarning( "Bad Input to TokenizeDctValue" );
-    } else if ( AbsDataVal == 1 ){
-      if ( DataValue == 1 )
-	TokenListPtr[0] = ONE_TOKEN; 
-      else
-	TokenListPtr[0] = MINUS_ONE_TOKEN; 
-      tokens_added = 1;
-    } else if ( AbsDataVal == 2 ) {
-      if ( DataValue == 2 )
-	TokenListPtr[0] = TWO_TOKEN; 
-      else
-	TokenListPtr[0] = MINUS_TWO_TOKEN; 
-      tokens_added = 1;
-    } else if ( AbsDataVal <= MAX_SINGLE_TOKEN_VALUE ) {   
-      TokenListPtr[0] = LOW_VAL_TOKENS + (AbsDataVal - DCT_VAL_CAT2_MIN); 
-      if ( DataValue > 0 )
-	TokenListPtr[1] = 0;
-      else
-	TokenListPtr[1] = 1;
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 8 ) {
-      /* Bit 1 determines sign, Bit 0 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY3; 
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT3_MIN);
-      else
-	TokenListPtr[1] = (0x02) + (AbsDataVal - DCT_VAL_CAT3_MIN);
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 12 ) {
-      /* Bit 2 determines sign, Bit 0-2 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY4; 
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT4_MIN);
-      else
-	TokenListPtr[1] = (0x04) + (AbsDataVal - DCT_VAL_CAT4_MIN);
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 20 ) {
-      /* Bit 3 determines sign, Bit 0-2 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY5;    
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT5_MIN);
-      else
-	TokenListPtr[1] = (0x08) + (AbsDataVal - DCT_VAL_CAT5_MIN);
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 36 ) {
-      /* Bit 4 determines sign, Bit 0-3 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY6;    
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT6_MIN);
-      else
-            TokenListPtr[1] = (0x010) + (AbsDataVal - DCT_VAL_CAT6_MIN);
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 68 ) {
-      /* Bit 5 determines sign, Bit 0-4 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY7;    
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT7_MIN);
-      else
-	TokenListPtr[1] = (0x20) + (AbsDataVal - DCT_VAL_CAT7_MIN);
-      tokens_added = 2;
-    } else if ( AbsDataVal <= 511 ) {
-      /* Bit 9 determines sign, Bit 0-8 the value */
-      TokenListPtr[0] = DCT_VAL_CATEGORY8;    
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT8_MIN);
-      else
-	TokenListPtr[1] = (0x200) + (AbsDataVal - DCT_VAL_CAT8_MIN);
-      tokens_added = 2;
-    } else {
-      TokenListPtr[0] = DCT_VAL_CATEGORY8;    
-      if ( DataValue > 0 )
-	TokenListPtr[1] = (511 - DCT_VAL_CAT8_MIN);
-      else
-	TokenListPtr[1] = (0x200) + (511 - DCT_VAL_CAT8_MIN);
-      tokens_added = 2;
-      
-      tokens_added = 2;  /* ERROR */
-      IssueWarning( "Bad Input to TokenizeDctValue" );
-    }
-    
-    /* Return the total number of tokens added */
-    return tokens_added;
+  
+  if ( DataValue == 0 ) return 0;
+  
+  if ( AbsDataVal == 1 ){
+    if ( DataValue == 1 )
+      TokenListPtr[0] = ONE_TOKEN; 
+    else
+      TokenListPtr[0] = MINUS_ONE_TOKEN; 
+    tokens_added = 1;
+  } else if ( AbsDataVal == 2 ) {
+    if ( DataValue == 2 )
+      TokenListPtr[0] = TWO_TOKEN; 
+    else
+      TokenListPtr[0] = MINUS_TWO_TOKEN; 
+    tokens_added = 1;
+  } else if ( AbsDataVal <= MAX_SINGLE_TOKEN_VALUE ) {   
+    TokenListPtr[0] = LOW_VAL_TOKENS + (AbsDataVal - DCT_VAL_CAT2_MIN); 
+    if ( DataValue > 0 )
+      TokenListPtr[1] = 0;
+    else
+      TokenListPtr[1] = 1;
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 8 ) {
+    /* Bit 1 determines sign, Bit 0 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY3; 
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT3_MIN);
+    else
+      TokenListPtr[1] = (0x02) + (AbsDataVal - DCT_VAL_CAT3_MIN);
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 12 ) {
+    /* Bit 2 determines sign, Bit 0-2 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY4; 
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT4_MIN);
+    else
+      TokenListPtr[1] = (0x04) + (AbsDataVal - DCT_VAL_CAT4_MIN);
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 20 ) {
+    /* Bit 3 determines sign, Bit 0-2 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY5;    
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT5_MIN);
+    else
+      TokenListPtr[1] = (0x08) + (AbsDataVal - DCT_VAL_CAT5_MIN);
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 36 ) {
+    /* Bit 4 determines sign, Bit 0-3 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY6;    
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT6_MIN);
+    else
+      TokenListPtr[1] = (0x010) + (AbsDataVal - DCT_VAL_CAT6_MIN);
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 68 ) {
+    /* Bit 5 determines sign, Bit 0-4 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY7;    
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT7_MIN);
+    else
+      TokenListPtr[1] = (0x20) + (AbsDataVal - DCT_VAL_CAT7_MIN);
+    tokens_added = 2;
+  } else if ( AbsDataVal <= 511 ) {
+    /* Bit 9 determines sign, Bit 0-8 the value */
+    TokenListPtr[0] = DCT_VAL_CATEGORY8;    
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (AbsDataVal - DCT_VAL_CAT8_MIN);
+    else
+      TokenListPtr[1] = (0x200) + (AbsDataVal - DCT_VAL_CAT8_MIN);
+    tokens_added = 2;
+  } else {
+    TokenListPtr[0] = DCT_VAL_CATEGORY8;    
+    if ( DataValue > 0 )
+      TokenListPtr[1] = (511 - DCT_VAL_CAT8_MIN);
+    else
+      TokenListPtr[1] = (0x200) + (511 - DCT_VAL_CAT8_MIN);
+    tokens_added = 2;
+  }
+  
+  /* Return the total number of tokens added */
+  return tokens_added;
 }
 
 unsigned char TokenizeDctRunValue (unsigned char RunLength, 
@@ -220,9 +217,8 @@ unsigned char TokenizeDctRunValue (unsigned char RunLength,
   
   /* Values are tokenised as category value and a number of additional
      bits  that define the category.  */
-  if ( DataValue == 0 ) {
-    IssueWarning( "Bad Input to TokenizeDctRunValue" );
-  } else if ( AbsDataVal == 1 ) {   
+  if ( DataValue == 0 ) return 0;
+  if ( AbsDataVal == 1 ) {   
     /* Zero runs of 1-5 */
     if ( RunLength <= 5 ) {
       TokenListPtr[0] = DCT_RUN_CATEGORY1 + (RunLength - 1);  
@@ -270,7 +266,7 @@ unsigned char TokenizeDctRunValue (unsigned char RunLength,
     }
   } else  {
     tokens_added = 2;  /* ERROR */
-    IssueWarning( "Bad Input to TokenizeDctRunValue" );
+    /*IssueWarning( "Bad Input to TokenizeDctRunValue" );*/
   }
   
   /* Return the total number of tokens added */
@@ -388,8 +384,7 @@ void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr,
   
   ogg_int32_t MvShift;
   ogg_int32_t MvModMask; 
-  ogg_uint32_t ReconPixelIndex = GetFragIndex(cpi->pb.recon_pixel_index_table,
-					      FragIndex);
+  ogg_uint32_t ReconPixelIndex = cpi->pb.recon_pixel_index_table[FragIndex];
   ogg_int32_t  AbsRefOffset;
   ogg_int32_t  AbsXOffset;             
   ogg_int32_t  AbsYOffset;
@@ -444,12 +439,10 @@ void MotionBlockDifference (CP_INSTANCE * cpi, unsigned char * FiltPtr,
   
   if ( cpi->pb.CodingMode==CODE_GOLDEN_MV ) {
     ReconPtr1 = &cpi->
-      pb.GoldenFrame[GetFragIndex(cpi->pb.recon_pixel_index_table, 
-				  FragIndex)];
+      pb.GoldenFrame[cpi->pb.recon_pixel_index_table[FragIndex]];
   } else {
     ReconPtr1 = &cpi->
-      pb.LastFrameRecon[GetFragIndex(cpi->pb.recon_pixel_index_table, 
-				     FragIndex)];
+      pb.LastFrameRecon[cpi->pb.recon_pixel_index_table[FragIndex]];
   }
   
   ReconPtr1 += MVOffset;
@@ -489,8 +482,8 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   ogg_int32_t   MvDevisor;      /* Defines MV resolution (2 = 1/2
                                    pixel for Y or 4 = 1/4 for UV) */
 
-  new_ptr1 = &cpi->yuv1ptr[GetFragIndex(cpi->pb.pixel_index_table,FragIndex)]; 
-  old_ptr1 = &cpi->yuv0ptr[GetFragIndex(cpi->pb.pixel_index_table,FragIndex)];
+  new_ptr1 = &cpi->yuv1ptr[cpi->pb.pixel_index_table[FragIndex]]; 
+  old_ptr1 = &cpi->yuv0ptr[cpi->pb.pixel_index_table[FragIndex]];
   DctInputPtr	= cpi->DCTDataBuffer;
   
   /* Set plane specific values */
@@ -503,8 +496,7 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   }
 
   /* adjusted / filtered pointers */
-  FiltPtr = &cpi->ConvDestBuffer[GetFragIndex(cpi->pb.pixel_index_table,
-					      FragIndex)];
+  FiltPtr = &cpi->ConvDestBuffer[cpi->pb.pixel_index_table[FragIndex]];
 
   if ( GetFrameType(&cpi->pb) == BASE_FRAME ) {
     /* Key frame so code block in INTRA mode. */
@@ -543,12 +535,10 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
 	      ( cpi->pb.CodingMode==CODE_USING_GOLDEN ) ) {
     if ( cpi->pb.CodingMode==CODE_INTER_NO_MV ) {
       ReconPtr1 = &cpi->
-	pb.LastFrameRecon[GetFragIndex(cpi->pb.recon_pixel_index_table,
-				       FragIndex)];
+	pb.LastFrameRecon[cpi->pb.recon_pixel_index_table[FragIndex]];
     } else {
       ReconPtr1 = &cpi->
-	pb.GoldenFrame[GetFragIndex(cpi->pb.recon_pixel_index_table,
-				    FragIndex)];
+	pb.GoldenFrame[cpi->pb.recon_pixel_index_table[FragIndex]];
     }
 
     Sub8( FiltPtr, ReconPtr1, DctInputPtr, old_ptr1, new_ptr1, 
@@ -556,9 +546,7 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
   } else if ( cpi->pb.CodingMode==CODE_INTRA ) {
     Sub8_128(FiltPtr, DctInputPtr, old_ptr1, new_ptr1, PixelsPerLine);
     
-  } else {
-    IssueWarning( "Illegal coding mode" );
-  }
+  } 
 
   /* Proceed to encode the data into the encode buffer if the encoder
      is enabled. */

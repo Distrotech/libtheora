@@ -11,14 +11,14 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: encode.c,v 1.3 2002/09/18 08:56:56 xiphmont Exp $
+  last mod: $Id: encode.c,v 1.4 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
 #include "ogg/ogg.h"
 #include "encoder_internal.h"
 #include "encoder_lookup.h"
-#include "hufftables.h"
+#include "block_inline.h"
 
 #define PUL 8
 #define PU 4
@@ -99,9 +99,6 @@ ogg_uint32_t QuadCodeComponent ( CP_INSTANCE *cpi,
     } 
   }
 
-  /* system state should be cleared here.... */
-  ClearSysState();
-  
   /* Return number of pixels coded */
   return coded_pixels;
 }
@@ -177,11 +174,11 @@ void EncodeDcTokenList (CP_INSTANCE *cpi) {
 		     pb.HuffCodeLengthArray_VP3x[HuffIndex][Token] );
 
     /* If the token is followed by an extra bits token then code it */
-    if ( ExtraBitLengths_VP31[Token] > 0 ) {
+    if ( cpi->pb.ExtraBitLengths_VP3x[Token] > 0 ) {
       /* Add the bits to the encode holding buffer.  */
-      cpi->FrameBitCount += ExtraBitLengths_VP31[Token];
+      cpi->FrameBitCount += cpi->pb.ExtraBitLengths_VP3x[Token];
       oggpackB_write( opb, ExtraBitsToken, 
-		       (ogg_uint32_t)ExtraBitLengths_VP31[Token] );
+		       (ogg_uint32_t)cpi->pb.ExtraBitLengths_VP3x[Token] );
     }
   }
   
@@ -257,11 +254,11 @@ void EncodeAcTokenList (CP_INSTANCE *cpi) {
 		     pb.HuffCodeLengthArray_VP3x[HuffIndex][Token] );
 
     /* If the token is followed by an extra bits token then code it */
-    if ( ExtraBitLengths_VP31[Token] > 0 ) {
+    if ( cpi->pb.ExtraBitLengths_VP3x[Token] > 0 ) {
       /* Add the bits to the encode holding buffer. */
-      cpi->FrameBitCount += ExtraBitLengths_VP31[Token];
+      cpi->FrameBitCount += cpi->pb.ExtraBitLengths_VP3x[Token];
       oggpackB_write( opb, ExtraBitsToken, 
-		       (ogg_uint32_t)ExtraBitLengths_VP31[Token] );
+		       (ogg_uint32_t)cpi->pb.ExtraBitLengths_VP3x[Token] );
     }
   }
   
@@ -449,9 +446,7 @@ void PackEOBRun( CP_INSTANCE *cpi) {
       cpi->OptimisedTokenListEb[cpi->OptimisedTokenCount] = 
 	cpi->RunLength;
       cpi->RunLength = 0;
-    } else {
-      IssueWarning("PackEOBRun : RunLength > 4095");
-    }
+    } 
     
   }
   
@@ -480,7 +475,7 @@ void PackToken ( CP_INSTANCE *cpi, ogg_int32_t FragmentNumber,
   
   /* Update record of tokens coded and where we are in this fragment. */
   /* Is there an extra bits token */
-  OneOrTwo= 1 + ( ExtraBitLengths_VP31[Token] > 0 ); 
+  OneOrTwo= 1 + ( cpi->pb.ExtraBitLengths_VP3x[Token] > 0 ); 
   /* Advance to the next real token. */
   cpi->FragTokens[FragmentNumber] += OneOrTwo;
 	
@@ -527,11 +522,9 @@ ogg_uint32_t GetBlockReconErrorSlow( CP_INSTANCE *cpi,
   ogg_uint32_t	ErrorVal = 0;
   
   unsigned char * SrcDataPtr = 
-    &cpi->ConvDestBuffer[GetFragIndex(cpi->pb.pixel_index_table,
-				      BlockIndex)];
+    &cpi->ConvDestBuffer[cpi->pb.pixel_index_table[BlockIndex]];
   unsigned char * RecDataPtr = 
-    &cpi->pb.LastFrameRecon[GetFragIndex(cpi->pb.recon_pixel_index_table,
-					 BlockIndex)];
+    &cpi->pb.LastFrameRecon[cpi->pb.recon_pixel_index_table[BlockIndex]];
   ogg_int32_t   SrcStride;
   ogg_int32_t   RecStride;
   
@@ -568,8 +561,6 @@ void PackCodedVideo (CP_INSTANCE *cpi) {
   ogg_int32_t TotalTokens = cpi->TotTokenCount;
   ogg_int32_t FragIndex;
   ogg_uint32_t HuffIndex; /* Index to group of tables used to code a token */
-
-  ClearSysState();
 
   /* Reset the count of second order optimised tokens */
   cpi->OptimisedTokenCount = 0;
@@ -1011,8 +1002,6 @@ ogg_uint32_t QuadCodeDisplayFragments (CP_INSTANCE *cpi) {
     
   }
 	
-  ClearSysState();
-
   /* Return total number of coded pixels */
   return coded_pixels;
 }
@@ -1578,8 +1567,6 @@ ogg_uint32_t PickModes(CP_INSTANCE *cpi,
     }
   }
 
-  ClearSysState();
-  
   /* Return number of pixels coded */
   return 0;
 }
@@ -1604,7 +1591,7 @@ void WriteFrameHeader( CP_INSTANCE *cpi) {
    
   if ( i == Q_TABLE_SIZE ) {
     /* An invalid DCT value was specified.  */
-    IssueWarning( "Invalid Q Multiplier" );
+    /*IssueWarning( "Invalid Q Multiplier" );*/
     oggpackB_write( opb, 31, 6 );
   }
   

@@ -11,13 +11,13 @@
  ********************************************************************
 
   function:
-  last mod: $Id: idct.c,v 1.1 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: idct.c,v 1.2 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
 #include <ogg/ogg.h>
 #include "encoder_internal.h"
-#include "encoder_lookup.h"
+#include "quant_lookup.h"
 
 #define IdctAdjustBeforeShift 8
 #define xC1S7 64277

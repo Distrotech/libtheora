@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: 
-  last mod: $Id: huffman.c,v 1.1 2002/09/18 08:56:57 xiphmont Exp $
+  last mod: $Id: huffman.c,v 1.2 2002/09/20 09:30:32 xiphmont Exp $
 
  ********************************************************************/
 
@@ -186,31 +186,7 @@ void  DestroyHuffTree(HUFF_ENTRY *root_ptr){
   }
 }
 
-void InitHuffmanSet( PB_INSTANCE *pbi ){
-  int i;
-
-  pbi->HuffRoot_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffRoot_VP3x));
-  pbi->HuffCodeArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeArray_VP3x));
-  pbi->HuffCodeLengthArray_VP3x = 
-    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeLengthArray_VP3x));
-  
-  for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
-    pbi->HuffCodeArray_VP3x[i] = 
-      _ogg_calloc(MAX_ENTROPY_TOKENS,
-		  sizeof(*pbi->HuffCodeArray_VP3x[i]));
-    pbi->HuffCodeLengthArray_VP3x[i] = 
-      _ogg_calloc(MAX_ENTROPY_TOKENS,
-		  sizeof(*pbi->HuffCodeLengthArray_VP3x[i]));
-    BuildHuffmanTree( pbi->HuffRoot_VP3x, 
-		      pbi->HuffCodeArray_VP3x[i],
-		      pbi->HuffCodeLengthArray_VP3x[i],
-		      i, FrequencyCounts_VP31[i]);
-  }
-}
-
-void DestroyHuffmanSet( PB_INSTANCE *pbi ){    
+void ClearHuffmanSet( PB_INSTANCE *pbi ){    
   int i;
   
   HUFF_ENTRY **HuffRoot = pbi->HuffRoot_VP3x ;
@@ -232,5 +208,32 @@ void DestroyHuffmanSet( PB_INSTANCE *pbi ){
   pbi->HuffRoot_VP3x=NULL;
   pbi->HuffCodeArray_VP3x=NULL;
   pbi->HuffCodeLengthArray_VP3x=NULL;
+}
+
+void InitHuffmanSet( PB_INSTANCE *pbi ){
+  int i;
+
+  ClearHuffmanSet(pbi);
+
+  pbi->HuffRoot_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffRoot_VP3x));
+  pbi->HuffCodeArray_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeArray_VP3x));
+  pbi->HuffCodeLengthArray_VP3x = 
+    _ogg_calloc(NUM_HUFF_TABLES,sizeof(*pbi->HuffCodeLengthArray_VP3x));
+  pbi->ExtraBitLengths_VP3x = ExtraBitLengths_VP31;
+  
+  for ( i = 0; i < NUM_HUFF_TABLES; i++ ){
+    pbi->HuffCodeArray_VP3x[i] = 
+      _ogg_calloc(MAX_ENTROPY_TOKENS,
+		  sizeof(*pbi->HuffCodeArray_VP3x[i]));
+    pbi->HuffCodeLengthArray_VP3x[i] = 
+      _ogg_calloc(MAX_ENTROPY_TOKENS,
+		  sizeof(*pbi->HuffCodeLengthArray_VP3x[i]));
+    BuildHuffmanTree( pbi->HuffRoot_VP3x, 
+		      pbi->HuffCodeArray_VP3x[i],
+		      pbi->HuffCodeLengthArray_VP3x[i],
+		      i, FrequencyCounts_VP31[i]);
+  }
 }
 
