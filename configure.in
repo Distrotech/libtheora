@@ -94,4 +94,4 @@ AC_SUBST(DEBUG)
 AC_SUBST(PROFILE)
 
 AC_OUTPUT(Makefile lib/Makefile include/Makefile include/theora/Makefile \
-	examples/Makefile)
+	examples/Makefile debian/Makefile)
