@@ -6,3 +6,10 @@ config.log
 config.status
 configure
 libtool
+autom4te.cache
+config.guess
+config.sub
+depcomp
+install-sh
+ltmain.sh
+missing
