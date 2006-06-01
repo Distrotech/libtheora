@@ -26,10 +26,10 @@ cpuid(ogg_int32_t op, ogg_uint32_t *out_eax, ogg_uint32_t *out_ebx, ogg_uint32_t
                 "cpuid         \n\t"
                 "movl %%ebx,%1 \n\t"
                 "popq %%rbx"        
-              : "=a" (*eax),         
-                "=r" (*ebx),         
-                "=c" (*ecx),         
-                "=d" (*edx)          
+              : "=a" (*out_eax),
+                "=r" (*out_ebx),
+                "=c" (*out_ecx),
+                "=d" (*out_edx)          
               : "a" (op)            
               : "cc");
 # elif defined(__i386__)
@@ -37,10 +37,10 @@ cpuid(ogg_int32_t op, ogg_uint32_t *out_eax, ogg_uint32_t *out_ebx, ogg_uint32_t
                 "cpuid         \n\t"
                 "movl %%ebx,%1 \n\t"
                 "popl %%ebx"        
-              : "=a" (*eax),         
-                "=r" (*ebx),         
-                "=c" (*ecx),         
-                "=d" (*edx)          
+              : "=a" (*out_eax),
+                "=r" (*out_ebx),
+                "=c" (*out_ecx),
+                "=d" (*out_edx)          
               : "a" (op)            
               : "cc");
 # elif defined(WIN32)
@@ -136,6 +136,7 @@ ogg_uint32_t cpu_init (void)
 {
   ogg_uint32_t cpu_flags = cpu_get_flags();
 
+#ifdef DEBUG
   if (cpu_flags) {
     TH_DEBUG("vectorized instruction sets supported:");
     if (cpu_flags & CPU_X86_MMX)      TH_DEBUG(" mmx");
@@ -146,6 +147,7 @@ ogg_uint32_t cpu_init (void)
     if (cpu_flags & CPU_X86_3DNOWEXT) TH_DEBUG(" 3dnowext");
     TH_DEBUG("\n");
   }
+#endif
 
   return cpu_flags;
 }

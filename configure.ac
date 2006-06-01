@@ -115,12 +115,14 @@ if test "x${ac_enable_asm}" = xyes; then
 		if test ! "x$target_vendor" = "xapple"; then
 		  cpu_x86_32=yes 
 		  cpu_optimization="32 bit x86"
+  		AC_DEFINE([USE_ASM], [],  [make use of asm optimization])
 		fi
     	;;
 	x86_64)
 		cpu_x86_64=yes
 		cpu_optimization="64 bit x86"
-	;;
+  	AC_DEFINE([USE_ASM], [],  [make use of asm optimization])	
+    ;;
   esac
 else
   cpu_optimization="disabled"
