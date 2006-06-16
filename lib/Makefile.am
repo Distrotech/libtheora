@@ -11,7 +11,11 @@ EXTRA_DIST = Version_script.in \
 	x86_64/fdct_mmx.c \
 	x86_32_vs/dsp_mmx.c \
 	x86_32_vs/fdct_mmx.c \
-	x86_32_vs/recon_mmx.c
+	x86_32_vs/recon_mmx.c \
+	encoder_disabled.c \
+	dct_encode.c \
+	encode.c \
+	encoder_toplevel.c
 
 lib_LTLIBRARIES = libtheora.la
 
