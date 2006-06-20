@@ -398,7 +398,7 @@ int main(int argc,char *argv[]){
 	ms = after.tv_sec*1000.+after.tv_usec*.001-
 	  (start.tv_sec*1000.+start.tv_usec*.001);
 	
-	fprintf(stderr,"\rframe:%d rate:%.1fx           ",
+	fprintf(stderr,"\rframe:%d rate:%.2fx           ",
 		frames, 
 		frames*1000./(ms*file_fps));
 	memcpy(&last,&after,sizeof(last));
