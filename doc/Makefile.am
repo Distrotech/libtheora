@@ -8,7 +8,7 @@ built_docs =
 
 static_docs = vp3-format.txt color.html \
 	draft-barbato-avt-rtp-theora-01.xml \
-	draft-barbato-avt-rtp-theora-00.txt
+	draft-barbato-avt-rtp-theora-01.txt
 
 doc_DATA = $(built_docs) $(static_docs) doxygen-build.stamp
 
