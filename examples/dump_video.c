@@ -35,6 +35,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 #if defined(_WIN32)
 #include <io.h>
@@ -49,10 +50,11 @@
 
 
 
-const char *optstring = "o:r";
+const char *optstring = "o:rf";
 struct option options [] = {
   {"output",required_argument,NULL,'o'},
   {"raw",no_argument, NULL, 'r'}, /* Disable YUV4MPEG2 headers if set */
+  {"fps-only",no_argument, NULL, 'f'}, /* Only interested in fps of decode loop */
   {NULL,0,NULL,0}
 };
 
@@ -104,14 +106,16 @@ static void video_write(void){
   yuv_buffer yuv;
   theora_decode_YUVout(&td,&yuv);
 
-  if(!raw)
-    fprintf(outfile, "FRAME\n");
-  for(i=0;i<yuv.y_height;i++)
-    fwrite(yuv.y+yuv.y_stride*i, 1, yuv.y_width, outfile);
-  for(i=0;i<yuv.uv_height;i++)
-    fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
-  for(i=0;i<yuv.uv_height;i++)
-    fwrite(yuv.v+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
+  if(outfile){
+    if(!raw)
+      fprintf(outfile, "FRAME\n");
+    for(i=0;i<yuv.y_height;i++)
+      fwrite(yuv.y+yuv.y_stride*i, 1, yuv.y_width, outfile);
+    for(i=0;i<yuv.uv_height;i++)
+      fwrite(yuv.u+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
+    for(i=0;i<yuv.uv_height;i++)
+      fwrite(yuv.v+yuv.uv_stride*i, 1, yuv.uv_width, outfile);
+  }
 
 }
 /* dump the theora comment header */
@@ -161,6 +165,11 @@ int main(int argc,char *argv[]){
   FILE *infile = stdin;
   outfile = stdout;
 
+  struct timeval start;
+  struct timeval after;
+  struct timeval last;
+  int fps_only=0;
+  int frames=0;
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode on windows. */
   /* Beware the evil ifdef. We avoid these where we can, but this one we
@@ -172,16 +181,25 @@ int main(int argc,char *argv[]){
   /* Process option arguments. */
   while((c=getopt_long(argc,argv,optstring,options,&long_option_index))!=EOF){
     switch(c){
-      case 'o':
-      outfile=fopen(optarg,"wb");
-      if(outfile==NULL){
-        fprintf(stderr,"Unable to open output file '%s'\n", optarg);
-        exit(1);
+    case 'o':
+      if(!strcmp(optarg,"-")){
+	outfile=fopen(optarg,"wb");
+	if(outfile==NULL){
+	  fprintf(stderr,"Unable to open output file '%s'\n", optarg);
+	  exit(1);
+	}
+      }else{
+	outfile=stdout;
       }
       break;
-
-      case 'r':
+      
+    case 'r':
       raw = 1;
+      break;
+      
+    case 'f':
+      fps_only = 1;
+      outfile=NULL;
       break;
 
       default:
@@ -308,7 +326,7 @@ int main(int argc,char *argv[]){
   /* open video */
   if(theora_p)open_video();
 
-  if(!raw)
+  if(!raw && outfile)
     fprintf(outfile, "YUV4MPEG2 W%d H%d F%d:%d I%c A%d:%d\n",
           ti.width, ti.height, ti.fps_numerator, ti.fps_denominator, 'p', 
           ti.aspect_numerator, ti.aspect_denominator);
@@ -343,8 +361,14 @@ int main(int argc,char *argv[]){
   while(ogg_sync_pageout(&oy,&og)>0){
     queue_page(&og);
   }
-  while(!got_sigint){
 
+  if(fps_only){
+    gettimeofday(&start,NULL);
+    gettimeofday(&last,NULL);
+  }
+
+  while(!got_sigint){
+    
     while(theora_p && !videobuf_ready){
       /* theora is one in, one out... */
       if(ogg_stream_packetout(&to,&op)>0){
@@ -353,10 +377,34 @@ int main(int argc,char *argv[]){
         videobuf_granulepos=td.granulepos;
         videobuf_time=theora_granule_time(&td,videobuf_granulepos);
         videobuf_ready=1;
+	frames++;
+	if(fps_only)
+	  gettimeofday(&after,NULL);
 
       }else
         break;
     }
+
+    if(fps_only && (videobuf_ready || fps_only==2)){
+      long ms = 
+	after.tv_sec*1000.+after.tv_usec*.001-
+	(last.tv_sec*1000.+last.tv_usec*.001);
+
+      if(ms>500 || fps_only==1 || 
+	 (feof(infile) && !videobuf_ready)){
+	float file_fps = (float)ti.fps_numerator/ti.fps_denominator;
+	fps_only=2;
+	
+	ms = after.tv_sec*1000.+after.tv_usec*.001-
+	  (start.tv_sec*1000.+start.tv_usec*.001);
+	
+	fprintf(stderr,"\rframe:%d rate:%.1fx           ",
+		frames, 
+		frames*1000./(ms*file_fps));
+	memcpy(&last,&after,sizeof(last));
+      }
+    }
+    
 
     if(!videobuf_ready && feof(infile))break;
 
@@ -386,7 +434,7 @@ int main(int argc,char *argv[]){
   if(infile && infile!=stdin)fclose(infile);
 
   fprintf(stderr,
-          "\r                                                              "
+          "\n                                                              "
           "\nDone.\n");
   return(0);
 
