@@ -1,6 +1,9 @@
-libtheora 1.0alpha7 (unreleased)
+libtheora 1.0alpha7 (2006 June 20)
 
- - no changes yet -
+ - Enable mmx assembly by default
+ - Avoid some relocations that caused problems on SELinux
+ - Other build fixes
+ - time testing mode (-f) for the dump_video example
 
 libtheora 1.0alpha6 (2006 May 30)
 
