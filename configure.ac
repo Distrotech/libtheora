@@ -310,6 +310,13 @@ AS_AC_EXPAND(INCLUDEDIR, ${includedir})
 AS_AC_EXPAND(BINDIR, ${bindir})
 AS_AC_EXPAND(DOCDIR, ${datadir}/doc)
 
+if test $HAVE_DOXYGEN = "false"; then
+  doc_build="no"
+else
+  doc_build="yes"
+fi
+dnl need to handle spec build?
+
 AC_MSG_RESULT([
 ------------------------------------------------------------------------
   $PACKAGE $VERSION:  Automatic configuration OK.
@@ -319,6 +326,7 @@ AC_MSG_RESULT([
     Encoding support: ........... ${ac_enable_encode}
     Floating point support: ..... ${ac_enable_float}
     Assembly optimization: ...... ${cpu_optimization}
+    API Documentation: .......... ${doc_build}
 
   Installation paths:
 
