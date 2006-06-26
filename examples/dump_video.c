@@ -162,14 +162,14 @@ int main(int argc,char *argv[]){
   int long_option_index;
   int c;
 
-  FILE *infile = stdin;
-  outfile = stdout;
-
   struct timeval start;
   struct timeval after;
   struct timeval last;
   int fps_only=0;
   int frames=0;
+
+  FILE *infile = stdin;
+  outfile = stdout;
 
 #ifdef _WIN32 /* We need to set stdin/stdout to binary mode on windows. */
   /* Beware the evil ifdef. We avoid these where we can, but this one we
