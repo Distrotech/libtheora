@@ -40,6 +40,86 @@ ogg_buffer_state *ogg_buffer_create(void);
  * <a href="http://www.theora.org/">Theora</a>, a free video codec.
  * Theora is derived from On2's VP3 codec with improved integration for
  * Ogg multimedia formats by <a href="http://www.xiph.org/">Xiph.Org</a>.
+ * 
+ * \section overview Overview
+ *
+ * This library will both decode and encode theora packets to/from raw YUV 
+ * frames.  In either case, the packets will most likely either come from or
+ * need to be embedded in an ogg stream.  Use 
+ * <a href="http://xiph.org/ogg/">libogg</a> or 
+ * <a href="http://www.annodex.net/software/liboggz/index.html">liboggz</a>
+ * to extract/package these packets.
+ *
+ * \section decoding Decoding Process
+ *
+ * Decoding can be seperated into the following steps:
+ * -# initialise theora_info and theora_comment structures using 
+ *    theora_info_init() and theora_comment_init():
+ \verbatim
+ theora_info     info;
+ theora_comment  comment;
+   
+ theora_info_init(&info);
+ theora_comment_init(&comment);
+ \endverbatim
+ * -# retrieve header packets from ogg stream (there should be 3) and decode 
+ *    into theora_info and theora_comment structures using 
+ *    theora_decode_header().  See \ref identification for more information on 
+ *    identifying which packets are theora packets.
+ \verbatim
+ int i;
+ for (i = 0; i < 3; i++)
+ {
+   (get a theora packet "op" from the ogg stream)
+   theora_decode_header(&info, &comment, op);
+ }
+ \endverbatim
+ * -# initialise the decoder based on the information retrieved into the
+ *    theora_info struct by theora_decode_header().  You will need a 
+ *    theora_state struct.
+ \verbatim
+ theora_state state;
+ 
+ theora_decode_init(&state, &info);
+ \endverbatim
+ * -# pass in packets and retrieve decoded frames!  See the yuv_buffer 
+ *    documentation for information on how to retrieve raw YUV data.
+ \verbatim
+ yuf_buffer buffer;
+ while (last packet was not e_o_s) {
+   (get a theora packet "op" from the ogg stream)
+   theora_decode_packetin(&state, op);
+   theora_decode_YUVout(&state, &buffer);
+ }
+ \endverbatim
+ *  
+ *
+ * \subsection identification Identifying Theora Packets
+ *
+ * all streams inside an ogg file have a unique serial_no attached to the 
+ * stream.  Typically, you will want to 
+ *  - retrieve the serial_no for each b_o_s (beginning of stream) page 
+ *    encountered within the pgg file; 
+ *  - test the first (only) packet on that page to determine if it is a theora 
+ *    packet;
+ *  - once you have found a theora b_o_s page then use the retrieved serial_no 
+ *    to identify future packets belonging to the same theora stream.
+ * 
+ * Note that you \e cannot use theora_packet_isheader() to determine if a 
+ * packet is a theora packet or not, as this function does not perform any
+ * checking beyond whether a header bit is present.  Instead, use the
+ * theora_decode_header() function and check the return value; or examine the
+ * header bytes at the beginning of the ogg page.
+ *
+ * \subsection example Example Decoder 
+ *
+ * see <a href="http://svn.xiph.org/trunk/theora/examples/dump_video.c">
+ * examples/dump_video.c</a> for a simple decoder implementation.
+ *
+ * \section encoding Encoding Process
+ *
+ * see <a href="http://svn.xiph.org/trunk/theora/examples/encoder_example.c">
+ * examples/encoder_example.c</a> for a simple encoder implementation.
  */
 
 /** \file
@@ -59,6 +139,16 @@ ogg_buffer_state *ogg_buffer_create(void);
  * All samples are 8 bits. Within each plane samples are ordered by
  * row from the top of the frame to the bottom. Within each row samples
  * are ordered from left to right.
+ *
+ * During decode, the yuv_buffer struct is allocated by the user, but all
+ * fields (including luma and chroma pointers) are filled by the library.  
+ * These pointers address library-internal memory and their contents should 
+ * not be modified.
+ *
+ * Conversely, during encode the user allocates the struct and fills out all
+ * fields.  The user also manages the data addressed by the luma and chroma
+ * pointers.  See the encoder_example.c and dump_video.c example files in
+ * theora/examples/ for more information.
  */
 typedef struct {
     int   y_width;      /**< Width of the Y' luminance plane */
@@ -235,7 +325,9 @@ extern int theora_encode_init(theora_state *th, theora_info *ti);
 /**
  * Submit a YUV buffer to the theora encoder.
  * \param t A theora_state handle previously initialized for encoding.
- * \param yuv A buffer of YUV data to encode.
+ * \param yuv A buffer of YUV data to encode.  Note that both the yuv_buffer
+ *            struct and the luma/chroma buffers within should be allocated by
+ *            the user.
  * \retval OC_EINVAL Encoder is not ready, or is finished.
  * \retval -1 The size of the given frame differs from those previously input
  * \retval 0 Success
@@ -361,6 +453,10 @@ extern int theora_decode_packetin(theora_state *th,ogg_packet *op);
  * Output the next available frame of decoded YUV data.
  * \param th A theora_state handle previously initialized for decoding.
  * \param yuv A yuv_buffer in which libtheora should place the decoded data.
+ *            Note that the buffer struct itself is allocated by the user, but
+ *            that the luma and chroma pointers will be filled in by the 
+ *            library.  Also note that these luma and chroma regions should be 
+ *            considered read-only by the user.
  * \retval 0 Success
  */
 extern int theora_decode_YUVout(theora_state *th,yuv_buffer *yuv);
