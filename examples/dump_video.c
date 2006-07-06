@@ -35,7 +35,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/time.h>
+#include <sys/timeb.h>
 
 #if defined(_WIN32)
 #include <io.h>
@@ -162,9 +162,9 @@ int main(int argc,char *argv[]){
   int long_option_index;
   int c;
 
-  struct timeval start;
-  struct timeval after;
-  struct timeval last;
+  struct timeb start;
+  struct timeb after;
+  struct timeb last;
   int fps_only=0;
   int frames=0;
 
@@ -363,8 +363,8 @@ int main(int argc,char *argv[]){
   }
 
   if(fps_only){
-    gettimeofday(&start,NULL);
-    gettimeofday(&last,NULL);
+    ftime(&start);
+    ftime(&last);
   }
 
   while(!got_sigint){
@@ -379,7 +379,7 @@ int main(int argc,char *argv[]){
         videobuf_ready=1;
 	frames++;
 	if(fps_only)
-	  gettimeofday(&after,NULL);
+	  ftime(&after);
 
       }else
         break;
@@ -387,16 +387,16 @@ int main(int argc,char *argv[]){
 
     if(fps_only && (videobuf_ready || fps_only==2)){
       long ms = 
-	after.tv_sec*1000.+after.tv_usec*.001-
-	(last.tv_sec*1000.+last.tv_usec*.001);
+	after.time*1000.+after.millitm-
+	(last.time*1000.+last.millitm);
 
       if(ms>500 || fps_only==1 || 
 	 (feof(infile) && !videobuf_ready)){
 	float file_fps = (float)ti.fps_numerator/ti.fps_denominator;
 	fps_only=2;
 	
-	ms = after.tv_sec*1000.+after.tv_usec*.001-
-	  (start.tv_sec*1000.+start.tv_usec*.001);
+	ms = after.time*1000.+after.millitm-
+	  (start.time*1000.+start.millitm);
 	
 	fprintf(stderr,"\rframe:%d rate:%.2fx           ",
 		frames, 
