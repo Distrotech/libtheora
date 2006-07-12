@@ -19,7 +19,6 @@
 #define DSP_H
 
 #include <theora/theora.h>
-typedef unsigned long int ogg_uint64_t;
 
 typedef struct
 {

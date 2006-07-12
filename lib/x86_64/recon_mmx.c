@@ -17,6 +17,8 @@
 
 #include "codec_internal.h"
 
+typedef unsigned long long ogg_uint64_t;
+
 static const __attribute__ ((aligned(8),used)) ogg_int64_t V128 = 0x8080808080808080LL;
 
 static void copy8x8__mmx (unsigned char *src,

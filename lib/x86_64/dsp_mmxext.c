@@ -20,6 +20,8 @@
 #include "codec_internal.h"
 #include "dsp.h"
 
+typedef unsigned long long ogg_uint64_t;
+
 static ogg_uint32_t sad8x8__mmxext (unsigned char *ptr1, ogg_uint32_t stride1,
                                     unsigned char *ptr2, ogg_uint32_t stride2)
 {

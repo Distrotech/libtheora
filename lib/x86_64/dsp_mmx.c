@@ -20,6 +20,8 @@
 #include "codec_internal.h"
 #include "dsp.h"
 
+typedef unsigned long long ogg_uint64_t;
+
 static const __attribute__ ((aligned(8),used)) ogg_int64_t V128 = 0x0080008000800080LL;
 
 #define DSP_OP_AVG(a,b) ((((int)(a)) + ((int)(b)))/2)
