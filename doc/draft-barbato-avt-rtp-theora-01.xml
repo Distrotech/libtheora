@@ -6,7 +6,7 @@
 <rfc ipr="full3978" docName="RTP Payload Format for Theora Encoded Video">
 
 <front>
-<title>draft-barbato-avt-rtp-theora-01</title>
+<title>draft-ietf-avt-rtp-theora-01</title>
 
 <author initials="L" surname="Barbato" fullname="Luca Barbato">
 <organization>Xiph.Org</organization>
@@ -16,7 +16,7 @@
 </address>
 </author>
 
-<date day="16" month="June" year="2006" /> 
+<date day="21" month="July" year="2006" /> 
 <area>General</area>
 <workgroup>AVT Working Group</workgroup>
 <keyword>I-D</keyword>
@@ -60,11 +60,11 @@ Theora provides none of its own framing, synchronization, or protection against 
 
 <t>
 Theora I currently supports progressive video data of arbitrary dimensions at a constant frame rate in one of several Y'CbCr color spaces.
-Three different chroma subsampling formats are supported: 4:2:0, 4:2:2, and 4:4:4. The Theora I format does not support interlaced material, variable frame rates, bit-depths larger than 8 bits per component, nor alternate color spaces such as RGB or arbitrary multi-channel spaces.  Black and white content can be efficiently encoded, however, because the uniform chroma planes compress well. Arbitrary frame size will be encoded rounding to the upper multiple of 16 both dimension for performance reason. The original width and height will be encoded in the header and the decoder will use this information to clip the decoded frame to the right dimensions.
+Three different chroma subsampling formats are supported: 4:2:0, 4:2:2, and 4:4:4. The Theora I format does not support interlaced material, variable frame rates, bit-depths larger than 8 bits per component, nor alternate color spaces such as RGB or arbitrary multi-channel spaces. Black and white content can be efficiently encoded, however, because the uniform chroma planes compress well. For performance reason, arbitrary frame sizes will be encoded rounding both dimensions to the upper multiple of 16. The original width and height will be encoded in the header and the decoder will use this information to clip the decoded frame to the right dimensions.
 </t>
 
 <t>
-Theora is similar to the Vorbis audio <xref target="vorbisrtp"></xref> in that it the decoder reads the probability model for the entropy coder and all quantization parameters from special "header" packets at the start of the compressed data. It is therefore impossible to decode any video data without having previously fetched the codec info and codec setup headers, although Theora can initiate decode at an arbitrary intra-frame packet so long as the codec has been initialized with the associated headers.
+Theora is similar to the Vorbis audio <xref target="vorbisrtp"></xref> in that the decoder reads the probability model for the entropy coder and all quantization parameters from special "header" packets at the start of the compressed data. It is therefore impossible to decode any video data without having previously fetched the codec info and codec setup headers, although Theora can begin to decode at an arbitrary intra-frame packet so long as the codec has been initialized with the associated headers.
 </t>
 
 <section anchor="Terminology" title="Terminology">
@@ -164,7 +164,7 @@ These two fields, 32 bits each with one SSRC field and a maximum of 16 CSRC fiel
 <section anchor="Payload Header" title="Payload Header">
 
 <t>
-The 4 octets following the RTP Header section are the Payload Header. This header is split into a number of bitfields detailing the format of the following Payload Data packets.
+The 4 octets following the RTP Header section represent the Payload Header. This header is split into a number of bitfields detailing the format of the following Payload Datagrams.
 </t>
 
 <figure anchor="Payload Header Figure" title="Payload Header">
@@ -203,7 +203,7 @@ This field is set according to the following list
 <t>
 Theora Data Type (TDT): 2 bits</t>
 <t>
-This field sets the packet payload type for the Theora data.  There are currently three Theora payload types. 
+This field sets the packet payload type for the Theora data.  There are currently three Theora payload types currently used and one reserved for future use. 
 </t>
 
 <vspace blankLines="1" />
@@ -216,10 +216,8 @@ This field sets the packet payload type for the Theora data.  There are currentl
 
 <t> The packets with a TDT of value 3 MUST be ignored </t>
 
-
-
 <t>
-The last 4 bits represent the number of complete packets in this payload. This provides for a maximum number of 15 Theora packets in the payload. If the packet contains fragmented data the number of packets MUST be set to 0.
+The last 4 bits represent the number of complete packets in this payload. This provides a maximum number of 15 Theora packets in the payload. If the packet contains fragmented data the number of packets MUST be set to 0.
 </t>
 
 </section>
@@ -300,7 +298,7 @@ Payload Data:
 </figure>
 
 <t>
-The payload portion of the packet begins with the 24 bit Configuration ident field followed by 8 bits describing the payload. The Fragment type field is set to 0, indicating that this packet contains whole Theora frame data. The Data type field is set to 0 since it is theora raw data. The number of whole Theora data packets is set to 2.
+The payload portion of the packet begins with the 24 bit Configuration ident field followed by 8 bits describing the payload. The Fragment type field is set to 0, indicating that this packet contains whole Theora frame data. The Data type field is set to 0 (theora raw data). The number of whole Theora data packets is set to 2.
 </t>
 
 <t>
@@ -314,19 +312,19 @@ by the variable length Theora packet data.
 <section anchor="Configuration Headers" title="Configuration Headers">
 
 <t>
-To decode a Theora stream three configuration header packets are needed.  The first, called the Identification Header, indicates the frame dimensions, quality, blocks used and the version of the Theora encoder used.  The second, called the Comment Header, contains stream metadata and the third, called the Setup Header, contains details of the dequantization and Huffman tables.
+To decode a Theora stream three configuration header packets are needed.  The first (Identification Header) indicates frame dimensions, quality, blocks used and Theora encoder version. The second (Comment Header) contains stream metadata and the third (Setup Header) contains details of the dequantization and Huffman tables.
 </t>
 
 <t>
-Since this information must be transmitted reliably, and as the RTP stream may change certain configuration data mid-session, there are different methods for delivering this configuration data to a client, both in-band and out-of-band which are detailed below. SDP delivery is used to set up an initial state for the client application. The changes may be due to different dequantization and Huffman tables as well as different bitrates of the stream.
+Since this information must be transmitted reliably, and as the RTP stream may change certain configuration data mid-session, there are different methods for delivering this configuration data to a client, both in-band and out-of-band, which are detailed below. SDP delivery is used to set up an initial state for the client application. The changes may be due to different dequantization and Huffman tables as well as different bitrates of the stream.
 </t>
 
 <t>
-The delivery vectors in use are specified by an SDP attribute to indicate the method and the optional URI where the Theora  <xref target="Packed Configuration">Packed Configuration</xref> Packets could be fetched. Different delivery methods MAY be advertised for the same session. The in-band codebook delivery SHOULD be considered as baseline, out-of-band delivery methods that don't use RTP will not be described in this document. For non chained streams, the Configuration delivery method RECOMMENDED is inline the <xref target="Packed Configuration">Packed Configuration</xref> in the SDP as explained in the <xref target="Mapping MIME Parameters into SDP"> IANA considerations</xref>
+The delivery vectors in use are specified by an SDP attribute that indicates the method and the optional URI where the Theora <xref target="Packed Configuration">Packed Configuration</xref> Packets could be fetched. Different delivery methods MAY be advertised for the same session. The in-band codebook delivery SHOULD be considered as baseline, out-of-band delivery methods that don't use RTP will not be described in this document. For non chained streams, the RECOMMENDED Configuration delivery method is inline the <xref target="Packed Configuration">Packed Configuration</xref> in the SDP as explained in the <xref target="Mapping MIME Parameters into SDP"> IANA considerations</xref>
 </t>
 
 <t>
-The 24 bit Ident field is used to map which Configuration will be used to decode a packet. When the Ident field changes, it indicates that a change in the stream has taken place. The client application MUST have in advance the correct configuration and if the client detects a change in the Ident value and does not have this information it MUST NOT decode the raw data associated until it fetches the correct Configuration.
+The 24 bit Ident field is used to map which Configuration will be used to decode a packet. When the Ident field changes, it indicates that a change in the stream has taken place. The client application MUST have in advance the correct configuration and if the client detects a change in the Ident value and does not have this information it MUST NOT decode the raw data associated until it has fetched the correct Configuration.
 </t>
 
 
@@ -339,7 +337,7 @@ The <xref target="Packed Configuration">Packed Configuration</xref> Payload is s
 <section anchor="Packed Configuration" title="Packed Configuration">
 
 <t>
-A Theora Packed Configuration is indicated with the payload type field set to 1. Of the three headers, defined in the <xref target="theora-spec-ref">Theora I specification</xref>, the identification and the setup will be packed together, the comment header is completely suppressed. It is up to the client to provide a minimal size comment header to the decoder if required by the implementation.
+A Theora Packed Configuration is identified by a payload type field of 1. Of the three headers, defined in the <xref target="theora-spec-ref">Theora I specification</xref>, the identification and the setup will be packed together, while the comment header will be completely suppressed. It is up to the client to provide a minimal size comment header to the decoder if required by the implementation.
 </t>
 
 <figure anchor="Packed Configuration Figure" title="Packed Configuration Figure">
@@ -375,19 +373,17 @@ A Theora Packed Configuration is indicated with the payload type field set to 1.
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ]]></artwork>
 </figure>
-<t>The Ident field is set with the value that will be used by the Raw Payload Packets to address this Configuration. The Fragment type is set to 0 since the packet bears the full Packed configuration, the number of packet is set to 1. In practice, Packed Headers usually need to be fragmented to fit the path MTU.
+<t>The Ident field is set with the value that will be used by the Raw Payload Packets to address this Configuration. The Fragment type is set to 0 since the packet bears full Packed configuration, the number of packet is set to 1. In practice, Packed Headers usually need to be fragmented to fit the path MTU.
 </t>
 
-
 </section>
 
 </section>
-
 
 <section anchor="Out of Band Transmission" title="Out of Band Transmission">
 
 <t>
-This section, as stated above, does not cover all the possible out-of-band delivery methods since they rely on different protocols and be linked to specific applications. The following packet definition SHOULD be used in out-of-band delivery and MUST be used when Configuration is inlined in the SDP.
+This section, as stated above, does not cover all the possible out-of-band delivery methods since they rely on different protocols and are linked to specific applications. The following packet definition SHOULD be used in out-of-band delivery and MUST be used when Configuration is inlined in the SDP.
 </t>
 
 <section anchor="Packed Headers" title="Packed Headers"> 
@@ -419,15 +415,15 @@ Since the Configuration Ident and the Identification Header are fixed length the
     0                   1                   2                   3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |            Configuration Ident                |              ..
+   |              Configuration Ident              |              ..
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    ..   Length     |              Identification Header           ..
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    ..                    Identification Header                     |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                          Setup Header                        ..
+   |                         Setup Header                         ..
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   ..                         Setup Header                         |
+   ..                        Setup Header                          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ]]></artwork></figure>
 
@@ -543,27 +539,7 @@ IETF AVT Working Group</t>
 
 </section>
 </section>
-<!--
-<section anchor="Well Known Configurations" title="Well Known Configurations">
 
-<t>
-Even if the Theora nature prevents the creation of everlasting profiles, some combination of codebooks, bitrate, channels and samplerate are quite common.
-A client may have a list of well known configuration and MAY avoid fetching them already.
-In order to retain compatibility the server, even if all the Configurations that will be in use are Well Known, MUST provide at least another way to provide codebooks.
-Every Configuration that is available as Well Known has the Ident highest bit set. Every Well Known List MUST contain at most 2^23 items.
-</t>
-
-<t>
-This off band delivery method MUST be signaled as "out_band/wkc/list_name" using the mandated parameter delivery-method. An optional configuration-uri MAY point to a location where to fetch it. The list is in the form of <xref target="Packed Headers">Packed Headers</xref>, that MAY be compressed using <xref target="BZ2">bzip2</xref> or <xref target="rfc1952">gzip</xref> algorithms As further explained in the <xref target="IANA Considerations">IANA Considerations</xref> section.
-</t>
-
-<t>
-Only one list MUST be used at time. During <xref target="rfc3264">SDP Offer/Answer</xref> client and server MAY agree on a specific list, that subject will be discussed further on the specific <xref target="Usage with the SDP Offer/Answer Mode">SDP Offer/Answer</xref> section.
-This method
-</t>
-
-</section>
--->
 </section>
 
 <section anchor="Loss of Configuration Headers" title="Loss of Configuration Headers"> 
@@ -573,7 +549,7 @@ Unlike the loss of raw Theora payload data, the loss of a configuration header c
 </t>
 
 <t>
-A loss of a Configuration Packet results in the halting of stream decoding and SHOULD be reported to the client as well as a loss report sent via RTCP.
+A loss of a Configuration Packet causes the stream decoder to halt and SHOULD be reported to the client as well as a loss report sent via RTCP.
 </t>
 
 </section>
@@ -583,8 +559,9 @@ A loss of a Configuration Packet results in the halting of stream decoding and S
 <section anchor="Comment Headers" title="Comment Headers">
 
 <t>
-When the payload type is set to 2, the packet contains the comment metadata, such as artist name, track title and so on. These metadata messages are not intended to be fully descriptive but to offer basic title information. Clients MAY ignore them completely. The details on the format of the comments can be found in the <xref target="theora-spec-ref">Theora documentation</xref>.
+When the payload type is set to 2, the packet contains comment metadata such as artist name, track title and so on. These metadata messages are not intended to be fully descriptive but to offer basic title information. Clients MAY choose to completely ignore them. The details on the comments format can be found in the <xref target="theora-spec-ref">Theora documentation</xref>.
 </t>
+
 <figure anchor="Comment Packet Figure" title="Comment Packet">
 <artwork><![CDATA[
     0                   1                   2                   3
