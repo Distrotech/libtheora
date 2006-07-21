@@ -1,13 +1,12 @@
 
 
 
-
 AVT Working Group                                             L. Barbato
 Internet-Draft                                                  Xiph.Org
-Expires: December 18, 2006                                 June 16, 2006
+Expires: January 22, 2007                                  July 21, 2006
 
 
-                    draft-barbato-avt-rtp-theora-01
+                      draft-ietf-avt-rtp-theora-00
               RTP Payload Format for Theora Encoded Video
 
 Status of this Memo
@@ -33,7 +32,7 @@ Status of this Memo
    The list of Internet-Draft Shadow Directories can be accessed at
    http://www.ietf.org/shadow.html.
 
-   This Internet-Draft will expire on December 18, 2006.
+   This Internet-Draft will expire on January 22, 2007.
 
 Copyright Notice
 
@@ -53,9 +52,9 @@ Editors Note
 
 
 
-Barbato                 Expires December 18, 2006               [Page 1]
+Barbato                 Expires January 22, 2007                [Page 1]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    All references to RFC XXXX are to be replaced by references to the
@@ -109,9 +108,9 @@ Table of Contents
 
 
 
-Barbato                 Expires December 18, 2006               [Page 2]
+Barbato                 Expires January 22, 2007                [Page 2]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 1.  Introduction
@@ -146,18 +145,18 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
    bits per component, nor alternate color spaces such as RGB or
    arbitrary multi-channel spaces.  Black and white content can be
    efficiently encoded, however, because the uniform chroma planes
-   compress well.  Arbitrary frame size will be encoded rounding to the
-   upper multiple of 16 both dimension for performance reason.  The
+   compress well.  For performance reason, arbitrary frame sizes will be
+   encoded rounding both dimensions to the upper multiple of 16.  The
    original width and height will be encoded in the header and the
    decoder will use this information to clip the decoded frame to the
    right dimensions.
 
-   Theora is similar to the Vorbis audio [10] in that it the decoder
-   reads the probability model for the entropy coder and all
-   quantization parameters from special "header" packets at the start of
-   the compressed data.  It is therefore impossible to decode any video
-   data without having previously fetched the codec info and codec setup
-   headers, although Theora can initiate decode at an arbitrary intra-
+   Theora is similar to the Vorbis audio [10] in that the decoder reads
+   the probability model for the entropy coder and all quantization
+   parameters from special "header" packets at the start of the
+   compressed data.  It is therefore impossible to decode any video data
+   without having previously fetched the codec info and codec setup
+   headers, although Theora can begin to decode at an arbitrary intra-
    frame packet so long as the codec has been initialized with the
    associated headers.
 
@@ -165,9 +164,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006               [Page 3]
+Barbato                 Expires January 22, 2007                [Page 3]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 1.1.  Terminology
@@ -221,9 +220,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006               [Page 4]
+Barbato                 Expires January 22, 2007                [Page 4]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    This field identifies the version of RTP.  The version used by this
@@ -271,15 +270,15 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 2.2.  Payload Header
 
-   The 4 octets following the RTP Header section are the Payload Header.
-   This header is split into a number of bitfields detailing the format
-   of the following Payload Data packets.
+   The 4 octets following the RTP Header section represent the Payload
+   Header.  This header is split into a number of bitfields detailing
+   the format of the following Payload Datagrams.
 
 
 
-Barbato                 Expires December 18, 2006               [Page 5]
+Barbato                 Expires January 22, 2007                [Page 5]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
        0                   1                   2                   3
@@ -311,7 +310,8 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
    Theora Data Type (TDT): 2 bits
 
    This field sets the packet payload type for the Theora data.  There
-   are currently three Theora payload types.
+   are currently three Theora payload types currently used and one
+   reserved for future use.
 
       0 = Raw Theora payload
       1 = Theora Packed Configuration payload
@@ -321,22 +321,23 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
    The packets with a TDT of value 3 MUST be ignored
 
    The last 4 bits represent the number of complete packets in this
-   payload.  This provides for a maximum number of 15 Theora packets in
-   the payload.  If the packet contains fragmented data the number of
+   payload.  This provides a maximum number of 15 Theora packets in the
+   payload.  If the packet contains fragmented data the number of
    packets MUST be set to 0.
 
 2.3.  Payload Data
 
    Each Theora payload section starts with a two octets length header
    that is used to represent the size of the following data payload,
-   followed by the raw Theora packet data.
 
 
 
-Barbato                 Expires December 18, 2006               [Page 6]
+Barbato                 Expires January 22, 2007                [Page 6]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
+
+   followed by the raw Theora packet data.
 
        0                   1                   2                   3
        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -387,11 +388,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-
-
-Barbato                 Expires December 18, 2006               [Page 7]
+Barbato                 Expires January 22, 2007                [Page 7]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
        0                   1                   2                   3
@@ -414,8 +413,8 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
    Configuration ident field followed by 8 bits describing the payload.
    The Fragment type field is set to 0, indicating that this packet
    contains whole Theora frame data.  The Data type field is set to 0
-   since it is theora raw data.  The number of whole Theora data packets
-   is set to 2.
+   (theora raw data).  The number of whole Theora data packets is set to
+   2.
 
    Each of the payload blocks starts with the two octets length field
    followed by the variable length Theora packet data.
@@ -424,45 +423,44 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 3.  Configuration Headers
 
    To decode a Theora stream three configuration header packets are
-   needed.  The first, called the Identification Header, indicates the
-   frame dimensions, quality, blocks used and the version of the Theora
-   encoder used.  The second, called the Comment Header, contains stream
-   metadata and the third, called the Setup Header, contains details of
-   the dequantization and Huffman tables.
+   needed.  The first (Identification Header) indicates frame
+   dimensions, quality, blocks used and Theora encoder version.  The
+   second (Comment Header) contains stream metadata and the third (Setup
+   Header) contains details of the dequantization and Huffman tables.
 
    Since this information must be transmitted reliably, and as the RTP
    stream may change certain configuration data mid-session, there are
    different methods for delivering this configuration data to a client,
-   both in-band and out-of-band which are detailed below.  SDP delivery
+   both in-band and out-of-band, which are detailed below.  SDP delivery
    is used to set up an initial state for the client application.  The
    changes may be due to different dequantization and Huffman tables as
    well as different bitrates of the stream.
 
-   The delivery vectors in use are specified by an SDP attribute to
-   indicate the method and the optional URI where the Theora Packed
+   The delivery vectors in use are specified by an SDP attribute that
+   indicates the method and the optional URI where the Theora Packed
    Configuration (Section 3.1.1) Packets could be fetched.  Different
    delivery methods MAY be advertised for the same session.  The in-band
-
-
-
-Barbato                 Expires December 18, 2006               [Page 8]
-
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
-
-
    codebook delivery SHOULD be considered as baseline, out-of-band
+
+
+
+Barbato                 Expires January 22, 2007                [Page 8]
+
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
+
+
    delivery methods that don't use RTP will not be described in this
-   document.  For non chained streams, the Configuration delivery method
-   RECOMMENDED is inline the Packed Configuration (Section 3.1.1) in the
-   SDP as explained in the IANA considerations (Section 6.1)
+   document.  For non chained streams, the RECOMMENDED Configuration
+   delivery method is inline the Packed Configuration (Section 3.1.1) in
+   the SDP as explained in the IANA considerations (Section 6.1)
 
    The 24 bit Ident field is used to map which Configuration will be
    used to decode a packet.  When the Ident field changes, it indicates
    that a change in the stream has taken place.  The client application
    MUST have in advance the correct configuration and if the client
    detects a change in the Ident value and does not have this
-   information it MUST NOT decode the raw data associated until it
-   fetches the correct Configuration.
+   information it MUST NOT decode the raw data associated until it has
+   fetched the correct Configuration.
 
 3.1.  In-band Header Transmission
 
@@ -473,11 +471,11 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 3.1.1.  Packed Configuration
 
-   A Theora Packed Configuration is indicated with the payload type
-   field set to 1.  Of the three headers, defined in the Theora I
-   specification [16], the identification and the setup will be packed
-   together, the comment header is completely suppressed.  It is up to
-   the client to provide a minimal size comment header to the decoder if
+   A Theora Packed Configuration is identified by a payload type field
+   of 1.  Of the three headers, defined in the Theora I specification
+   [16], the identification and the setup will be packed together, while
+   the comment header will be completely suppressed.  It is up to the
+   client to provide a minimal size comment header to the decoder if
    required by the implementation.
 
 
@@ -501,9 +499,10 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006               [Page 9]
+
+Barbato                 Expires January 22, 2007                [Page 9]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
        0                   1                   2                   3
@@ -540,15 +539,15 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
    The Ident field is set with the value that will be used by the Raw
    Payload Packets to address this Configuration.  The Fragment type is
-   set to 0 since the packet bears the full Packed configuration, the
-   number of packet is set to 1.  In practice, Packed Headers usually
-   need to be fragmented to fit the path MTU.
+   set to 0 since the packet bears full Packed configuration, the number
+   of packet is set to 1.  In practice, Packed Headers usually need to
+   be fragmented to fit the path MTU.
 
 3.2.  Out of Band Transmission
 
    This section, as stated above, does not cover all the possible out-
    of-band delivery methods since they rely on different protocols and
-   be linked to specific applications.  The following packet definition
+   are linked to specific applications.  The following packet definition
    SHOULD be used in out-of-band delivery and MUST be used when
    Configuration is inlined in the SDP.
 
@@ -557,9 +556,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 10]
+Barbato                 Expires January 22, 2007               [Page 10]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 3.2.1.  Packed Headers
@@ -592,15 +591,15 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
        0                   1                   2                   3
        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-      |            Configuration Ident                |              ..
+      |              Configuration Ident              |              ..
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
       ..   Length     |              Identification Header           ..
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
       ..                    Identification Header                     |
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-      |                          Setup Header                        ..
+      |                         Setup Header                         ..
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-      ..                         Setup Header                         |
+      ..                        Setup Header                          |
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
    Figure 8: Packed Headers Detail
@@ -613,9 +612,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 11]
+Barbato                 Expires January 22, 2007               [Page 11]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 3.2.1.1.  Packed Headers IANA Considerations
@@ -669,9 +668,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 12]
+Barbato                 Expires January 22, 2007               [Page 12]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    Intended usage: COMMON
@@ -694,18 +693,18 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
    configuration header can lead to a situation where it will not be
    possible to successfully decode the stream.
 
-   A loss of a Configuration Packet results in the halting of stream
-   decoding and SHOULD be reported to the client as well as a loss
-   report sent via RTCP.
+   A loss of a Configuration Packet causes the stream decoder to halt
+   and SHOULD be reported to the client as well as a loss report sent
+   via RTCP.
 
 
 4.  Comment Headers
 
-   When the payload type is set to 2, the packet contains the comment
-   metadata, such as artist name, track title and so on.  These metadata
+   When the payload type is set to 2, the packet contains comment
+   metadata such as artist name, track title and so on.  These metadata
    messages are not intended to be fully descriptive but to offer basic
-   title information.  Clients MAY ignore them completely.  The details
-   on the format of the comments can be found in the Theora
+   title information.  Clients MAY choose to completely ignore them.
+   The details on the comments format can be found in the Theora
    documentation [16].
 
 
@@ -725,9 +724,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 13]
+Barbato                 Expires January 22, 2007               [Page 13]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
        0                   1                   2                   3
@@ -781,9 +780,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 14]
+Barbato                 Expires January 22, 2007               [Page 14]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    MUST be the same as the first packet sent, with the sequence number
@@ -837,9 +836,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 15]
+Barbato                 Expires January 22, 2007               [Page 15]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
       Packet 2:
@@ -893,9 +892,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 16]
+Barbato                 Expires January 22, 2007               [Page 16]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
       Packet 3:
@@ -949,9 +948,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 17]
+Barbato                 Expires January 22, 2007               [Page 17]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    Configuration Headers (Section 3.3) section.
@@ -1005,9 +1004,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 18]
+Barbato                 Expires January 22, 2007               [Page 18]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    Interoperability considerations:
@@ -1061,9 +1060,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 19]
+Barbato                 Expires January 22, 2007               [Page 19]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    used to specify sessions the mapping are as follows:
@@ -1117,9 +1116,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 20]
+Barbato                 Expires January 22, 2007               [Page 20]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    and configuration-uri not supported.  All the parameters MUST not be
@@ -1173,9 +1172,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 21]
+Barbato                 Expires January 22, 2007               [Page 21]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
    that the confidentiality of the media stream is achieved by using
@@ -1229,9 +1228,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 22]
+Barbato                 Expires January 22, 2007               [Page 22]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
          Internet Draft (draft-ietf-avt-rtcp-feedback-11: Work in
@@ -1285,9 +1284,9 @@ Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
 
 
 
-Barbato                 Expires December 18, 2006              [Page 23]
+Barbato                 Expires January 22, 2007               [Page 23]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 Author's Address
@@ -1341,9 +1340,9 @@ Author's Address
 
 
 
-Barbato                 Expires December 18, 2006              [Page 24]
+Barbato                 Expires January 22, 2007               [Page 24]
 
-Internet-Draft       draft-barbato-avt-rtp-theora-01           June 2006
+Internet-Draft        draft-ietf-avt-rtp-theora-00             July 2006
 
 
 Intellectual Property Statement
@@ -1397,6 +1396,5 @@ Acknowledgment
 
 
 
-Barbato                 Expires December 18, 2006              [Page 25]
+Barbato                 Expires January 22, 2007               [Page 25]
 
-
