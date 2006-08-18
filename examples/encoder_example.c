@@ -748,6 +748,12 @@ int main(int argc,char *argv[]){
   theora_comment_init(&tc);
   theora_encode_comment(&tc,&op);
   ogg_stream_packetin(&to,&op);
+  /*theora_encode_comment() doesn't take a theora_state parameter, so it has to
+     allocate its own buffer to pass back the packet data.
+    If we don't free it here, we'll leak.
+    libogg2 makes this much cleaner: the stream owns the buffer after you call
+     packetin in libogg2, but this is not true in libogg1.*/
+  free(op.packet);
   theora_encode_tables(&td,&op);
   ogg_stream_packetin(&to,&op);
 
