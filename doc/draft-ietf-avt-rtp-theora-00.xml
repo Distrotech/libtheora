@@ -439,7 +439,7 @@ The following IANA considerations MUST only be applied to the packed headers.
 <vspace blankLines="1" />
 
 <list style="hanging">
-<t hangText="MIME media type name:"> audio </t>
+<t hangText="MIME media type name:"> video </t>
 
 <vspace blankLines="1" />
 
@@ -811,7 +811,7 @@ None</t>
 
 <t hangText="Applications which use this media type:">
 <vspace blankLines="1"/>
-Audio streaming and conferencing tools </t>
+Video streaming and conferencing tools </t>
 
 <vspace blankLines="1" />
 
