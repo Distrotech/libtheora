@@ -155,8 +155,8 @@ typedef struct {
     int   y_height;     /**< Height of the luminance plane */
     int   y_stride;     /**< Offset in bytes between successive rows */
 
-    int   uv_width;     /**< Height of the Cb and Cr chroma planes */
-    int   uv_height;    /**< Width of the chroma planes */
+    int   uv_width;     /**< Width of the Cb and Cr chroma planes */
+    int   uv_height;    /**< Height of the chroma planes */
     int   uv_stride;    /**< Offset between successive chroma rows */
     unsigned char *y;   /**< Pointer to start of luminance data */
     unsigned char *u;   /**< Pointer to start of Cb data */
