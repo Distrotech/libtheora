@@ -146,7 +146,10 @@ static void id_file(char *f){
   FILE *test;
   unsigned char buffer[80];
   int ret;
-  int tmp_video_hzn, tmp_video_hzd, tmp_video_an, tmp_video_ad;
+  int tmp_video_hzn = -1,
+      tmp_video_hzd = -1,
+      tmp_video_an = -1,
+      tmp_video_ad = -1;
   int extra_hdr_bytes;
 
   /* open it, look for magic */
@@ -252,7 +255,8 @@ static void id_file(char *f){
   if(!memcmp(buffer,"YUV4",4)){
     /* possible YUV2MPEG2 format file */
     /* read until newline, or 80 cols, whichever happens first */
-    int i;
+    /* NB the mjpegtools spec doesn't define a length limit */
+    int i,j;
     for(i=0;i<79;i++){
       ret=fread(buffer+i,1,1,test);
       if(ret<1)goto yuv_err;
@@ -264,7 +268,7 @@ static void id_file(char *f){
     buffer[i]='\0';
 
     if(!memcmp(buffer,"MPEG",4)){
-      char interlace;
+      char interlace = '?';
 
       if(video){
         /* umm, we already have one */
@@ -276,12 +280,51 @@ static void id_file(char *f){
         fprintf(stderr,"Incorrect YUV input file version; YUV4MPEG2 required.\n");
       }
 
-      ret=sscanf((char *)buffer,"MPEG2 W%d H%d F%d:%d I%c A%d:%d",
-                 &frame_x,&frame_y,&tmp_video_hzn,&tmp_video_hzd,&interlace,
-                 &tmp_video_an,&tmp_video_ad);
-      if(ret<7){
-        fprintf(stderr,"Error parsing YUV4MPEG2 header in file %s.\n",f);
+      /* parse the frame header */
+      j = 5;
+      while (j < i) {
+        if ((buffer[j] != ' ') && (buffer[j-1] == ' ')) 
+          switch (buffer[j]) {
+            case 'W': frame_x = atoi((char*)&buffer[j+1]); break;
+            case 'H': frame_y = atoi((char*)&buffer[j+1]); break;
+            case 'C': /* chroma subsampling */ break;
+            case 'I': interlace = buffer[j+1]; break;
+            case 'F': /* frame rate ratio */
+              tmp_video_hzn = atoi((char*)&buffer[j+1]);
+	      while ((buffer[j] != ':') && (j < i)) j++;
+              tmp_video_hzd = atoi((char*)&buffer[j+1]);
+              break;
+            case 'A': /* sample aspect ratio */
+              tmp_video_an = atoi((char*)&buffer[j+1]);
+	      while ((buffer[j] != ':') && (j < i)) j++;
+              tmp_video_ad = atoi((char*)&buffer[j+1]);
+              break;
+            case 'X': /* metadata */ break;
+            default:
+              fprintf(stderr, "unrecognized stream header tag '%c'\n", buffer[j]);
+              break;
+          }
+        j++;
+      }
+      /* verify data from the stream header */
+      if (frame_x <= 0) {
+        fprintf(stderr,"Error parsing YUV4MPEG2 header:"
+                " missing width tag in file %s.\n", f);
         exit(1);
+      }
+      if (frame_y <= 0) {
+        fprintf(stderr,"Error parsing YUV4MPEG2 header:"
+                " missing height tag in file %s.\n", f);
+        exit(1);
+      }
+      if (tmp_video_hzn < 0 || tmp_video_hzd < 0) {
+	/* default to 30 fps */
+	tmp_video_hzn = 30; tmp_video_hzd = 1;
+        fprintf(stderr,"Warning: no framerate defined in file %s.\n", f);
+      }
+      if (tmp_video_an < 0 || tmp_video_ad < 0) {
+	/* default to unknown */
+	tmp_video_an = 0; tmp_video_ad = 0;
       }
 
       /* update fps and aspect ratio globals if not specified in the command line */
@@ -290,7 +333,11 @@ static void id_file(char *f){
       if (video_an==-1) video_an = tmp_video_an;
       if (video_ad==-1) video_ad = tmp_video_ad;
 
-      if(interlace!='p'){
+      if(interlace=='?'){
+        fprintf(stderr,"Warning: input video isn't marked for interlacing;"
+          " treating this\nas progressive scan video."
+          " Deinterlace first if you get poor results.\n");
+      }else if(interlace!='p'){
         fprintf(stderr,"Input video is interlaced; Theora handles only progressive scan\n");
         exit(1);
       }
