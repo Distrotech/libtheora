@@ -45,14 +45,14 @@ ogg_buffer_state *ogg_buffer_create(void);
  *
  * This library will both decode and encode theora packets to/from raw YUV 
  * frames.  In either case, the packets will most likely either come from or
- * need to be embedded in an ogg stream.  Use 
+ * need to be embedded in an Ogg stream.  Use 
  * <a href="http://xiph.org/ogg/">libogg</a> or 
  * <a href="http://www.annodex.net/software/liboggz/index.html">liboggz</a>
  * to extract/package these packets.
  *
  * \section decoding Decoding Process
  *
- * Decoding can be seperated into the following steps:
+ * Decoding can be separated into the following steps:
  * -# initialise theora_info and theora_comment structures using 
  *    theora_info_init() and theora_comment_init():
  \verbatim
@@ -62,7 +62,7 @@ ogg_buffer_state *ogg_buffer_create(void);
  theora_info_init(&info);
  theora_comment_init(&comment);
  \endverbatim
- * -# retrieve header packets from ogg stream (there should be 3) and decode 
+ * -# retrieve header packets from Ogg stream (there should be 3) and decode 
  *    into theora_info and theora_comment structures using 
  *    theora_decode_header().  See \ref identification for more information on 
  *    identifying which packets are theora packets.
@@ -70,7 +70,7 @@ ogg_buffer_state *ogg_buffer_create(void);
  int i;
  for (i = 0; i < 3; i++)
  {
-   (get a theora packet "op" from the ogg stream)
+   (get a theora packet "op" from the Ogg stream)
    theora_decode_header(&info, &comment, op);
  }
  \endverbatim
@@ -87,7 +87,7 @@ ogg_buffer_state *ogg_buffer_create(void);
  \verbatim
  yuf_buffer buffer;
  while (last packet was not e_o_s) {
-   (get a theora packet "op" from the ogg stream)
+   (get a theora packet "op" from the Ogg stream)
    theora_decode_packetin(&state, op);
    theora_decode_YUVout(&state, &buffer);
  }
@@ -96,10 +96,10 @@ ogg_buffer_state *ogg_buffer_create(void);
  *
  * \subsection identification Identifying Theora Packets
  *
- * all streams inside an ogg file have a unique serial_no attached to the 
+ * All streams inside an Ogg file have a unique serial_no attached to the 
  * stream.  Typically, you will want to 
  *  - retrieve the serial_no for each b_o_s (beginning of stream) page 
- *    encountered within the pgg file; 
+ *    encountered within the Ogg file; 
  *  - test the first (only) packet on that page to determine if it is a theora 
  *    packet;
  *  - once you have found a theora b_o_s page then use the retrieved serial_no 
@@ -109,16 +109,16 @@ ogg_buffer_state *ogg_buffer_create(void);
  * packet is a theora packet or not, as this function does not perform any
  * checking beyond whether a header bit is present.  Instead, use the
  * theora_decode_header() function and check the return value; or examine the
- * header bytes at the beginning of the ogg page.
+ * header bytes at the beginning of the Ogg page.
  *
  * \subsection example Example Decoder 
  *
- * see <a href="http://svn.xiph.org/trunk/theora/examples/dump_video.c">
+ * See <a href="http://svn.xiph.org/trunk/theora/examples/dump_video.c">
  * examples/dump_video.c</a> for a simple decoder implementation.
  *
  * \section encoding Encoding Process
  *
- * see <a href="http://svn.xiph.org/trunk/theora/examples/encoder_example.c">
+ * See <a href="http://svn.xiph.org/trunk/theora/examples/encoder_example.c">
  * examples/encoder_example.c</a> for a simple encoder implementation.
  */
 
@@ -191,23 +191,23 @@ typedef enum {
 /**
  * Theora bitstream info.
  * Contains the basic playback parameters for a stream,
- * corresponds to the initial 'info' header packet.
+ * corresponding to the initial 'info' header packet.
  * 
- * Encoded theora frames must be a multiple of 16 is size;
- * this is what the width and height members represent. To
- * handle other sizes, a crop rectangle is specified in 
- * frame_height and frame_width, offset_x and offset_y. The
- * offset and size should still be a multiple of 2 to avoid
- * chroma sampling shifts. Offset values in this structure
- * are measured from the  upper left of the image.
+ * Encoded theora frames must be a multiple of 16 in width and height.
+ * To handle other frame sizes, a crop rectangle is specified in
+ * frame_height and frame_width, offset_x and * offset_y. The offset
+ * and size should still be a multiple of 2 to avoid chroma sampling
+ * shifts. Offset values in this structure are measured from the
+ * upper left of the image.
  *
  * Frame rate, in frames per second, is stored as a rational
- * fraction. So is the aspect ratio. Note that this refers
- * to the aspect ratio of the frame pixels, not of the
+ * fraction. Aspect ratio is also stored as a rational fraction, and
+ * refers to the aspect ratio of the frame pixels, not of the
  * overall frame itself.
  * 
- * see the example code for use of the other parameters and
- * good default settings for the encoder parameters.
+ * See <a href="http://svn.xiph.org/trunk/theora/examples/encoder_example.c">
+ * examples/encoder_example.c</a> for usage examples of the
+ * other paramters and good default settings for the encoder parameters.
  */
 typedef struct {
   ogg_uint32_t  width;		/**< encoded frame width  */
@@ -269,8 +269,8 @@ typedef struct{
  * length-encoded string vectors. The first occurence of the 
  * '=' character delimits the tag and value. A particular tag
  * may occur more than once. The character set encoding for
- * the strings is always utf-8, but the tag names are limited
- * to case-insensitive ascii. See the spec for details.
+ * the strings is always UTF-8, but the tag names are limited
+ * to case-insensitive ASCII. See the spec for details.
  *
  * In filling in this structure, theora_decode_header() will
  * null-terminate the user_comment strings for safety. However,
