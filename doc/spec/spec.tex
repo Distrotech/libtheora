@@ -1456,11 +1456,23 @@ x_b,y_b                        & = 0.15, 0.06      \\
 
 Theora supports several different pixel formats, each of which uses different
  subsampling for the chroma planes relative to the luma plane.
+A decoder may need to recover a full resolution chroma plane with samples
+ co-sited with the luma plane in order to convert to RGB for display or perform
+ other processing.
+Decoders can assume that the chroma signal satisfies the Nyquist-Shannon
+ sampling theorem.
+The ideal low-pass reconstruction filter this implies is not practical, but any
+ suitable approximation can be used, depending on the available computing
+ power.
+Decoders MAY simply use a box filter, assigning to each luma sample the chroma
+ sample closest to it.
+Encoders would not go wrong in assuming that this will be the most common
+ approach.
 
 \subsection{4:4:4 Subsampling}
 \label{sec:444}
 
-All three color planes are stored at full resolution - each pixel has a $Y'$,
+All three color planes are stored at full resolution---each pixel has a $Y'$,
  a $C_b$ and a $C_r$ value (see Figure~\ref{fig:pixel444}).
 The samples in the different planes are all at co-located sites.
 
