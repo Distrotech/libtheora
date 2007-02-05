@@ -20,23 +20,31 @@
 #include "codec_internal.h"
 #include "dsp.h"
 
+#define SAD_MMXEXT_LOOP \
+ "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */ \
+ "  movq (%2), %%mm1             \n\t" \
+ "  psadbw %%mm1, %%mm0          \n\t" \
+ "  add %3, %1                   \n\t"	/* Inc pointer into the new data */ \
+ "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */ \
+ "  add %4, %2                   \n\t"	/* Inc pointer into ref data */ 
+
+
 static ogg_uint32_t sad8x8__mmxext (unsigned char *ptr1, ogg_uint32_t stride1,
 		       	    unsigned char *ptr2, ogg_uint32_t stride2)
 {
   ogg_uint32_t  DiffVal;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
     "  pxor %%mm7, %%mm7            \n\t" 	/* mm7 contains the result */
-
-    ".rept 7                        \n\t"
-    "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */
-    "  movq (%2), %%mm1             \n\t"
-    "  psadbw %%mm1, %%mm0          \n\t"
-    "  add %3, %1                   \n\t"	/* Inc pointer into the new data */
-    "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */
-    "  add %4, %2                   \n\t"	/* Inc pointer into ref data */
-    ".endr                          \n\t"
+    
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
+    SAD_MMXEXT_LOOP
 
     "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */
     "  movq (%2), %%mm1             \n\t"
@@ -54,6 +62,15 @@ static ogg_uint32_t sad8x8__mmxext (unsigned char *ptr1, ogg_uint32_t stride1,
 
   return DiffVal;
 }
+
+#define SAD_TRES_LOOP \
+  "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */ \
+  "  movq (%2), %%mm1             \n\t" \
+  "  psadbw %%mm1, %%mm0          \n\t" \
+  "  add %3, %1                   \n\t"	/* Inc pointer into the new data */ \
+  "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */ \
+  "  add %4, %2                   \n\t"	/* Inc pointer into ref data */
+
 
 static ogg_uint32_t sad8x8_thres__mmxext (unsigned char *ptr1, ogg_uint32_t stride1,
 		       		  unsigned char *ptr2, ogg_uint32_t stride2, 
@@ -62,17 +79,17 @@ static ogg_uint32_t sad8x8_thres__mmxext (unsigned char *ptr1, ogg_uint32_t stri
   ogg_uint32_t  DiffVal;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
     "  pxor %%mm7, %%mm7            \n\t" 	/* mm7 contains the result */
 
-    ".rept 8                        \n\t"
-    "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */
-    "  movq (%2), %%mm1             \n\t"
-    "  psadbw %%mm1, %%mm0          \n\t"
-    "  add %3, %1                   \n\t"	/* Inc pointer into the new data */
-    "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */
-    "  add %4, %2                   \n\t"	/* Inc pointer into ref data */
-    ".endr                          \n\t"
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
+    SAD_TRES_LOOP
 
     "  movd %%mm7, %0               \n\t"
 
@@ -86,6 +103,19 @@ static ogg_uint32_t sad8x8_thres__mmxext (unsigned char *ptr1, ogg_uint32_t stri
 
   return DiffVal;
 }
+
+#define SAD_XY2_TRES \
+  "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */ \
+  "  movq (%2), %%mm1             \n\t" \
+  "  movq (%3), %%mm2             \n\t" \
+  "  pavgb %%mm2, %%mm1           \n\t" \
+  "  psadbw %%mm1, %%mm0          \n\t" \
+ \
+  "  add %4, %1                   \n\t"	/* Inc pointer into the new data */ \
+  "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */ \
+  "  add %5, %2                   \n\t"	/* Inc pointer into ref data */ \
+  "  add %5, %3                   \n\t"	/* Inc pointer into ref data */
+
 
 static ogg_uint32_t sad8x8_xy2_thres__mmxext (unsigned char *SrcData, ogg_uint32_t SrcStride,
 		                      unsigned char *RefDataPtr1,
@@ -95,20 +125,16 @@ static ogg_uint32_t sad8x8_xy2_thres__mmxext (unsigned char *SrcData, ogg_uint32
   ogg_uint32_t  DiffVal;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
     "  pxor %%mm7, %%mm7            \n\t" 	/* mm7 contains the result */
-    ".rept 8                        \n\t"
-    "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */
-    "  movq (%2), %%mm1             \n\t"
-    "  movq (%3), %%mm2             \n\t"
-    "  pavgb %%mm2, %%mm1           \n\t"
-    "  psadbw %%mm1, %%mm0          \n\t"
-
-    "  add %4, %1                   \n\t"	/* Inc pointer into the new data */
-    "  paddw %%mm0, %%mm7           \n\t"	/* accumulate difference... */
-    "  add %5, %2                   \n\t"	/* Inc pointer into ref data */
-    "  add %5, %3                   \n\t"	/* Inc pointer into ref data */
-    ".endr                          \n\t"
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
+    SAD_XY2_TRES
 
     "  movd %%mm7, %0               \n\t"
      : "=m" (DiffVal),
@@ -128,7 +154,7 @@ static ogg_uint32_t row_sad8__mmxext (unsigned char *Src1, unsigned char *Src2)
   ogg_uint32_t MaxSad;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  movd        (%1), %%mm0      \n\t"
     "  movd        (%2), %%mm1      \n\t"
@@ -157,7 +183,7 @@ static ogg_uint32_t col_sad8x8__mmxext (unsigned char *Src1, unsigned char *Src2
   ogg_uint32_t MaxSad;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm3, %%mm3     \n\t"	/* zero out mm3 for unpack */
     "  pxor        %%mm4, %%mm4     \n\t"	/* mm4 low sum */
@@ -236,7 +262,7 @@ static ogg_uint32_t inter8x8_err_xy2__mmxext (unsigned char *SrcData, ogg_uint32
   ogg_uint32_t XXSum;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm4, %%mm4     \n\t"
     "  pxor        %%mm5, %%mm5     \n\t"

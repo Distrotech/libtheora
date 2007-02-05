@@ -24,7 +24,7 @@ static void copy8x8__mmx (unsigned char *src,
 	                unsigned int stride)
 {
   __asm__ __volatile__ (
-    "  .balign 16                      \n\t"
+    "  .p2align 4                      \n\t"
 
     "  lea         (%2, %2, 2), %%edi  \n\t"
 
@@ -62,7 +62,7 @@ static void recon_intra8x8__mmx (unsigned char *ReconPtr, ogg_int16_t *ChangePtr
 		      ogg_uint32_t LineStep)
 {
   __asm__ __volatile__ (
-    "  .balign 16                      \n\t"
+    "  .p2align 4                      \n\t"
 
     "  movq        %[V128], %%mm0      \n\t" /* Set mm0 to 0x8080808080808080 */
 
@@ -92,7 +92,7 @@ static void recon_inter8x8__mmx (unsigned char *ReconPtr, unsigned char *RefPtr,
 		      ogg_int16_t *ChangePtr, ogg_uint32_t LineStep)
 {
   __asm__ __volatile__ (
-    "  .balign 16                      \n\t"
+    "  .p2align 4                      \n\t"
 
     "  pxor        %%mm0, %%mm0        \n\t"
     "  lea         128(%1), %%edi      \n\t"
@@ -129,7 +129,7 @@ static void recon_inter8x8_half__mmx (unsigned char *ReconPtr, unsigned char *Re
 			   ogg_uint32_t LineStep)
 {
   __asm__ __volatile__ (
-    "  .balign 16                      \n\t"
+    "  .p2align 4                      \n\t"
 
     "  pxor        %%mm0, %%mm0        \n\t"
     "  lea         128(%1), %%edi      \n\t"

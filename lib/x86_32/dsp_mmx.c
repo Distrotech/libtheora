@@ -26,36 +26,42 @@ static const __attribute__ ((aligned(8),used)) ogg_int64_t V128 = 0x008000800080
 #define DSP_OP_DIFF(a,b) (((int)(a)) - ((int)(b)))
 #define DSP_OP_ABS_DIFF(a,b) abs((((int)(a)) - ((int)(b))))
 
+#define SUB_LOOP                                                              \
+  "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */                   \
+  "  movq        (%1), %%mm1      \n\t" /* mm1 = ReconPtr */                  \
+  "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */\
+  "  movq        %%mm1, %%mm3     \n\t" /* dup to prepare for up conversion */\
+  /* convert from UINT8 to INT16 */                                           \
+  "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */            \
+  "  punpcklbw   %%mm7, %%mm1     \n\t" /* mm1 = INT16(ReconPtr) */           \
+  "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */            \
+  "  punpckhbw   %%mm7, %%mm3     \n\t" /* mm3 = INT16(ReconPtr) */           \
+  /* start calculation */                                                     \
+  "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - ReconPtr */        \
+  "  psubw       %%mm3, %%mm2     \n\t" /* mm2 = FiltPtr - ReconPtr */        \
+  "  movq        %%mm0,  (%2)     \n\t" /* write answer out */                \
+  "  movq        %%mm2, 8(%2)     \n\t" /* write answer out */                \
+  /* Increment pointers */                                                    \
+  "  add         $16, %2           \n\t"                                      \
+  "  add         %3, %0           \n\t"                                       \
+  "  add         %4, %1           \n\t"
+
 static void sub8x8__mmx (unsigned char *FiltPtr, unsigned char *ReconPtr,
                   ogg_int16_t *DctInputPtr, ogg_uint32_t PixelsPerLine,
                   ogg_uint32_t ReconPixelsPerLine) 
 {
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm7, %%mm7     \n\t" 
-
-    ".rept 8                        \n\t"
-    "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */
-    "  movq        (%1), %%mm1      \n\t" /* mm1 = ReconPtr */
-    "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */
-    "  movq        %%mm1, %%mm3     \n\t" /* dup to prepare for up conversion */
-    /* convert from UINT8 to INT16 */
-    "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */
-    "  punpcklbw   %%mm7, %%mm1     \n\t" /* mm1 = INT16(ReconPtr) */
-    "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */
-    "  punpckhbw   %%mm7, %%mm3     \n\t" /* mm3 = INT16(ReconPtr) */
-    /* start calculation */
-    "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - ReconPtr */
-    "  psubw       %%mm3, %%mm2     \n\t" /* mm2 = FiltPtr - ReconPtr */
-    "  movq        %%mm0,  (%2)     \n\t" /* write answer out */
-    "  movq        %%mm2, 8(%2)     \n\t" /* write answer out */
-    /* Increment pointers */
-    "  add         $16, %2           \n\t"
-    "  add         %3, %0           \n\t"
-    "  add         %4, %1           \n\t"
-    ".endr                          \n\t"
-
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
+    SUB_LOOP
      : "+r" (FiltPtr),
        "+r" (ReconPtr),
        "+r" (DctInputPtr)
@@ -65,31 +71,38 @@ static void sub8x8__mmx (unsigned char *FiltPtr, unsigned char *ReconPtr,
   );
 }
 
+#define SUB_128_LOOP                                                          \
+  "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */                   \
+  "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */\
+  /* convert from UINT8 to INT16 */                                           \
+  "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */            \
+  "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */            \
+  /* start calculation */                                                     \
+  "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - 128 */             \
+  "  psubw       %%mm1, %%mm2     \n\t" /* mm2 = FiltPtr - 128 */             \
+  "  movq        %%mm0,  (%1)     \n\t" /* write answer out */                \
+  "  movq        %%mm2, 8(%1)     \n\t" /* write answer out */                \
+  /* Increment pointers */                                                    \
+  "  add         $16, %1           \n\t"                                      \
+  "  add         %2, %0           \n\t"  
+
+
 static void sub8x8_128__mmx (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr,
                       ogg_uint32_t PixelsPerLine) 
 {
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm7, %%mm7     \n\t" 
     "  movq        %[V128], %%mm1   \n\t"
-
-    ".rept 8                        \n\t"
-    "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */
-    "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */
-    /* convert from UINT8 to INT16 */
-    "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */
-    "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */
-    /* start calculation */
-    "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - 128 */
-    "  psubw       %%mm1, %%mm2     \n\t" /* mm2 = FiltPtr - 128 */
-    "  movq        %%mm0,  (%1)     \n\t" /* write answer out */
-    "  movq        %%mm2, 8(%1)     \n\t" /* write answer out */
-    /* Increment pointers */
-    "  add         $16, %1           \n\t"
-    "  add         %2, %0           \n\t"
-    ".endr                          \n\t"
-
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
+    SUB_128_LOOP
      : "+r" (FiltPtr),
        "+r" (DctInputPtr)
      : "m" (PixelsPerLine),
@@ -98,46 +111,53 @@ static void sub8x8_128__mmx (unsigned char *FiltPtr, ogg_int16_t *DctInputPtr,
   );
 }
 
+#define SUB_AVG2_LOOP                                                         \
+  "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */                   \
+  "  movq        (%1), %%mm1      \n\t" /* mm1 = ReconPtr1 */                 \
+  "  movq        (%2), %%mm4      \n\t" /* mm1 = ReconPtr2 */                 \
+  "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */\
+  "  movq        %%mm1, %%mm3     \n\t" /* dup to prepare for up conversion */\
+  "  movq        %%mm4, %%mm5     \n\t" /* dup to prepare for up conversion */\
+  /* convert from UINT8 to INT16 */                                           \
+  "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */            \
+  "  punpcklbw   %%mm7, %%mm1     \n\t" /* mm1 = INT16(ReconPtr1) */          \
+  "  punpcklbw   %%mm7, %%mm4     \n\t" /* mm1 = INT16(ReconPtr2) */          \
+  "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */            \
+  "  punpckhbw   %%mm7, %%mm3     \n\t" /* mm3 = INT16(ReconPtr1) */          \
+  "  punpckhbw   %%mm7, %%mm5     \n\t" /* mm3 = INT16(ReconPtr2) */          \
+  /* average ReconPtr1 and ReconPtr2 */                                       \
+  "  paddw       %%mm4, %%mm1     \n\t" /* mm1 = ReconPtr1 + ReconPtr2 */     \
+  "  paddw       %%mm5, %%mm3     \n\t" /* mm3 = ReconPtr1 + ReconPtr2 */     \
+  "  psrlw       $1, %%mm1        \n\t" /* mm1 = (ReconPtr1 + ReconPtr2) / 2 */ \
+  "  psrlw       $1, %%mm3        \n\t" /* mm3 = (ReconPtr1 + ReconPtr2) / 2 */ \
+  "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - ((ReconPtr1 + ReconPtr2) / 2) */ \
+  "  psubw       %%mm3, %%mm2     \n\t" /* mm2 = FiltPtr - ((ReconPtr1 + ReconPtr2) / 2) */ \
+  "  movq        %%mm0,  (%3)     \n\t" /* write answer out */                \
+  "  movq        %%mm2, 8(%3)     \n\t" /* write answer out */                \
+  /* Increment pointers */                                                    \
+  "  add         $16, %3           \n\t"                                      \
+  "  add         %4, %0           \n\t"                                       \
+  "  add         %5, %1           \n\t"                                       \
+  "  add         %5, %2           \n\t"  
+
+
 static void sub8x8avg2__mmx (unsigned char *FiltPtr, unsigned char *ReconPtr1,
                      unsigned char *ReconPtr2, ogg_int16_t *DctInputPtr,
                      ogg_uint32_t PixelsPerLine,
                      ogg_uint32_t ReconPixelsPerLine) 
 {
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm7, %%mm7     \n\t" 
-
-    ".rept 8                        \n\t"
-    "  movq        (%0), %%mm0      \n\t" /* mm0 = FiltPtr */
-    "  movq        (%1), %%mm1      \n\t" /* mm1 = ReconPtr1 */
-    "  movq        (%2), %%mm4      \n\t" /* mm1 = ReconPtr2 */
-    "  movq        %%mm0, %%mm2     \n\t" /* dup to prepare for up conversion */
-    "  movq        %%mm1, %%mm3     \n\t" /* dup to prepare for up conversion */
-    "  movq        %%mm4, %%mm5     \n\t" /* dup to prepare for up conversion */
-    /* convert from UINT8 to INT16 */
-    "  punpcklbw   %%mm7, %%mm0     \n\t" /* mm0 = INT16(FiltPtr) */
-    "  punpcklbw   %%mm7, %%mm1     \n\t" /* mm1 = INT16(ReconPtr1) */
-    "  punpcklbw   %%mm7, %%mm4     \n\t" /* mm1 = INT16(ReconPtr2) */
-    "  punpckhbw   %%mm7, %%mm2     \n\t" /* mm2 = INT16(FiltPtr) */
-    "  punpckhbw   %%mm7, %%mm3     \n\t" /* mm3 = INT16(ReconPtr1) */
-    "  punpckhbw   %%mm7, %%mm5     \n\t" /* mm3 = INT16(ReconPtr2) */
-    /* average ReconPtr1 and ReconPtr2 */
-    "  paddw       %%mm4, %%mm1     \n\t" /* mm1 = ReconPtr1 + ReconPtr2 */
-    "  paddw       %%mm5, %%mm3     \n\t" /* mm3 = ReconPtr1 + ReconPtr2 */
-    "  psrlw       $1, %%mm1        \n\t" /* mm1 = (ReconPtr1 + ReconPtr2) / 2 */
-    "  psrlw       $1, %%mm3        \n\t" /* mm3 = (ReconPtr1 + ReconPtr2) / 2 */
-    "  psubw       %%mm1, %%mm0     \n\t" /* mm0 = FiltPtr - ((ReconPtr1 + ReconPtr2) / 2) */
-    "  psubw       %%mm3, %%mm2     \n\t" /* mm2 = FiltPtr - ((ReconPtr1 + ReconPtr2) / 2) */
-    "  movq        %%mm0,  (%3)     \n\t" /* write answer out */
-    "  movq        %%mm2, 8(%3)     \n\t" /* write answer out */
-    /* Increment pointers */
-    "  add         $16, %3           \n\t"
-    "  add         %4, %0           \n\t"
-    "  add         %5, %1           \n\t"
-    "  add         %5, %2           \n\t"
-    ".endr                          \n\t"
-
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
+    SUB_AVG2_LOOP
      : "+r" (FiltPtr),
        "+r" (ReconPtr1),
        "+r" (ReconPtr2),
@@ -153,7 +173,7 @@ static ogg_uint32_t row_sad8__mmx (unsigned char *Src1, unsigned char *Src2)
   ogg_uint32_t MaxSad;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm6, %%mm6     \n\t"	/* zero out mm6 for unpack */
     "  pxor        %%mm7, %%mm7     \n\t" 	/* zero out mm7 for unpack */
@@ -203,7 +223,7 @@ static ogg_uint32_t col_sad8x8__mmx (unsigned char *Src1, unsigned char *Src2,
   ogg_uint32_t MaxSad;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm3, %%mm3     \n\t"	/* zero out mm3 for unpack */
     "  pxor        %%mm4, %%mm4     \n\t"	/* mm4 low sum */
@@ -279,33 +299,38 @@ static ogg_uint32_t col_sad8x8__mmx (unsigned char *Src1, unsigned char *Src2,
   return MaxSad;
 }
 
+#define SAD_LOOP                                                              \
+  "  movq        (%1), %%mm0      \n\t"	/* take 8 bytes */                    \
+  "  movq        (%2), %%mm1      \n\t"                                       \
+  "  movq        %%mm0, %%mm2     \n\t"                                       \
+  "  psubusb     %%mm1, %%mm0     \n\t" 	/* A - B */                         \
+  "  psubusb     %%mm2, %%mm1     \n\t"	/* B - A */                           \
+  "  por         %%mm1, %%mm0     \n\t" /* and or gives abs difference */     \
+  "  movq        %%mm0, %%mm1     \n\t"                                       \
+  "  punpcklbw   %%mm6, %%mm0     \n\t"	/* unpack to higher precision for accumulation */ \
+  "  paddw       %%mm0, %%mm7     \n\t"	/* accumulate difference... */        \
+  "  punpckhbw   %%mm6, %%mm1     \n\t"	/* unpack high four bytes to higher precision */ \
+  "  add         %3, %1           \n\t"	/* Inc pointer into the new data */   \
+  "  paddw       %%mm1, %%mm7     \n\t"	/* accumulate difference... */        \
+  "  add         %4, %2           \n\t"	/* Inc pointer into ref data */  
+
 static ogg_uint32_t sad8x8__mmx (unsigned char *ptr1, ogg_uint32_t stride1,
 		       	    unsigned char *ptr2, ogg_uint32_t stride2)
 {
   ogg_uint32_t  DiffVal;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
     "  pxor        %%mm6, %%mm6     \n\t"	/* zero out mm6 for unpack */
     "  pxor        %%mm7, %%mm7     \n\t" 	/* mm7 contains the result */
-    ".rept 8                         \n\t"
-    "  movq        (%1), %%mm0      \n\t"	/* take 8 bytes */
-    "  movq        (%2), %%mm1      \n\t"
-    "  movq        %%mm0, %%mm2     \n\t"
-
-    "  psubusb     %%mm1, %%mm0     \n\t" 	/* A - B */
-    "  psubusb     %%mm2, %%mm1     \n\t"	/* B - A */
-    "  por         %%mm1, %%mm0     \n\t"      	/* and or gives abs difference */
-    "  movq        %%mm0, %%mm1     \n\t"
-
-    "  punpcklbw   %%mm6, %%mm0     \n\t"	/* unpack to higher precision for accumulation */
-    "  paddw       %%mm0, %%mm7     \n\t"	/* accumulate difference... */
-    "  punpckhbw   %%mm6, %%mm1     \n\t"	/* unpack high four bytes to higher precision */
-    "  add         %3, %1           \n\t"	/* Inc pointer into the new data */
-    "  paddw       %%mm1, %%mm7     \n\t"	/* accumulate difference... */
-    "  add         %4, %2           \n\t"	/* Inc pointer into ref data */
-    ".endr                          \n\t"
-
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
+    SAD_LOOP
     "  movq        %%mm7, %%mm0     \n\t"
     "  psrlq       $32, %%mm7       \n\t"
     "  paddw       %%mm0, %%mm7     \n\t"
@@ -341,7 +366,7 @@ static ogg_uint32_t sad8x8_xy2_thres__mmx (unsigned char *SrcData, ogg_uint32_t 
   ogg_uint32_t  DiffVal;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pcmpeqd     %%mm5, %%mm5     \n\t"	/* fefefefefefefefe in mm5 */
     "  paddb       %%mm5, %%mm5     \n\t"
@@ -406,7 +431,7 @@ static ogg_uint32_t intra8x8_err__mmx (unsigned char *DataPtr, ogg_uint32_t Stri
   ogg_uint32_t  XXSum;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm5, %%mm5     \n\t"
     "  pxor        %%mm6, %%mm6     \n\t"
@@ -466,7 +491,7 @@ static ogg_uint32_t inter8x8_err__mmx (unsigned char *SrcData, ogg_uint32_t SrcS
   ogg_uint32_t  XXSum;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pxor        %%mm5, %%mm5     \n\t"
     "  pxor        %%mm6, %%mm6     \n\t"
@@ -537,7 +562,7 @@ static ogg_uint32_t inter8x8_err_xy2__mmx (unsigned char *SrcData, ogg_uint32_t 
   ogg_uint32_t XXSum;
 
   __asm__ __volatile__ (
-    "  .balign 16                   \n\t"
+    "  .p2align 4                   \n\t"
 
     "  pcmpeqd     %%mm4, %%mm4     \n\t"	/* fefefefefefefefe in mm4 */
     "  paddb       %%mm4, %%mm4     \n\t"
