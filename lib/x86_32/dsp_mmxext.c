@@ -15,12 +15,12 @@
 
  ********************************************************************/
 
-#if defined(USE_ASM)
-
 #include <stdlib.h>
 
 #include "codec_internal.h"
 #include "dsp.h"
+
+#if defined(USE_ASM)
 
 #define SAD_MMXEXT_LOOP \
  "  movq (%1), %%mm0             \n\t"	/* take 8 bytes */ \

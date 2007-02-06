@@ -15,12 +15,12 @@
 
  ********************************************************************/
 
-#if defined(USE_ASM)
-
 #include <stdlib.h>
 
 #include "codec_internal.h"
 #include "dsp.h"
+
+#if defined(USE_ASM)
 
 static const __attribute__ ((aligned(8),used)) ogg_int64_t V128 = 0x0080008000800080LL;
 
