@@ -15,6 +15,8 @@
 
  ********************************************************************/
 
+#if defined(USE_ASM)
+
 #include "codec_internal.h"
 
 static const __attribute__ ((aligned(8),used)) ogg_int64_t V128 = 0x8080808080808080LL;
@@ -178,3 +180,4 @@ void dsp_mmx_recon_init(DspFunctions *funcs)
   funcs->recon_inter8x8_half = recon_inter8x8_half__mmx;
 }
 
+#endif /* USE_ASM */
