@@ -11,41 +11,17 @@
  ********************************************************************
 
   function:
-  last mod: $Id$
+  last mod: $Id: dsp_mmx.c 12440 2007-02-06 16:36:26Z j $
 
  ********************************************************************/
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "codec_internal.h"
 
-#include "toplevel_lookup.h"
-#include "toplevel.h"
+#if defined(USE_ASM)
 
-int theora_encode_init(theora_state *th, theora_info *c){
-  return OC_DISABLED;
-}
-
-int theora_encode_YUVin(theora_state *t, yuv_buffer *yuv){
-  return OC_DISABLED;
-}
-
-int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
-  return OC_DISABLED;
-}
-
-int theora_encode_header(theora_state *t, ogg_packet *op){
-  return OC_DISABLED;
-}
-
-int theora_encode_comment(theora_comment *tc, ogg_packet *op){
-  return OC_DISABLED;
-}
-
-int theora_encode_tables(theora_state *t, ogg_packet *op){
-  return OC_DISABLED;
-}
-
-void theora_encoder_clear (CP_INSTANCE * cpi)
+/* nothing implemented right now */
+void dsp_mmx_idct_init(DspFunctions *funcs)
 {
 }
+
+#endif /* USE_ASM */

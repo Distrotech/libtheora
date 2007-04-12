@@ -17,7 +17,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "dsp.h"
 #include "codec_internal.h"
 
 /* Initialises motion compentsation. */
@@ -109,11 +108,11 @@ static ogg_uint32_t GetInterErr (CP_INSTANCE *cpi, unsigned char * NewDataPtr,
      second reference pointer */
   if ( RefOffset == 0 ) {
     DiffVal = dsp_inter8x8_err (cpi->dsp, NewDataPtr, PixelsPerLine,
-		          RefDataPtr1, RefPixelsPerLine);
+              RefDataPtr1, RefPixelsPerLine);
   }else{
     DiffVal = dsp_inter8x8_err_xy2 (cpi->dsp, NewDataPtr, PixelsPerLine,
-		          RefDataPtr1, 
-		          RefDataPtr2, RefPixelsPerLine);
+              RefDataPtr1, 
+              RefDataPtr2, RefPixelsPerLine);
   }
 
   /* Compute and return population variance as mis-match metric. */
@@ -135,11 +134,11 @@ static ogg_uint32_t GetHalfPixelSumAbsDiffs (CP_INSTANCE *cpi,
   if ( RefOffset == 0 ) {
     /* Simple case as for non 0.5 pixel */
     DiffVal += dsp_sad8x8 (cpi->dsp, SrcData, PixelsPerLine, 
-		               RefDataPtr1, RefPixelsPerLine);
+                   RefDataPtr1, RefPixelsPerLine);
   } else  {
     DiffVal += dsp_sad8x8_xy2_thres (cpi->dsp, SrcData, PixelsPerLine, 
-		               RefDataPtr1, 
-		               RefDataPtr2, RefPixelsPerLine, BestSoFar);
+                   RefDataPtr1, 
+                   RefDataPtr2, RefPixelsPerLine, BestSoFar);
   }
 
   return DiffVal;

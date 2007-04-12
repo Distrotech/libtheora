@@ -17,10 +17,10 @@
 
 #include <string.h>
 #include "codec_internal.h"
+
 #include "quant_lookup.h"
 
 #define IdctAdjustBeforeShift 8
-
 /* cos(n*pi/16) or sin(8-n)*pi/16) */
 #define xC1S7 64277
 #define xC2S6 60547
@@ -31,6 +31,7 @@
 #define xC7S1 12785
 
 /* compute the 16 bit signed 1D inverse DCT - spec version */
+/*
 static void idct_short__c ( ogg_int16_t * InputData, ogg_int16_t * OutputData ) {
   ogg_int32_t t[8], r;
   ogg_int16_t *y = InputData;
@@ -108,6 +109,7 @@ static void idct_short__c ( ogg_int16_t * InputData, ogg_int16_t * OutputData ) 
   x[7] = r;
 
 }
+*/
 
 static void dequant_slow( ogg_int16_t * dequant_coeffs,
                    ogg_int16_t * quantized_list,
@@ -119,7 +121,7 @@ static void dequant_slow( ogg_int16_t * dequant_coeffs,
 
 
 
-void IDctSlow(  Q_LIST_ENTRY * InputData,
+void IDctSlow__c(  Q_LIST_ENTRY * InputData,
                 ogg_int16_t *QuantMatrix,
                 ogg_int16_t * OutputData ) {
   ogg_int32_t IntermediateData[64];
@@ -348,7 +350,7 @@ static void dequant_slow10( ogg_int16_t * dequant_coeffs,
 
 }
 
-void IDct10( Q_LIST_ENTRY * InputData,
+void IDct10__c( Q_LIST_ENTRY * InputData,
              ogg_int16_t *QuantMatrix,
              ogg_int16_t * OutputData ){
   ogg_int32_t IntermediateData[64];
@@ -552,4 +554,16 @@ void IDct1( Q_LIST_ENTRY * InputData,
   for(loop=0;loop<64;loop++)
     OutputData[loop]=OutD;
 
+}
+
+void dsp_idct_init (DspFunctions *funcs, ogg_uint32_t cpu_flags)
+{
+  funcs->IDctSlow = IDctSlow__c;
+  funcs->IDct10 = IDct10__c;
+  funcs->IDct3 = IDct10__c;
+#if defined(USE_ASM)
+  if (cpu_flags & OC_CPU_X86_MMX) {
+    dsp_mmx_idct_init(funcs);
+  }
+#endif
 }

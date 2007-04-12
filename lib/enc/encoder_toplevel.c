@@ -22,8 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "toplevel_lookup.h"
-#include "toplevel.h"
+#include "internal.h"
 #include "dsp.h"
+#include "codec_internal.h"
 
 #define A_TABLE_SIZE        29
 #define DF_CANDIDATE_WINDOW 5
@@ -782,9 +783,9 @@ int theora_encode_init(theora_state *th, theora_info *c){
   dsp_static_init (&cpi->dsp);
   memcpy (&cpi->pb.dsp, &cpi->dsp, sizeof(DspFunctions));
 
-  c->version_major=VERSION_MAJOR;
-  c->version_minor=VERSION_MINOR;
-  c->version_subminor=VERSION_SUB;
+  c->version_major=TH_VERSION_MAJOR;
+  c->version_minor=TH_VERSION_MINOR;
+  c->version_subminor=TH_VERSION_SUB;
 
   InitTmpBuffers(&cpi->pb);
   InitPPInstance(&cpi->pp, &cpi->dsp);
@@ -915,6 +916,7 @@ int theora_encode_init(theora_state *th, theora_info *c){
   InitHuffmanSet(&cpi->pb);
 
   /* This makes sure encoder version specific tables are initialised */
+  cpi->pb.encoder_profile = PROFILE_FULL;
   InitQTables(&cpi->pb);
 
   /* Indicate that the next frame to be compressed is the first in the
@@ -1063,9 +1065,9 @@ int theora_encode_header(theora_state *t, ogg_packet *op){
   oggpackB_write(cpi->oggbuffer,0x80,8);
   _tp_writebuffer(cpi->oggbuffer, "theora", 6);
 
-  oggpackB_write(cpi->oggbuffer,VERSION_MAJOR,8);
-  oggpackB_write(cpi->oggbuffer,VERSION_MINOR,8);
-  oggpackB_write(cpi->oggbuffer,VERSION_SUB,8);
+  oggpackB_write(cpi->oggbuffer,TH_VERSION_MAJOR,8);
+  oggpackB_write(cpi->oggbuffer,TH_VERSION_MINOR,8);
+  oggpackB_write(cpi->oggbuffer,TH_VERSION_SUB,8);
 
   oggpackB_write(cpi->oggbuffer,cpi->pb.info.width>>4,16);
   oggpackB_write(cpi->oggbuffer,cpi->pb.info.height>>4,16);
@@ -1218,4 +1220,43 @@ void theora_encoder_clear (CP_INSTANCE * cpi){
     _ogg_free(cpi->oggbuffer);
     _ogg_free(cpi);
   }
+}
+
+/* returns, in seconds, absolute time of current packet in given
+   logical stream */
+double theora_granule_time_enc(theora_state *th,ogg_int64_t granulepos){
+#ifndef THEORA_DISABLE_FLOAT
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(th->internal_encode);
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
+
+  if(cpi)pbi=&cpi->pb;
+
+  if(granulepos>=0){
+    ogg_int64_t iframe=granulepos>>pbi->keyframe_granule_shift;
+    ogg_int64_t pframe=granulepos-(iframe<<pbi->keyframe_granule_shift);
+
+    return (iframe+pframe)*
+      ((double)pbi->info.fps_denominator/pbi->info.fps_numerator);
+
+  }
+#endif
+
+  return(-1); /* negative granulepos or float calculations disabled */
+}
+
+/* returns frame number of current packet in given logical stream */
+ogg_int64_t theora_granule_frame_enc(theora_state *th,ogg_int64_t granulepos){
+  CP_INSTANCE *cpi=(CP_INSTANCE *)(th->internal_encode);
+  PB_INSTANCE *pbi=(PB_INSTANCE *)(th->internal_decode);
+
+  if(cpi)pbi=&cpi->pb;
+
+  if(granulepos>=0){
+    ogg_int64_t iframe=granulepos>>pbi->keyframe_granule_shift;
+    ogg_int64_t pframe=granulepos-(iframe<<pbi->keyframe_granule_shift);
+
+    return (iframe+pframe);
+  }
+
+  return(-1);
 }

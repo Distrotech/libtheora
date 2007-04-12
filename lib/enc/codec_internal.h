@@ -23,7 +23,7 @@
 #endif
 
 #include "theora/theora.h"
-#include "huffman.h"
+#include "encoder_huffman.h"
 #include "dsp.h"
 
 #ifndef LIBOGG2
@@ -46,6 +46,22 @@
 #define BLOCK_HEIGHT_WIDTH          8
 #define HFRAGPIXELS                 8
 #define VFRAGPIXELS                 8
+
+/* Blocks on INTRA/INTER Y/U/V planes */
+enum BlockMode {
+  BLOCK_Y,
+  BLOCK_U,
+  BLOCK_V,
+  BLOCK_INTER_Y,
+  BLOCK_INTER_U,
+  BLOCK_INTER_V
+};
+
+/* Encoding profiles */
+enum EncodingProfiles {
+  PROFILE_VP3,
+  PROFILE_FULL
+};
 
 /* Baseline dct block size */
 #define BLOCK_SIZE              (BLOCK_HEIGHT_WIDTH * BLOCK_HEIGHT_WIDTH)
@@ -453,7 +469,14 @@ typedef struct PB_INSTANCE {
 
   /* Loop filter bounding values */
   unsigned char  LoopFilterLimits[Q_TABLE_SIZE];
-  ogg_int32_t    FiltBoundingValue[512];
+  ogg_int16_t    FiltBoundingValue[256];
+
+  /* encoder profiles differ by their quantization table usage */
+  int            encoder_profile;
+
+  /* Naming convention for all quant matrices and related data structures:
+   * Fields containing "Inter" in their name are for Inter frames, the
+   * rest is Intra. */
 
   /* Dequantiser and rounding tables */
   ogg_uint32_t   QThreshTable[Q_TABLE_SIZE];
@@ -474,7 +497,7 @@ typedef struct PB_INSTANCE {
   unsigned int   zigzag_index[64];
   ogg_int32_t    quant_Y_coeffs[64];
   ogg_int32_t    quant_UV_coeffs[64];
-  ogg_int32_t    fp_quant_Y_coeffs[64]; /* used in reiniting quantizers */
+  
 
   HUFF_ENTRY    *HuffRoot_VP3x[NUM_HUFF_TABLES];
   ogg_uint32_t  *HuffCodeArray_VP3x[NUM_HUFF_TABLES];
@@ -482,14 +505,27 @@ typedef struct PB_INSTANCE {
   const unsigned char *ExtraBitLengths_VP3x;
 
   /* Quantiser and rounding tables */
-  ogg_int32_t    fp_quant_UV_coeffs[64];
-  ogg_int32_t    fp_quant_Inter_coeffs[64];
+  ogg_int32_t    fp_quant_Y_coeffs[64]; /* used in reiniting quantizers */
+  ogg_int32_t    fp_quant_U_coeffs[64];
+  ogg_int32_t    fp_quant_V_coeffs[64];
+  ogg_int32_t    fp_quant_Inter_Y_coeffs[64];
+  ogg_int32_t    fp_quant_Inter_U_coeffs[64];
+  ogg_int32_t    fp_quant_Inter_V_coeffs[64];
+  
   ogg_int32_t    fp_quant_Y_round[64];
-  ogg_int32_t    fp_quant_UV_round[64];
-  ogg_int32_t    fp_quant_Inter_round[64];
+  ogg_int32_t    fp_quant_U_round[64];
+  ogg_int32_t    fp_quant_V_round[64];
+  ogg_int32_t    fp_quant_Inter_Y_round[64];
+  ogg_int32_t    fp_quant_Inter_U_round[64];
+  ogg_int32_t    fp_quant_Inter_V_round[64];
+  
   ogg_int32_t    fp_ZeroBinSize_Y[64];
-  ogg_int32_t    fp_ZeroBinSize_UV[64];
-  ogg_int32_t    fp_ZeroBinSize_Inter[64];
+  ogg_int32_t    fp_ZeroBinSize_U[64];
+  ogg_int32_t    fp_ZeroBinSize_V[64];
+  ogg_int32_t    fp_ZeroBinSize_Inter_Y[64];
+  ogg_int32_t    fp_ZeroBinSize_Inter_U[64];
+  ogg_int32_t    fp_ZeroBinSize_Inter_V[64];
+
   ogg_int32_t   *fquant_coeffs;
   ogg_int32_t   *fquant_round;
   ogg_int32_t   *fquant_ZbSize;
@@ -706,15 +742,6 @@ extern int GetFrameType(PB_INSTANCE *pbi);
 extern void InitPBInstance(PB_INSTANCE *pbi);
 extern void ClearPBInstance(PB_INSTANCE *pbi);
 
-
-extern void IDctSlow(  Q_LIST_ENTRY * InputData,
-                       ogg_int16_t *QuantMatrix,
-                       ogg_int16_t * OutputData ) ;
-
-extern void IDct10( Q_LIST_ENTRY * InputData,
-                    ogg_int16_t *QuantMatrix,
-                    ogg_int16_t * OutputData );
-
 extern void IDct1( Q_LIST_ENTRY * InputData,
                    ogg_int16_t *QuantMatrix,
                    ogg_int16_t * OutputData );
@@ -742,10 +769,9 @@ extern void ExpandToken( Q_LIST_ENTRY * ExpandedBlock,
                          unsigned char * CoeffIndex, ogg_uint32_t Token,
                          ogg_int32_t ExtraBits );
 extern void ClearDownQFragData(PB_INSTANCE *pbi);
-extern void select_Y_quantiser ( PB_INSTANCE *pbi );
-extern void select_Inter_quantiser ( PB_INSTANCE *pbi );
-extern void select_UV_quantiser ( PB_INSTANCE *pbi );
-extern void select_InterUV_quantiser ( PB_INSTANCE *pbi );
+
+extern void select_quantiser (PB_INSTANCE *pbi, int type);
+
 extern void quantize( PB_INSTANCE *pbi,
                       ogg_int16_t * DCT_block,
                       Q_LIST_ENTRY * quantized_list);

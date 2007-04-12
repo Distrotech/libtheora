@@ -120,6 +120,77 @@ static const Q_LIST_ENTRY Inter_coeffsV1[64] ={
 
 #endif
 
+/* New (6) quant matrices */
+
+static const Q_LIST_ENTRY Y_coeffs[64] ={
+  16,  11,  10,  16,  24,  40,  51,  61,
+  12,  12,  14,  19,  26,  58,  60,  55,
+  14,  13,  16,  24,  40,  57,  69,  56,
+  14,  17,  22,  29,  51,  87,  80,  62,
+  18,  22,  37,  58,  68, 109, 103,  77,
+  24,  35,  55,  64,  81, 104, 113,  92,
+  49,  64,  78,  87, 103, 121, 120, 101,
+  72,  92,  95,  98, 112, 100, 103,  99
+};
+
+
+static const Q_LIST_ENTRY U_coeffs[64] ={
+  17,   18,     24,     47,     99,     99,     99,     99,
+  18,   21,     26,     66,     99,     99,     99,     99,
+  24,   26,     56,     99,     99,     99,     99,     99,
+  47,   66,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99
+};
+
+static const Q_LIST_ENTRY V_coeffs[64] ={
+  17,   18,     24,     47,     99,     99,     99,     99,
+  18,   21,     26,     66,     99,     99,     99,     99,
+  24,   26,     56,     99,     99,     99,     99,     99,
+  47,   66,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99
+};
+
+
+static const Q_LIST_ENTRY Inter_Y_coeffs[64] ={
+  16,  16,  16,  20,  24,  28,  32,  40,
+  16,  16,  20,  24,  28,  32,  40,  48,
+  16,  20,  24,  28,  32,  40,  48,  64,
+  20,  24,  28,  32,  40,  48,  64,  64,
+  24,  28,  32,  40,  48,  64,  64,  64,
+  28,  32,  40,  48,  64,  64,  64,  96,
+  32,  40,  48,  64,  64,  64,  96,  128,
+  40,  48,  64,  64,  64,  96,  128, 128
+};
+
+static const Q_LIST_ENTRY Inter_U_coeffs[64] ={
+  17,   18,     24,     47,     99,     99,     99,     99,
+  18,   21,     26,     66,     99,     99,     99,     99,
+  24,   26,     56,     99,     99,     99,     99,     99,
+  47,   66,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99
+};
+
+static const Q_LIST_ENTRY Inter_V_coeffs[64] ={
+  17,   18,     24,     47,     99,     99,     99,     99,
+  18,   21,     26,     66,     99,     99,     99,     99,
+  24,   26,     56,     99,     99,     99,     99,     99,
+  47,   66,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99,
+  99,   99,     99,     99,     99,     99,     99,     99
+};
+
+
 static int _ilog(unsigned int v){
   int ret=0;
   while(v){
@@ -128,6 +199,7 @@ static int _ilog(unsigned int v){
   }
   return(ret);
 }
+
 
 void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   int x, bits;
@@ -140,32 +212,91 @@ void WriteQTables(PB_INSTANCE *pbi,oggpack_buffer* opb) {
   for(x=0; x<64; x++) {
     oggpackB_write(opb, pbi->DcScaleFactorTable[x],bits);
   }
-  oggpackB_write(opb, 3 - 1, 9); /* number of base matricies */
-  for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->Y_coeffs[x],8);
+  
+  switch(pbi->encoder_profile) {
+  	case PROFILE_FULL:
+      oggpackB_write(opb, 6 - 1, 9); /* number of base matricies */
+
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->Y_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->U_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->V_coeffs[x],8);
+      }
+  
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->InterY_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->InterU_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->InterV_coeffs[x],8);
+      }
+      /* table mapping */
+      oggpackB_write(opb, 0, 3);  /* matrix 0 for intra Y */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+  
+      oggpackB_write(opb, 1, 1);
+      oggpackB_write(opb, 1, 3);  /* matrix 1 for intra U */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+  
+      oggpackB_write(opb, 1, 1);
+      oggpackB_write(opb, 2, 3);  /* matrix 2 for intra V */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+  
+      oggpackB_write(opb, 1, 1);
+      oggpackB_write(opb, 3, 3);  /* matrix 3 for inter Y */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+  
+      oggpackB_write(opb, 1, 1);
+      oggpackB_write(opb, 4, 3);  /* matrix 4 for inter U */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+  
+      oggpackB_write(opb, 1, 1);
+      oggpackB_write(opb, 5, 3);  /* matrix 5 for inter V */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 3);
+      break;
+
+    default: /* VP3 */
+      oggpackB_write(opb, 3 - 1, 9); /* number of base matricies */
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->Y_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->U_coeffs[x],8);
+      }
+      for(x=0; x<64; x++) {
+        oggpackB_write(opb, pbi->InterY_coeffs[x],8);
+      }
+      /* table mapping */
+      oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
+      oggpackB_write(opb, 62, 6); /* used for every q */
+      oggpackB_write(opb, 0, 2);
+      oggpackB_write(opb, 1, 1);  /* next range is explicit */
+      oggpackB_write(opb, 1, 2);  /* matrix 1 for intra U */
+      oggpackB_write(opb, 62, 6);
+      oggpackB_write(opb, 1, 2);
+      oggpackB_write(opb, 0, 1);  /* intra V is the same */
+      oggpackB_write(opb, 1, 1);  /* next range is explicit */
+      oggpackB_write(opb, 2, 2);  /* matrix 2 for inter Y */
+      oggpackB_write(opb, 62, 6);
+      oggpackB_write(opb, 2, 2);
+      oggpackB_write(opb, 0, 2);  /* inter U the same */
+      oggpackB_write(opb, 0, 2);  /* inter V the same */
+      break;
   }
-  for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->U_coeffs[x],8);
-  }
-  for(x=0; x<64; x++) {
-    oggpackB_write(opb, pbi->InterY_coeffs[x],8);
-  }
-  /* table mapping */
-  oggpackB_write(opb, 0, 2);  /* matrix 0 for intra Y */
-  oggpackB_write(opb, 62, 6); /* used for every q */
-  oggpackB_write(opb, 0, 2);
-  oggpackB_write(opb, 1, 1);  /* next range is explicit */
-  oggpackB_write(opb, 1, 2);  /* matrix 1 for intra U */
-  oggpackB_write(opb, 62, 6);
-  oggpackB_write(opb, 1, 2);
-  oggpackB_write(opb, 0, 1);  /* intra V is the same */
-  oggpackB_write(opb, 1, 1);  /* next range is explicit */
-  oggpackB_write(opb, 2, 2);  /* matrix 2 for inter Y */
-  oggpackB_write(opb, 62, 6);
-  oggpackB_write(opb, 2, 2);
-  oggpackB_write(opb, 0, 2);  /* inter U the same */
-  oggpackB_write(opb, 0, 2);  /* inter V the same */
 }
+
 
 static int _read_qtable_range(codec_setup_info *ci, oggpack_buffer* opb,
          int N, int type) 
@@ -331,15 +462,28 @@ void CopyQTables(PB_INSTANCE *pbi, codec_setup_info *ci) {
    Someday we can change the quant tables to be adaptive, or just plain
     better. */
 void InitQTables( PB_INSTANCE *pbi ){
-  memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
-  memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1,
-         sizeof(pbi->DcScaleFactorTable));
-  memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(pbi->Y_coeffs));
-  memcpy(pbi->U_coeffs, UV_coeffsV1, sizeof(pbi->U_coeffs));
-  memcpy(pbi->V_coeffs, UV_coeffsV1, sizeof(pbi->V_coeffs));
-  memcpy(pbi->InterY_coeffs, Inter_coeffsV1, sizeof(pbi->InterY_coeffs));
-  memcpy(pbi->InterU_coeffs, Inter_coeffsV1, sizeof(pbi->InterU_coeffs));
-  memcpy(pbi->InterV_coeffs, Inter_coeffsV1, sizeof(pbi->InterV_coeffs));
+  switch(pbi->encoder_profile) {
+  	case PROFILE_FULL:
+      memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
+      memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1, sizeof(pbi->DcScaleFactorTable));
+      memcpy(pbi->Y_coeffs, Y_coeffs, sizeof(pbi->Y_coeffs));
+      memcpy(pbi->U_coeffs, U_coeffs, sizeof(pbi->U_coeffs));
+      memcpy(pbi->V_coeffs, V_coeffs, sizeof(pbi->V_coeffs));
+      memcpy(pbi->InterY_coeffs, Inter_Y_coeffs, sizeof(pbi->InterY_coeffs));
+      memcpy(pbi->InterU_coeffs, Inter_U_coeffs, sizeof(pbi->InterU_coeffs));
+      memcpy(pbi->InterV_coeffs, Inter_V_coeffs, sizeof(pbi->InterV_coeffs));
+      break;
+    default: /* VP3 */
+      memcpy(pbi->QThreshTable, QThreshTableV1, sizeof(pbi->QThreshTable));
+      memcpy(pbi->DcScaleFactorTable, DcScaleFactorTableV1, sizeof(pbi->DcScaleFactorTable));
+      memcpy(pbi->Y_coeffs, Y_coeffsV1, sizeof(pbi->Y_coeffs));
+      memcpy(pbi->U_coeffs, UV_coeffsV1, sizeof(pbi->U_coeffs));
+      memcpy(pbi->V_coeffs, UV_coeffsV1, sizeof(pbi->V_coeffs));
+      memcpy(pbi->InterY_coeffs, Inter_coeffsV1, sizeof(pbi->InterY_coeffs));
+      memcpy(pbi->InterU_coeffs, Inter_coeffsV1, sizeof(pbi->InterU_coeffs));
+      memcpy(pbi->InterV_coeffs, Inter_coeffsV1, sizeof(pbi->InterV_coeffs));
+      break;
+  }
 }
 
 static void BuildZigZagIndex(PB_INSTANCE *pbi){
@@ -364,10 +508,13 @@ static void init_quantizer ( CP_INSTANCE *cpi,
     double temp_fp_ZeroBinSize;
     PB_INSTANCE *pbi = &cpi->pb;
 
-    const Q_LIST_ENTRY * Inter_coeffs;
-    const Q_LIST_ENTRY * Y_coeffs;
-    const Q_LIST_ENTRY * UV_coeffs;
-    const Q_LIST_ENTRY * DcScaleFactorTable;
+    const Q_LIST_ENTRY * temp_Y_coeffs;
+    const Q_LIST_ENTRY * temp_U_coeffs;
+    const Q_LIST_ENTRY * temp_V_coeffs;
+    const Q_LIST_ENTRY * temp_Inter_Y_coeffs;
+    const Q_LIST_ENTRY * temp_Inter_U_coeffs;
+    const Q_LIST_ENTRY * temp_Inter_V_coeffs;
+    const Q_LIST_ENTRY * temp_DcScaleFactorTable;
 
     /* Notes on setup of quantisers.  The initial multiplication by
      the scale factor is done in the ogg_int32_t domain to insure that the
@@ -376,10 +523,13 @@ static void init_quantizer ( CP_INSTANCE *cpi,
      normalisation factor for the forward DCT transform. */
 
     /* New version rounding and ZB characteristics. */
-    Inter_coeffs = Inter_coeffsV1;
-    Y_coeffs = Y_coeffsV1;
-    UV_coeffs = UV_coeffsV1;
-    DcScaleFactorTable = DcScaleFactorTableV1;
+    temp_Y_coeffs = cpi->pb.Y_coeffs;
+    temp_U_coeffs = cpi->pb.U_coeffs;
+    temp_V_coeffs = cpi->pb.V_coeffs;
+    temp_Inter_Y_coeffs = cpi->pb.InterY_coeffs;
+    temp_Inter_U_coeffs = cpi->pb.InterU_coeffs;
+    temp_Inter_V_coeffs = cpi->pb.InterV_coeffs;
+    temp_DcScaleFactorTable = cpi->pb.DcScaleFactorTable;
     ZBinFactor = 0.9;
 
     switch(cpi->pb.info.sharpness){
@@ -409,7 +559,7 @@ static void init_quantizer ( CP_INSTANCE *cpi,
 
     /* Use fixed multiplier for intra Y DC */
     temp_fp_quant_coeffs =
-      (((ogg_uint32_t)(DcScaleFactorTable[QIndex] * Y_coeffs[0])/100) << 2);
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_Y_coeffs[0])/100) << 2);
     if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 2 )
       temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 2;
 
@@ -422,57 +572,88 @@ static void init_quantizer ( CP_INSTANCE *cpi,
     temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
     pbi->fp_quant_Y_coeffs[0]   = (0.5 + SHIFT16 * temp_fp_quant_coeffs);
 
-    /* Intra UV */
+    /* Intra U */
     temp_fp_quant_coeffs =
-      (((ogg_uint32_t)(DcScaleFactorTable[QIndex] * UV_coeffs[0])/100) << 2);
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_U_coeffs[0])/100) << 2);
     if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 2)
       temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 2;
 
     temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-    pbi->fp_quant_UV_round[0]   = (0.5 + temp_fp_quant_round);
+    pbi->fp_quant_U_round[0]   = (0.5 + temp_fp_quant_round);
 
     temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-    pbi->fp_ZeroBinSize_UV[0]   = (0.5 + temp_fp_ZeroBinSize);
+    pbi->fp_ZeroBinSize_U[0]   = (0.5 + temp_fp_ZeroBinSize);
 
     temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
-    pbi->fp_quant_UV_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+    pbi->fp_quant_U_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+
+    /* Intra V */
+    temp_fp_quant_coeffs =
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_V_coeffs[0])/100) << 2);
+    if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 2)
+      temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 2;
+
+    temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
+    pbi->fp_quant_V_round[0]   = (0.5 + temp_fp_quant_round);
+
+    temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
+    pbi->fp_ZeroBinSize_V[0]   = (0.5 + temp_fp_ZeroBinSize);
+
+    temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
+    pbi->fp_quant_V_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+
 
     /* Inter Y */
     temp_fp_quant_coeffs =
-      (((ogg_uint32_t)(DcScaleFactorTable[QIndex] * Inter_coeffs[0])/100) << 2);
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_Inter_Y_coeffs[0])/100) << 2);
     if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 4)
       temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 4;
 
     temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-    pbi->fp_quant_Inter_round[0]= (0.5 + temp_fp_quant_round);
+    pbi->fp_quant_Inter_Y_round[0]= (0.5 + temp_fp_quant_round);
 
     temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-    pbi->fp_ZeroBinSize_Inter[0]= (0.5 + temp_fp_ZeroBinSize);
+    pbi->fp_ZeroBinSize_Inter_Y[0]= (0.5 + temp_fp_ZeroBinSize);
 
     temp_fp_quant_coeffs= 1.0 / temp_fp_quant_coeffs;
-    pbi->fp_quant_Inter_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+    pbi->fp_quant_Inter_Y_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
 
-    /* Inter UV */
+    /* Inter U */
     temp_fp_quant_coeffs =
-      (((ogg_uint32_t)(DcScaleFactorTable[QIndex] * Inter_coeffs[0])/100) << 2);
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_Inter_U_coeffs[0])/100) << 2);
     if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 4)
       temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 4;
 
     temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-    pbi->fp_quant_InterUV_round[0]= (0.5 + temp_fp_quant_round);
+    pbi->fp_quant_Inter_U_round[0]= (0.5 + temp_fp_quant_round);
 
     temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-    pbi->fp_ZeroBinSize_InterUV[0]= (0.5 + temp_fp_ZeroBinSize);
+    pbi->fp_ZeroBinSize_Inter_U[0]= (0.5 + temp_fp_ZeroBinSize);
 
     temp_fp_quant_coeffs= 1.0 / temp_fp_quant_coeffs;
-    pbi->fp_quant_InterUV_coeffs[0]=
-      (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+    pbi->fp_quant_Inter_U_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+    
+    /* Inter V */
+    temp_fp_quant_coeffs =
+      (((ogg_uint32_t)(temp_DcScaleFactorTable[QIndex] * temp_Inter_V_coeffs[0])/100) << 2);
+    if ( temp_fp_quant_coeffs < MIN_LEGAL_QUANT_ENTRY * 4)
+      temp_fp_quant_coeffs = MIN_LEGAL_QUANT_ENTRY * 4;
+
+    temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
+    pbi->fp_quant_Inter_V_round[0]= (0.5 + temp_fp_quant_round);
+
+    temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
+    pbi->fp_ZeroBinSize_Inter_V[0]= (0.5 + temp_fp_ZeroBinSize);
+
+    temp_fp_quant_coeffs= 1.0 / temp_fp_quant_coeffs;
+    pbi->fp_quant_Inter_V_coeffs[0]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+    
 
     for ( i = 1; i < 64; i++ ){
       /* now scale coefficients by required compression factor */
       /* Intra Y */
       temp_fp_quant_coeffs =
-        (((ogg_uint32_t)(scale_factor * Y_coeffs[i]) / 100 ) << 2 );
+        (((ogg_uint32_t)(scale_factor * temp_Y_coeffs[i]) / 100 ) << 2 );
       if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY) )
         temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY);
 
@@ -485,50 +666,81 @@ static void init_quantizer ( CP_INSTANCE *cpi,
       temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
       pbi->fp_quant_Y_coeffs[i] = (0.5 + SHIFT16 * temp_fp_quant_coeffs);
 
-      /* Intra UV */
+      /* Intra U */
       temp_fp_quant_coeffs =
-        (((ogg_uint32_t)(scale_factor * UV_coeffs[i]) / 100 ) << 2 );
+        (((ogg_uint32_t)(scale_factor * temp_U_coeffs[i]) / 100 ) << 2 );
       if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY))
         temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY);
 
       temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-      pbi->fp_quant_UV_round[i] = (0.5 + temp_fp_quant_round);
+      pbi->fp_quant_U_round[i] = (0.5 + temp_fp_quant_round);
 
       temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-      pbi->fp_ZeroBinSize_UV[i] = (0.5 + temp_fp_ZeroBinSize);
+      pbi->fp_ZeroBinSize_U[i] = (0.5 + temp_fp_ZeroBinSize);
 
       temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
-      pbi->fp_quant_UV_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+      pbi->fp_quant_U_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+
+      /* Intra V */
+      temp_fp_quant_coeffs =
+        (((ogg_uint32_t)(scale_factor * temp_V_coeffs[i]) / 100 ) << 2 );
+      if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY))
+        temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY);
+
+      temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
+      pbi->fp_quant_V_round[i] = (0.5 + temp_fp_quant_round);
+
+      temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
+      pbi->fp_ZeroBinSize_V[i] = (0.5 + temp_fp_ZeroBinSize);
+
+      temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
+      pbi->fp_quant_V_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
 
       /* Inter Y */
       temp_fp_quant_coeffs =
-        (((ogg_uint32_t)(scale_factor * Inter_coeffs[i]) / 100 ) << 2 );
+        (((ogg_uint32_t)(scale_factor * temp_Inter_Y_coeffs[i]) / 100 ) << 2 );
       if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY * 2) )
         temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY * 2);
 
       temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-      pbi->fp_quant_Inter_round[i]= (0.5 + temp_fp_quant_round);
+      pbi->fp_quant_Inter_Y_round[i]= (0.5 + temp_fp_quant_round);
 
       temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-      pbi->fp_ZeroBinSize_Inter[i]= (0.5 + temp_fp_ZeroBinSize);
+      pbi->fp_ZeroBinSize_Inter_Y[i]= (0.5 + temp_fp_ZeroBinSize);
 
       temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
-      pbi->fp_quant_Inter_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+      pbi->fp_quant_Inter_Y_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
 
-      /* Inter UV */
+      /* Inter U */
       temp_fp_quant_coeffs =
-        (((ogg_uint32_t)(scale_factor * Inter_coeffs[i]) / 100 ) << 2 );
+        (((ogg_uint32_t)(scale_factor * temp_Inter_U_coeffs[i]) / 100 ) << 2 );
       if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY * 2) )
         temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY * 2);
 
       temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
-      pbi->fp_quant_InterUV_round[i]= (0.5 + temp_fp_quant_round);
+      pbi->fp_quant_Inter_U_round[i]= (0.5 + temp_fp_quant_round);
 
       temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
-      pbi->fp_ZeroBinSize_InterUV[i]= (0.5 + temp_fp_ZeroBinSize);
+      pbi->fp_ZeroBinSize_Inter_U[i]= (0.5 + temp_fp_ZeroBinSize);
 
       temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
-      pbi->fp_quant_InterUV_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+      pbi->fp_quant_Inter_U_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+
+      /* Inter V */
+      temp_fp_quant_coeffs =
+        (((ogg_uint32_t)(scale_factor * temp_Inter_V_coeffs[i]) / 100 ) << 2 );
+      if ( temp_fp_quant_coeffs < (MIN_LEGAL_QUANT_ENTRY * 2) )
+        temp_fp_quant_coeffs = (MIN_LEGAL_QUANT_ENTRY * 2);
+
+      temp_fp_quant_round = temp_fp_quant_coeffs * RoundingFactor;
+      pbi->fp_quant_Inter_V_round[i]= (0.5 + temp_fp_quant_round);
+
+      temp_fp_ZeroBinSize = temp_fp_quant_coeffs * ZBinFactor;
+      pbi->fp_ZeroBinSize_Inter_V[i]= (0.5 + temp_fp_ZeroBinSize);
+
+      temp_fp_quant_coeffs = 1.0 / temp_fp_quant_coeffs;
+      pbi->fp_quant_Inter_V_coeffs[i]= (0.5 + SHIFT16 * temp_fp_quant_coeffs);
+
 
     }
 
@@ -536,29 +748,44 @@ static void init_quantizer ( CP_INSTANCE *cpi,
 
 }
 
-void select_Y_quantiser ( PB_INSTANCE *pbi ){
-  pbi->fquant_coeffs = pbi->fp_quant_Y_coeffs;
-  pbi->fquant_round = pbi->fp_quant_Y_round;
-  pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Y;
+void select_quantiser(PB_INSTANCE *pbi, int type) {
+  /* select a quantiser according to what plane has to be coded in what
+   * mode. Could be extended to a more sophisticated scheme. */
+  
+  switch(type) {
+    case BLOCK_Y:
+      pbi->fquant_coeffs = pbi->fp_quant_Y_coeffs;
+      pbi->fquant_round = pbi->fp_quant_Y_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Y;
+      break;
+    case BLOCK_U:
+      pbi->fquant_coeffs = pbi->fp_quant_U_coeffs;
+      pbi->fquant_round = pbi->fp_quant_U_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_U;
+      break;
+    case BLOCK_V:
+      pbi->fquant_coeffs = pbi->fp_quant_V_coeffs;
+      pbi->fquant_round = pbi->fp_quant_V_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_V;
+      break;
+    case BLOCK_INTER_Y:
+      pbi->fquant_coeffs = pbi->fp_quant_Inter_Y_coeffs;
+      pbi->fquant_round = pbi->fp_quant_Inter_Y_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Inter_Y;
+      break;
+    case BLOCK_INTER_U:
+      pbi->fquant_coeffs = pbi->fp_quant_Inter_U_coeffs;
+      pbi->fquant_round = pbi->fp_quant_Inter_U_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Inter_U;		
+      break;
+    case BLOCK_INTER_V:
+      pbi->fquant_coeffs = pbi->fp_quant_Inter_V_coeffs;
+      pbi->fquant_round = pbi->fp_quant_Inter_V_round;
+      pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Inter_V;		
+      break;
+  }
 }
 
-void select_Inter_quantiser ( PB_INSTANCE *pbi ){
-  pbi->fquant_coeffs = pbi->fp_quant_Inter_coeffs;
-  pbi->fquant_round = pbi->fp_quant_Inter_round;
-  pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_Inter;
-}
-
-void select_UV_quantiser ( PB_INSTANCE *pbi ){
-  pbi->fquant_coeffs = pbi->fp_quant_UV_coeffs;
-  pbi->fquant_round = pbi->fp_quant_UV_round;
-  pbi->fquant_ZbSize = pbi->fp_quant_UV_round;
-}
-
-void select_InterUV_quantiser ( PB_INSTANCE *pbi ){
-  pbi->fquant_coeffs = pbi->fp_quant_InterUV_coeffs;
-  pbi->fquant_round = pbi->fp_quant_InterUV_round;
-  pbi->fquant_ZbSize = pbi->fp_ZeroBinSize_InterUV;
-}
 
 void quantize( PB_INSTANCE *pbi,
                ogg_int16_t * DCT_block,

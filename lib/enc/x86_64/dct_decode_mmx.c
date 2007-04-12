@@ -11,20 +11,19 @@
  ********************************************************************
 
   function:
-  last mod: $Id$
+  last mod: $Id: dsp_mmx.c 12440 2007-02-06 16:36:26Z j $
 
  ********************************************************************/
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <stdlib.h>
 
 #include "codec_internal.h"
 
-#define VERSION_MAJOR 3
-#define VERSION_MINOR 2
-#define VERSION_SUB 0
+#if defined(USE_ASM)
 
-#define VENDOR_STRING "Xiph.Org libTheora I 20060526 3 2 0"
+/* nothing implemented right now */
+void dsp_mmx_dct_decode_init(DspFunctions *funcs)
+{
+}
 
-void theora_encoder_clear (CP_INSTANCE * cpi);
+#endif /* USE_ASM */

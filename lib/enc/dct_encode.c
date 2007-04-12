@@ -19,6 +19,7 @@
 #include "codec_internal.h"
 #include "dsp.h"
 
+
 static int ModeUsesMC[MAX_MODES] = { 0, 0, 1, 1, 1, 0, 1, 1 };
 
 static unsigned char TokenizeDctValue (ogg_int16_t DataValue,
@@ -401,23 +402,31 @@ void TransformQuantizeBlock (CP_INSTANCE *cpi, ogg_int32_t FragIndex,
     cpi->pb.CodingMode = cpi->pb.FragCodingMethod[FragIndex];
   }
 
-  /* Selection of Quantiser matirx and set other plane related values. */
+  /* Selection of Quantiser matrix and set other plane related values. */
   if ( FragIndex < (ogg_int32_t)cpi->pb.YPlaneFragments ){
     LeftEdge = !(FragIndex%cpi->pb.HFragments);
 
-    /* Select the approrpriate Y quantiser matrix */
+    /* Select the appropriate Y quantiser matrix */
     if ( cpi->pb.CodingMode == CODE_INTRA )
-      select_Y_quantiser(&cpi->pb);
+      select_quantiser(&cpi->pb, BLOCK_Y);
     else
-      select_Inter_quantiser(&cpi->pb);
-  }else{
+      select_quantiser(&cpi->pb, BLOCK_INTER_Y);
+  } else {
     LeftEdge = !((FragIndex-cpi->pb.YPlaneFragments)%(cpi->pb.HFragments>>1));
-
-    /* Select the approrpriate UV quantiser matrix */
-    if ( cpi->pb.CodingMode == CODE_INTRA )
-      select_UV_quantiser(&cpi->pb);
-    else
-      select_Inter_quantiser(&cpi->pb);
+	
+    if(FragIndex < (ogg_int32_t)cpi->pb.YPlaneFragments + (ogg_int32_t)cpi->pb.UVPlaneFragments) {
+      /* U plane */
+      if ( cpi->pb.CodingMode == CODE_INTRA )
+        select_quantiser(&cpi->pb, BLOCK_U);
+      else
+        select_quantiser(&cpi->pb, BLOCK_INTER_U);
+    } else {
+      /* V plane */
+      if ( cpi->pb.CodingMode == CODE_INTRA )
+        select_quantiser(&cpi->pb, BLOCK_V);
+      else
+        select_quantiser(&cpi->pb, BLOCK_INTER_V);
+    }
   }
 
   if ( ModeUsesMC[cpi->pb.CodingMode] ){

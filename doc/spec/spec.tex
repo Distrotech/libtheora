@@ -2840,12 +2840,12 @@ This value is then scaled by four, to match the scaling of the DCT output,
 Assign \locvar{\qri} the index of a quant range such that
 \begin{displaymath}
 \sum_{\qrj=0}^{\locvar{\qri}-1}
- \bitvar{QRSIZES}[\bitvar{\qti}][\bitvar{\pli}][\qrj] \le \bitvar{\qi},
+ \bitvar{\qi} \ge \bitvar{QRSIZES}[\bitvar{\qti}][\bitvar{\pli}][\qrj],
 \end{displaymath}
  and
 \begin{displaymath}
 \sum_{\qrj=0}^{\locvar{\qri}}
- \bitvar{QRSIZES}[\bitvar{\qti}][\bitvar{\pli}][\qrj] \ge \bitvar{\qi},
+ \bitvar{\qi} \le \bitvar{QRSIZES}[\bitvar{\qti}][\bitvar{\pli}][\qrj],
 \end{displaymath}
  where summation from $0$ to $-1$ is defined to be zero.
 If there is more than one such value of $\locvar{\qri}$, i.e., if \bitvar{\qi}
@@ -7710,44 +7710,24 @@ The comment header packet MUST begin the second Ogg page in the logical
 These two page break requirements facilitate stream identification and
  simplify header acquisition for seeking and live streaming applications.
 
+All header pages MUST have their granule position field set to zero.
+%TODO: or -1?
+%TBT: What are we doing now?
+
 \subsection{Frame data}
 
 The first frame data packet in a logical bitstream MUST begin a fresh page.
-All other data packets are placed in sequence into Ogg pages
+All other data packets are placed one at a time into Ogg pages
  until the end of the stream.
 Packets can span pages and multiple packets can be placed within any
  one page.
 The last page in the logical bitstream MUST have its `end of stream'
  flag set.
 
-{\bf Note:} Care should be taken when packing many small packets into
- the same Ogg page, especially with zero-length "duplicate frame"
- packets. Readers and writers (usually) work at page granularity,
- so this introduces additional latency in stream transmission. 
-
-\subsection{Granule position}
-
-Ogg stores a codec-defined timestamp in the header of each page
- structure. In theora this timestamp is derived from the elapsed
- count of decodable frames.
-
-However, to facilitate the location of keyframes when seeking, this
- count is stored in two parts. The granulepos field is divided into
- two parts based on the maximum keyframe spacing defined in the theora
- info header. The more significant bits hold the frame count of
- the most recent keyframe, and the less significant bits hold a
- count of the frames elapsed since the first keyframe. The radix
- dividing the two fields is $\ilog(maximum keyframe spacing - 1)$.
- 
-All header pages SHOULD have their granule position field set to zero if
- a packet terminates within that page. Since no frames are yet decodable,
- and the keyframe radix is not yet known, the granulepos for the header
- packets is conceptually zero.
-
 Frame data pages MUST be marked with a granule index corresponding to
- the elapsed count of frames as of the the last frame/packet that 
- finishes in that page.
+ the display time of the last frame/packet that finishes in that page.
 
+%TODO: \subsection{Granule position}
 
 \section{Multiplexed stream mapping}
 

@@ -9,19 +9,43 @@
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
-*/
-#if !defined(_x86_cpu_H)
-# define _x86_cpu_H (1)
-#include "internal.h"
+
+  function:
+  last mod: $Id$
+
+ ********************************************************************/
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include "toplevel_lookup.h"
 #include "codec_internal.h"
 
-#define OC_CPU_X86_MMX    (1<<0)
-#define OC_CPU_X86_3DNOW  (1<<1)
-#define OC_CPU_X86_3DNOWEXT (1<<2)
-#define OC_CPU_X86_MMXEXT (1<<3)
-#define OC_CPU_X86_SSE    (1<<4)
-#define OC_CPU_X86_SSE2   (1<<5)
+int theora_encode_init(theora_state *th, theora_info *c){
+  return OC_DISABLED;
+}
 
-ogg_uint32_t oc_cpu_flags_get(void);
+int theora_encode_YUVin(theora_state *t, yuv_buffer *yuv){
+  return OC_DISABLED;
+}
 
-#endif
+int theora_encode_packetout( theora_state *t, int last_p, ogg_packet *op){
+  return OC_DISABLED;
+}
+
+int theora_encode_header(theora_state *t, ogg_packet *op){
+  return OC_DISABLED;
+}
+
+int theora_encode_comment(theora_comment *tc, ogg_packet *op){
+  return OC_DISABLED;
+}
+
+int theora_encode_tables(theora_state *t, ogg_packet *op){
+  return OC_DISABLED;
+}
+
+void theora_encoder_clear (CP_INSTANCE * cpi)
+{
+}
