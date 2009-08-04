@@ -17,13 +17,10 @@
 
 /*MMX acceleration of Theora's iDCT.
   Originally written by Rudolf Marek, based on code from On2's VP3.*/
-#include <ogg/ogg.h>
-#include "../dct.h"
-#include "../idct.h"
-
 #include "x86int.h"
+#include "../dct.h"
 
-#if defined(USE_ASM)
+#if defined(OC_X86_ASM)
 
 /*These are offsets into the table of constants below.*/
 /*7 rows of cosines, in order: pi/16 * (1 ... 7).*/
@@ -194,7 +191,7 @@ static const ogg_uint16_t __attribute__((aligned(8),used))
   J(7) = h3 g3 f3 e3
 
   I(0) I(1) I(2) I(3) is the transpose of r0 I(1) r2 r3.
-  J(4) J(5) J(6) J(7) is the transpose of r4   r5 r6 r7.
+  J(4) J(5) J(6) J(7) is the transpose of r4  r5  r6 r7.
 
   Since r1 is free at entry, we calculate the Js first.*/
 /*19 cycles.*/
@@ -313,9 +310,9 @@ static const ogg_uint16_t __attribute__((aligned(8),used))
 #define OC_C(_i)      OC_MID(OC_COSINE_OFFSET,_i-1)
 #define OC_8          OC_MID(OC_EIGHT_OFFSET,0)
 
-void oc_idct8x8_mmx(ogg_int16_t _y[64]){
-  /*This routine accepts an 8x8 matrix, but in transposed form.
-    Every 4x4 submatrix is transposed.*/
+static void oc_idct8x8_slow(ogg_int16_t _y[64]){
+  /*This routine accepts an 8x8 matrix, but in partially transposed form.
+    Every 4x4 block is transposed.*/
   __asm__ __volatile__(
 #define OC_I(_k)      OC_M2STR((_k*16))"(%[y])"
 #define OC_J(_k)      OC_M2STR(((_k-4)*16)+8)"(%[y])"
@@ -339,7 +336,6 @@ void oc_idct8x8_mmx(ogg_int16_t _y[64]){
     OC_COLUMN_IDCT
 #undef  OC_I
 #undef  OC_J
-    "emms\n\t"
     :
     :[y]"r"(_y),[c]"r"(OC_IDCT_CONSTS)
   );
@@ -507,7 +503,7 @@ void oc_idct8x8_mmx(ogg_int16_t _y[64]){
  "movq %%mm0,"OC_I(0)"\n\t" \
  "#end OC_COLUMN_IDCT_10\n\t" \
 
-void oc_idct8x8_10_mmx(ogg_int16_t _y[64]){
+static void oc_idct8x8_10(ogg_int16_t _y[64]){
   __asm__ __volatile__(
 #define OC_I(_k) OC_M2STR((_k*16))"(%[y])"
 #define OC_J(_k) OC_M2STR(((_k-4)*16)+8)"(%[y])"
@@ -527,9 +523,42 @@ void oc_idct8x8_10_mmx(ogg_int16_t _y[64]){
     OC_COLUMN_IDCT_10
 #undef  OC_I
 #undef  OC_J
-    "emms\n\t"
     :
     :[y]"r"(_y),[c]"r"(OC_IDCT_CONSTS)
   );
 }
+
+/*Performs an inverse 8x8 Type-II DCT transform.
+  The input is assumed to be scaled by a factor of 4 relative to orthonormal
+   version of the transform.*/
+void oc_idct8x8_mmx(ogg_int16_t _y[64],int _last_zzi){
+  /*_last_zzi is subtly different from an actual count of the number of
+     coefficients we decoded for this block.
+    It contains the value of zzi BEFORE the final token in the block was
+     decoded.
+    In most cases this is an EOB token (the continuation of an EOB run from a
+     previous block counts), and so this is the same as the coefficient count.
+    However, in the case that the last token was NOT an EOB token, but filled
+     the block up with exactly 64 coefficients, _last_zzi will be less than 64.
+    Provided the last token was not a pure zero run, the minimum value it can
+     be is 46, and so that doesn't affect any of the cases in this routine.
+    However, if the last token WAS a pure zero run of length 63, then _last_zzi
+     will be 1 while the number of coefficients decoded is 64.
+    Thus, we will trigger the following special case, where the real
+     coefficient count would not.
+    Note also that a zero run of length 64 will give _last_zzi a value of 0,
+     but we still process the DC coefficient, which might have a non-zero value
+     due to DC prediction.
+    Although convoluted, this is arguably the correct behavior: it allows us to
+     use a smaller transform when the block ends with a long zero run instead
+     of a normal EOB token.
+    It could be smarter... multiple separate zero runs at the end of a block
+     will fool it, but an encoder that generates these really deserves what it
+     gets.
+    Needless to say we inherited this approach from VP3.*/
+  /*Then perform the iDCT.*/
+  if(_last_zzi<10)oc_idct8x8_10(_y);
+  else oc_idct8x8_slow(_y);
+}
+
 #endif

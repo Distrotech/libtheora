@@ -98,6 +98,7 @@ vorbis_info      vi;
 vorbis_dsp_state vd;
 vorbis_block     vb;
 vorbis_comment   vc;
+theora_pixelformat     px_fmt;
 
 int              theora_p=0;
 int              vorbis_p=0;
@@ -304,21 +305,31 @@ static void sigint_handler (int signal) {
 }
 
 static void open_video(void){
+  int w;
+  int h;
+  w=(ti.offset_x+ti.frame_width+1&~1)-(ti.offset_x&~1);
+  h=(ti.offset_y+ti.frame_height+1&~1)-(ti.offset_y&~1);
   if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
     fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
     exit(1);
   }
 
-  screen = SDL_SetVideoMode(ti.frame_width, ti.frame_height, 0, SDL_SWSURFACE);
+  screen = SDL_SetVideoMode(w, h, 0, SDL_SWSURFACE);
   if ( screen == NULL ) {
     fprintf(stderr, "Unable to set %dx%d video: %s\n",
-            ti.frame_width,ti.frame_height,SDL_GetError());
+            w,h,SDL_GetError());
     exit(1);
   }
 
-  yuv_overlay = SDL_CreateYUVOverlay(ti.frame_width, ti.frame_height,
+  if (px_fmt==OC_PF_422)
+    yuv_overlay = SDL_CreateYUVOverlay(w, h,
+                                     SDL_YUY2_OVERLAY,
+                                     screen);
+  else
+    yuv_overlay = SDL_CreateYUVOverlay(w, h,
                                      SDL_YV12_OVERLAY,
                                      screen);
+  
   if ( yuv_overlay == NULL ) {
     fprintf(stderr, "SDL: Couldn't create SDL_yuv_overlay: %s\n",
             SDL_GetError());
@@ -326,8 +337,8 @@ static void open_video(void){
   }
   rect.x = 0;
   rect.y = 0;
-  rect.w = ti.frame_width;
-  rect.h = ti.frame_height;
+  rect.w = w;
+  rect.h = h;
 
   SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 }
@@ -335,7 +346,7 @@ static void open_video(void){
 static void video_write(void){
   int i;
   yuv_buffer yuv;
-  int crop_offset;
+  int y_offset, uv_offset;
   theora_decode_YUVout(&td,&yuv);
 
   /* Lock SDL_yuv_overlay */
@@ -349,19 +360,39 @@ static void video_write(void){
   /* reverse u and v for SDL */
   /* and crop input properly, respecting the encoded frame rect */
   /* problems may exist for odd frame rect for some encodings */
-  crop_offset=ti.offset_x+yuv.y_stride*ti.offset_y;
-  for(i=0;i<yuv_overlay->h;i++)
-    memcpy(yuv_overlay->pixels[0]+yuv_overlay->pitches[0]*i,
-           yuv.y+crop_offset+yuv.y_stride*i,
+
+  y_offset=(ti.offset_x&~1)+yuv.y_stride*(ti.offset_y&~1);
+
+  if (px_fmt==OC_PF_422) {
+    uv_offset=(ti.offset_x/2)+(yuv.uv_stride)*(ti.offset_y);
+    /* SDL doesn't have a planar 4:2:2 */ 
+    for(i=0;i<yuv_overlay->h;i++) {
+      int j;
+      char *in_y  = (char *)yuv.y+y_offset+yuv.y_stride*i;
+      char *out = (char *)(yuv_overlay->pixels[0]+yuv_overlay->pitches[0]*i);
+      for (j=0;j<yuv_overlay->w;j++)
+        out[j*2] = in_y[j];
+      char *in_u  = (char *)yuv.u+uv_offset+yuv.uv_stride*i;
+      char *in_v  = (char *)yuv.v+uv_offset+yuv.uv_stride*i;
+      for (j=0;j<yuv_overlay->w>>1;j++) {
+        out[j*4+1] = in_u[j];
+        out[j*4+3] = in_v[j];
+      }
+    }
+  } else {
+    uv_offset=(ti.offset_x/2)+(yuv.uv_stride)*(ti.offset_y/2);
+    for(i=0;i<yuv_overlay->h;i++)
+      memcpy(yuv_overlay->pixels[0]+yuv_overlay->pitches[0]*i,
+           yuv.y+y_offset+yuv.y_stride*i,
            yuv_overlay->w);
-  crop_offset=(ti.offset_x/2)+(yuv.uv_stride)*(ti.offset_y/2);
-  for(i=0;i<yuv_overlay->h/2;i++){
-    memcpy(yuv_overlay->pixels[1]+yuv_overlay->pitches[1]*i,
-           yuv.v+crop_offset+yuv.uv_stride*i,
+    for(i=0;i<yuv_overlay->h/2;i++){
+      memcpy(yuv_overlay->pixels[1]+yuv_overlay->pitches[1]*i,
+           yuv.v+uv_offset+yuv.uv_stride*i,
            yuv_overlay->w/2);
-    memcpy(yuv_overlay->pixels[2]+yuv_overlay->pitches[2]*i,
-           yuv.u+crop_offset+yuv.uv_stride*i,
+      memcpy(yuv_overlay->pixels[2]+yuv_overlay->pitches[2]*i,
+           yuv.u+uv_offset+yuv.uv_stride*i,
            yuv_overlay->w/2);
+    }
   }
 
   /* Unlock SDL_yuv_overlay */
@@ -571,6 +602,7 @@ int main(int argc,char *const *argv){
     printf("Ogg logical stream %lx is Theora %dx%d %.02f fps",
            to.serialno,ti.width,ti.height,
            (double)ti.fps_numerator/ti.fps_denominator);
+    px_fmt=ti.pixelformat;
     switch(ti.pixelformat){
       case OC_PF_420: printf(" 4:2:0 video\n"); break;
       case OC_PF_422: printf(" 4:2:2 video\n"); break;
@@ -590,6 +622,15 @@ int main(int argc,char *const *argv){
     pp_level=pp_level_max;
     theora_control(&td,TH_DECCTL_SET_PPLEVEL,&pp_level,sizeof(pp_level));
     pp_inc=0;
+
+    /*{
+      int arg = 0xffff;
+      theora_control(&td,TH_DECCTL_SET_TELEMETRY_MBMODE,&arg,sizeof(arg));
+      theora_control(&td,TH_DECCTL_SET_TELEMETRY_MV,&arg,sizeof(arg));
+      theora_control(&td,TH_DECCTL_SET_TELEMETRY_QI,&arg,sizeof(arg));
+      arg=10;
+      theora_control(&td,TH_DECCTL_SET_TELEMETRY_BITS,&arg,sizeof(arg));
+    }*/
   }else{
     /* tear down the partial theora setup */
     theora_info_clear(&ti);

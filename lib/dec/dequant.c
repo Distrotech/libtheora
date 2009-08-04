@@ -21,8 +21,7 @@
 #include "dequant.h"
 #include "decint.h"
 
-int oc_quant_params_unpack(oggpack_buffer *_opb,
- th_quant_info *_qinfo){
+int oc_quant_params_unpack(oc_pack_buf *_opb,th_quant_info *_qinfo){
   th_quant_base *base_mats;
   long           val;
   int            nbase_mats;
@@ -36,30 +35,31 @@ int oc_quant_params_unpack(oggpack_buffer *_opb,
   int            qri;
   int            qi;
   int            i;
-  theorapackB_read(_opb,3,&val);
+  val=oc_pack_read(_opb,3);
   nbits=(int)val;
   for(qi=0;qi<64;qi++){
-    theorapackB_read(_opb,nbits,&val);
+    val=oc_pack_read(_opb,nbits);
     _qinfo->loop_filter_limits[qi]=(unsigned char)val;
   }
-  theorapackB_read(_opb,4,&val);
+  val=oc_pack_read(_opb,4);
   nbits=(int)val+1;
   for(qi=0;qi<64;qi++){
-    theorapackB_read(_opb,nbits,&val);
+    val=oc_pack_read(_opb,nbits);
     _qinfo->ac_scale[qi]=(ogg_uint16_t)val;
   }
-  theorapackB_read(_opb,4,&val);
+  val=oc_pack_read(_opb,4);
   nbits=(int)val+1;
   for(qi=0;qi<64;qi++){
-    theorapackB_read(_opb,nbits,&val);
+    val=oc_pack_read(_opb,nbits);
     _qinfo->dc_scale[qi]=(ogg_uint16_t)val;
   }
-  theorapackB_read(_opb,9,&val);
+  val=oc_pack_read(_opb,9);
   nbase_mats=(int)val+1;
   base_mats=_ogg_malloc(nbase_mats*sizeof(base_mats[0]));
+  if(base_mats==NULL)return TH_EFAULT;
   for(bmi=0;bmi<nbase_mats;bmi++){
     for(ci=0;ci<64;ci++){
-      theorapackB_read(_opb,8,&val);
+      val=oc_pack_read(_opb,8);
       base_mats[bmi][ci]=(unsigned char)val;
     }
   }
@@ -72,12 +72,12 @@ int oc_quant_params_unpack(oggpack_buffer *_opb,
     pli=i%3;
     qranges=_qinfo->qi_ranges[qti]+pli;
     if(i>0){
-      theorapackB_read1(_opb,&val);
+      val=oc_pack_read1(_opb);
       if(!val){
         int qtj;
         int plj;
         if(qti>0){
-          theorapackB_read1(_opb,&val);
+          val=oc_pack_read1(_opb);
           if(val){
             qtj=qti-1;
             plj=pli;
@@ -95,13 +95,13 @@ int oc_quant_params_unpack(oggpack_buffer *_opb,
         continue;
       }
     }
-    theorapackB_read(_opb,nbits,&val);
+    val=oc_pack_read(_opb,nbits);
     indices[0]=(int)val;
     for(qi=qri=0;qi<63;){
-      theorapackB_read(_opb,oc_ilog(62-qi),&val);
+      val=oc_pack_read(_opb,oc_ilog(62-qi));
       sizes[qri]=(int)val+1;
       qi+=(int)val+1;
-      theorapackB_read(_opb,nbits,&val);
+      val=oc_pack_read(_opb,nbits);
       indices[++qri]=(int)val;
     }
     /*Note: The caller is responsible for cleaning up any partially
@@ -112,8 +112,20 @@ int oc_quant_params_unpack(oggpack_buffer *_opb,
     }
     qranges->nranges=qri;
     qranges->sizes=qrsizes=(int *)_ogg_malloc(qri*sizeof(qrsizes[0]));
+    if(qranges->sizes==NULL){
+      /*Note: The caller is responsible for cleaning up any partially
+         constructed qinfo.*/
+      _ogg_free(base_mats);
+      return TH_EFAULT;
+    }
     memcpy(qrsizes,sizes,qri*sizeof(qrsizes[0]));
     qrbms=(th_quant_base *)_ogg_malloc((qri+1)*sizeof(qrbms[0]));
+    if(qrbms==NULL){
+      /*Note: The caller is responsible for cleaning up any partially
+         constructed qinfo.*/
+      _ogg_free(base_mats);
+      return TH_EFAULT;
+    }
     qranges->base_matrices=(const th_quant_base *)qrbms;
     do{
       bmi=indices[qri];

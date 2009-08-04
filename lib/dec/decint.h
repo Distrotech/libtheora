@@ -25,7 +25,6 @@
 typedef struct th_setup_info oc_setup_info;
 typedef struct th_dec_ctx    oc_dec_ctx;
 
-# include "idct.h"
 # include "huffdec.h"
 # include "dequant.h"
 
@@ -54,24 +53,20 @@ struct th_dec_ctx{
      when a frame has been processed and a data packet is ready.*/
   int                  packet_state;
   /*Buffer in which to assemble packets.*/
-  oggpack_buffer       opb;
+  oc_pack_buf          opb;
   /*Huffman decode trees.*/
   oc_huff_node        *huff_tables[TH_NHUFFMAN_TABLES];
-  /*The index of one past the last token in each plane for each coefficient.
-    The final entries are the total number of tokens for each coefficient.*/
-  int                  ti0[3][64];
-  /*The index of one past the last extra bits entry in each plane for each
-     coefficient.
-    The final entries are the total number of extra bits entries for each
-     coefficient.*/
-  int                  ebi0[3][64];
+  /*The index of the first token in each plane for each coefficient.*/
+  ptrdiff_t            ti0[3][64];
   /*The number of outstanding EOB runs at the start of each coefficient in each
      plane.*/
-  int                  eob_runs[3][64];
+  ptrdiff_t            eob_runs[3][64];
   /*The DCT token lists.*/
-  unsigned char      **dct_tokens;
+  unsigned char       *dct_tokens;
   /*The extra bits associated with DCT tokens.*/
-  ogg_uint16_t       **extra_bits;
+  unsigned char       *extra_bits;
+  /*The number of dct tokens unpacked so far.*/
+  int                  dct_tokens_count;
   /*The out-of-loop post-processing level.*/
   int                  pp_level;
   /*The DC scale used for out-of-loop deblocking.*/
@@ -85,11 +80,28 @@ struct th_dec_ctx{
   /*The storage for the post-processed frame buffer.*/
   unsigned char       *pp_frame_data;
   /*Whether or not the post-processsed frame buffer has space for chroma.*/
-  int                  pp_frame_has_chroma;
-  /*The buffer used for the post-processed frame.*/
+  int                  pp_frame_state;
+  /*The buffer used for the post-processed frame.
+    Note that this is _not_ guaranteed to have the same strides and offsets as
+     the reference frame buffers.*/
   th_ycbcr_buffer      pp_frame_buf;
   /*The striped decode callback function.*/
   th_stripe_callback   stripe_cb;
+# if defined(HAVE_CAIRO)
+  /*Output metrics for debugging.*/
+  int                  telemetry;
+  int                  telemetry_mbmode;
+  int                  telemetry_mv;
+  int                  telemetry_qi;
+  int                  telemetry_bits;
+  int                  telemetry_frame_bytes;
+  int                  telemetry_coding_bytes;
+  int                  telemetry_mode_bytes;
+  int                  telemetry_mv_bytes;
+  int                  telemetry_qi_bytes;
+  int                  telemetry_dc_bytes;
+  unsigned char       *telemetry_frame_data;
+# endif
 };
 
 #endif

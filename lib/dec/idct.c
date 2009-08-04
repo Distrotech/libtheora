@@ -16,9 +16,8 @@
  ********************************************************************/
 
 #include <string.h>
-#include <ogg/ogg.h>
+#include "../internal.h"
 #include "dct.h"
-#include "idct.h"
 
 /*Performs an inverse 8 point Type-II DCT transform.
   The output is scaled by a factor of 2 relative to the orthonormal version of
@@ -220,19 +219,29 @@ static void idct8_1(ogg_int16_t *_y,const ogg_int16_t _x[1]){
 /*Performs an inverse 8x8 Type-II DCT transform.
   The input is assumed to be scaled by a factor of 4 relative to orthonormal
    version of the transform.
+  All coefficients but the first 3 in zig-zag scan order are assumed to be 0:
+   x  x  0  0  0  0  0  0
+   x  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
+   0  0  0  0  0  0  0  0
   _y: The buffer to store the result in.
       This may be the same as _x.
-  _x: The input coefficients. */
-void oc_idct8x8_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
+  _x: The input coefficients.*/
+static void oc_idct8x8_3(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
   const ogg_int16_t *in;
   ogg_int16_t       *end;
   ogg_int16_t       *out;
   ogg_int16_t        w[64];
   /*Transform rows of x into columns of w.*/
-  for(in=_x,out=w,end=out+8;out<end;in+=8,out++)idct8(out,in);
+  idct8_2(w,_x);
+  idct8_1(w+1,_x+8);
   /*Transform rows of w into columns of y.*/
-  for(in=w,out=_y,end=out+8;out<end;in+=8,out++)idct8(out,in);
-  /*Adjust for scale factor.*/
+  for(in=w,out=_y,end=out+8;out<end;in+=8,out++)idct8_2(out,in);
+  /*Adjust for the scale factor.*/
   for(out=_y,end=out+64;out<end;out++)*out=(ogg_int16_t)(*out+8>>4);
 }
 
@@ -250,8 +259,8 @@ void oc_idct8x8_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
    0  0  0  0  0  0  0  0
   _y: The buffer to store the result in.
       This may be the same as _x.
-  _x: The input coefficients. */
-void oc_idct8x8_10_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
+  _x: The input coefficients.*/
+static void oc_idct8x8_10(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
   const ogg_int16_t *in;
   ogg_int16_t       *end;
   ogg_int16_t       *out;
@@ -263,6 +272,64 @@ void oc_idct8x8_10_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
   idct8_1(w+3,_x+24);
   /*Transform rows of w into columns of y.*/
   for(in=w,out=_y,end=out+8;out<end;in+=8,out++)idct8_4(out,in);
-  /*Adjust for scale factor.*/
+  /*Adjust for the scale factor.*/
   for(out=_y,end=out+64;out<end;out++)*out=(ogg_int16_t)(*out+8>>4);
+}
+
+/*Performs an inverse 8x8 Type-II DCT transform.
+  The input is assumed to be scaled by a factor of 4 relative to orthonormal
+   version of the transform.
+  _y: The buffer to store the result in.
+      This may be the same as _x.
+  _x: The input coefficients.*/
+static void oc_idct8x8_slow(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
+  const ogg_int16_t *in;
+  ogg_int16_t       *end;
+  ogg_int16_t       *out;
+  ogg_int16_t        w[64];
+  /*Transform rows of x into columns of w.*/
+  for(in=_x,out=w,end=out+8;out<end;in+=8,out++)idct8(out,in);
+  /*Transform rows of w into columns of y.*/
+  for(in=w,out=_y,end=out+8;out<end;in+=8,out++)idct8(out,in);
+  /*Adjust for the scale factor.*/
+  for(out=_y,end=out+64;out<end;out++)*out=(ogg_int16_t)(*out+8>>4);
+}
+
+void oc_idct8x8(const oc_theora_state *_state,ogg_int16_t _y[64],
+ int _last_zzi){
+  (*_state->opt_vtable.idct8x8)(_y,_last_zzi);
+}
+
+/*Performs an inverse 8x8 Type-II DCT transform.
+  The input is assumed to be scaled by a factor of 4 relative to orthonormal
+   version of the transform.*/
+void oc_idct8x8_c(ogg_int16_t _y[64],int _last_zzi){
+  /*_last_zzi is subtly different from an actual count of the number of
+     coefficients we decoded for this block.
+    It contains the value of zzi BEFORE the final token in the block was
+     decoded.
+    In most cases this is an EOB token (the continuation of an EOB run from a
+     previous block counts), and so this is the same as the coefficient count.
+    However, in the case that the last token was NOT an EOB token, but filled
+     the block up with exactly 64 coefficients, _last_zzi will be less than 64.
+    Provided the last token was not a pure zero run, the minimum value it can
+     be is 46, and so that doesn't affect any of the cases in this routine.
+    However, if the last token WAS a pure zero run of length 63, then _last_zzi
+     will be 1 while the number of coefficients decoded is 64.
+    Thus, we will trigger the following special case, where the real
+     coefficient count would not.
+    Note also that a zero run of length 64 will give _last_zzi a value of 0,
+     but we still process the DC coefficient, which might have a non-zero value
+     due to DC prediction.
+    Although convoluted, this is arguably the correct behavior: it allows us to
+     use a smaller transform when the block ends with a long zero run instead
+     of a normal EOB token.
+    It could be smarter... multiple separate zero runs at the end of a block
+     will fool it, but an encoder that generates these really deserves what it
+     gets.
+    Needless to say we inherited this approach from VP3.*/
+  /*Then perform the iDCT.*/
+  if(_last_zzi<3)oc_idct8x8_3(_y,_y);
+  else if(_last_zzi<10)oc_idct8x8_10(_y,_y);
+  else oc_idct8x8_slow(_y,_y);
 }

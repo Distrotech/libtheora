@@ -85,6 +85,11 @@ extern "C" {
 #define TH_DECCTL_SET_STRIPE_CB (7)
 /*@}*/
 
+#define TH_DECCTL_SET_TELEMETRY_MBMODE (9)
+#define TH_DECCTL_SET_TELEMETRY_MV (11)
+#define TH_DECCTL_SET_TELEMETRY_QI (13)
+#define TH_DECCTL_SET_TELEMETRY_BITS (15)
+
 
 
 /**A callback function for striped decode.
@@ -289,6 +294,7 @@ extern int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
  *               It may be freed or overwritten without notification when
  *                subsequent frames are decoded.
  * \retval 0 Success
+ * \retval TH_EFAULT     \a _dec or \a _ycbcr was <tt>NULL</tt>.
  */
 extern int th_decode_ycbcr_out(th_dec_ctx *_dec,
  th_ycbcr_buffer _ycbcr);

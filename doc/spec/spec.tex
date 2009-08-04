@@ -2156,10 +2156,10 @@ See Figure~\ref{fig:pic-frame}.
 Again, 24 bits are read instead of 20.
 \item
 Read an 8-bit unsigned integer as \bitvar{PICX}.
-This MUST be no greater than $(\bitvar{FMBW}*16-\bitvar{PICW})$.
+This MUST be no greater than $(\bitvar{FMBW}*16-\bitvar{PICX})$.
 \item
 Read an 8-bit unsigned integer as \bitvar{PICY}.
-This MUST be no greater than $(\bitvar{FMBH}*16-\bitvar{PICH})$.
+This MUST be no greater than $(\bitvar{FMBH}*16-\bitvar{PICY})$.
 Together with \bitvar{PICX}, this specifies the location of the lower-left
  corner of the displayable picture region.
 See Figure~\ref{fig:pic-frame}.
@@ -2211,12 +2211,13 @@ $255$    &                                           \\
 \label{tab:colorspaces}
 \end{table}
 \item
-Read a 24-bit unsigned integer as \bitvar{NOMBR}.
+Read a 24-bit unsigned integer as \bitvar{NOMBR} signifying a rate in bits
+per second. Rates equal to or greater than $2^{24}-1$ bits per second are
+represented as $2^{24}-1$. 
 The \bitvar{NOMBR} field is used only as a hint.
 For pure VBR streams, this value may be considerably off.
 The field MAY be set to zero to indicate that the encoder did not care to
- speculate.
- %TODO: units?
+speculate. 
 \item
 Read a 6-bit unsigned integer as \bitvar{QUAL}.
 This value is used to provide a hint as to the relative quality of the stream
@@ -7981,7 +7982,7 @@ This facilitates seeking while limiting the buffering requirements of the
 \section{VP3 Compatibility}
 \label{app:vp3-compat}
 This section lists all of the encoder and decoder issues that may affect VP3
- compatibility.
+ compatibly.
 Each is described in more detail in the text itself.
 This list is provided merely for reference.
 

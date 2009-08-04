@@ -5,7 +5,7 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2007                *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2008                *
  * by the Xiph.Org Foundation and contributors http://www.xiph.org/ *
  *                                                                  *
  ********************************************************************
@@ -19,6 +19,7 @@
 #include <string.h>
 #include <limits.h>
 #include "apiwrapper.h"
+#include "decint.h"
 #include "theora/theoradec.h"
 
 static void th_dec_api_clear(th_api_wrapper *_api){
@@ -47,7 +48,7 @@ static double theora_decode_granule_time(theora_state *_td,ogg_int64_t _gp){
   return th_granule_time(((th_api_wrapper *)_td->i->codec_setup)->decode,_gp);
 }
 
-static const oc_state_dispatch_vtbl OC_DEC_DISPATCH_VTBL={
+static const oc_state_dispatch_vtable OC_DEC_DISPATCH_VTBL={
   (oc_state_clear_func)theora_decode_clear,
   (oc_state_control_func)theora_decode_control,
   (oc_state_granule_frame_func)theora_decode_granule_frame,
@@ -95,6 +96,7 @@ int theora_decode_init(theora_state *_td,theora_info *_ci){
     This avoids having to figure out whether or not we need to free the info
      struct in either theora_info_clear() or theora_clear().*/
   apiinfo=(th_api_info *)_ogg_calloc(1,sizeof(*apiinfo));
+  if(apiinfo==NULL)return OC_FAULT;
   /*Make our own copy of the info struct, since its lifetime should be
      independent of the one we were passed in.*/
   *&apiinfo->info=*_ci;
@@ -130,6 +132,7 @@ int theora_decode_header(theora_info *_ci,theora_comment *_cc,ogg_packet *_op){
      theora_info struct like the ones that are used in a theora_state struct.*/
   if(api==NULL){
     _ci->codec_setup=_ogg_calloc(1,sizeof(*api));
+    if(_ci->codec_setup==NULL)return OC_FAULT;
     api=(th_api_wrapper *)_ci->codec_setup;
     api->clear=(oc_setup_clear_func)th_dec_api_clear;
   }
@@ -167,12 +170,14 @@ int theora_decode_packetin(theora_state *_td,ogg_packet *_op){
 
 int theora_decode_YUVout(theora_state *_td,yuv_buffer *_yuv){
   th_api_wrapper  *api;
+  th_dec_ctx      *decode;
   th_ycbcr_buffer  buf;
   int              ret;
   if(!_td||!_td->i||!_td->i->codec_setup)return OC_FAULT;
   api=(th_api_wrapper *)_td->i->codec_setup;
-  if(!api->decode)return OC_FAULT;
-  ret=th_decode_ycbcr_out(api->decode,buf);
+  decode=(th_dec_ctx *)api->decode;
+  if(!decode)return OC_FAULT;
+  ret=th_decode_ycbcr_out(decode,buf);
   if(ret>=0){
     _yuv->y_width=buf[0].width;
     _yuv->y_height=buf[0].height;

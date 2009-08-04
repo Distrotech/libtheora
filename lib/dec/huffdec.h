@@ -18,6 +18,7 @@
 #if !defined(_huffdec_H)
 # define _huffdec_H (1)
 # include "huffman.h"
+# include "bitpack.h"
 
 
 
@@ -75,17 +76,17 @@ struct oc_huff_node{
     The ACTUAL size of this array is 1<<nbits, despite what the declaration
      below claims.
     The exception is that for leaf nodes the size is 0.*/
-  oc_huff_node  *nodes[1];
+  oc_huff_node  *nodes[2];
 };
 
 
 
-int oc_huff_trees_unpack(oggpack_buffer *_opb,
+int oc_huff_trees_unpack(oc_pack_buf *_opb,
  oc_huff_node *_nodes[TH_NHUFFMAN_TABLES]);
-void oc_huff_trees_copy(oc_huff_node *_dst[TH_NHUFFMAN_TABLES],
+int oc_huff_trees_copy(oc_huff_node *_dst[TH_NHUFFMAN_TABLES],
  const oc_huff_node *const _src[TH_NHUFFMAN_TABLES]);
 void oc_huff_trees_clear(oc_huff_node *_nodes[TH_NHUFFMAN_TABLES]);
-int oc_huff_token_decode(oggpack_buffer *_opb,const oc_huff_node *_node);
+int oc_huff_token_decode(oc_pack_buf *_opb,const oc_huff_node *_node);
 
 
 #endif
