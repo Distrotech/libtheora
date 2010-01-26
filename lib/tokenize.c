@@ -249,7 +249,6 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
     int          best_token=best_token;
     int          best_eb=best_eb;
     int          best_qc=best_qc;
-    int          flush_bits;
     ogg_uint32_t d2;
     int          dq;
     int          e;
@@ -289,7 +288,6 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
       zzj&=63;
       sum_d2=d2+d2_accum[zzj];
       d2_accum[zzi]=sum_d2;
-      flush_bits=eob>0?oc_token_bits(_enc,huffi,zzi,oc_make_eob_token(eob)):0;
       /*We reserve 1 spot for combo run tokens that start in the 1st AC stack
          to ensure they can be extended to include the DC coefficient if
          necessary; this greatly simplifies stack-rewriting later on.*/
@@ -308,7 +306,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
           /*Try a pure zero run to this point.*/
           cat=nzeros+55>>6;
           token=OC_DCT_SHORT_ZRL_TOKEN+cat;
-          bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+          bits=oc_token_bits(_enc,huffi,zzi,token);
           d2=sum_d2-d2_accum[zzj];
           cost=d2+lambda*bits+tokens[zzj][1].cost;
           if(cost<=best_cost){
@@ -336,7 +334,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
               }
               e=(_dct[OC_FZIG_ZAG[zzj]]+val_s^val_s)-_dequant[zzj];
               d2=e*(ogg_int32_t)e+sum_d2-d2_accum[zzj];
-              bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+              bits=oc_token_bits(_enc,huffi,zzi,token);
               cost=d2+lambda*bits+tokens[zzk][tk].cost;
               if(cost<=best_cost){
                 best_next=next;
@@ -351,7 +349,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
               /*Try a +/- 2/3 combo token.*/
               cat=nzeros>>1;
               token=OC_DCT_RUN_CAT2A+cat;
-              bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+              bits=oc_token_bits(_enc,huffi,zzi,token);
               val=2+((val+val_s^val_s)>2);
               e=(_dct[OC_FZIG_ZAG[zzj]]+val_s^val_s)-_dequant[zzj]*val;
               d2=e*(ogg_int32_t)e+sum_d2-d2_accum[zzj];
@@ -378,7 +376,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
           /*We made it all the way to the end of the block; try an EOB token.*/
           if(eob<4095){
             bits=oc_token_bits(_enc,huffi,zzi,oc_make_eob_token(eob+1))
-             -flush_bits;
+             -(eob>0?oc_token_bits(_enc,huffi,zzi,oc_make_eob_token(eob)):0);
           }
           else bits=oc_token_bits(_enc,huffi,zzi,OC_DCT_EOB1_TOKEN);
           cost=sum_d2+bits*lambda;
@@ -414,7 +412,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         e=dq-c;
         d2=e*(ogg_int32_t)e;
         token=OC_ONE_TOKEN-s;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         zzj=zzi+1&63;
         tj=best_flags>>zzj&1;
         next=(zzj<<1)+tj;
@@ -436,17 +434,16 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
       dq=_dequant[zzi];
       /*No zero run can extend past this point.*/
       d2_accum[zzi]=0;
-      flush_bits=eob>0?oc_token_bits(_enc,huffi,zzi,oc_make_eob_token(eob)):0;
       if(qc<=2){
         e=2*dq-c;
         d2=e*(ogg_int32_t)e;
         best_token=OC_TWO_TOKEN-s;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e-=dq;
         d2=e*(ogg_int32_t)e;
         token=OC_ONE_TOKEN-s;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -461,12 +458,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT2;
         best_eb=-s;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e-=dq;
         d2=e*(ogg_int32_t)e;
         token=OC_TWO_TOKEN-s;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -481,12 +478,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT2+qc-3;
         best_eb=-s;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e-=dq;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -500,12 +497,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT3;
         best_eb=(-s<<1)+qc-7;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=6*dq-c;
         d2=e*(ogg_int32_t)e;
         token=OC_DCT_VAL_CAT2+3;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -520,12 +517,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT4;
         best_eb=(-s<<2)+qc-9;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=8*dq-c;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -540,12 +537,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT5;
         best_eb=(-s<<3)+qc-13;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=12*dq-c;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -560,12 +557,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT6;
         best_eb=(-s<<4)+qc-21;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=20*dq-c;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<=best_cost){
           best_token=token;
@@ -580,12 +577,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT7;
         best_eb=(-s<<5)+qc-37;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=36*dq-c;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<best_cost){
           best_token=token;
@@ -600,12 +597,12 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=e*(ogg_int32_t)e;
         best_token=OC_DCT_VAL_CAT8;
         best_eb=(-s<<9)+qc-69;
-        best_bits=flush_bits+oc_token_bits(_enc,huffi,zzi,best_token);
+        best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
         best_cost=d2+lambda*best_bits;
         e=68*dq-c;
         d2=e*(ogg_int32_t)e;
         token=best_token-1;
-        bits=flush_bits+oc_token_bits(_enc,huffi,zzi,token);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
         cost=d2+lambda*bits;
         if(cost<best_cost){
           best_token=token;
@@ -648,7 +645,10 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
       }
       eob_run[zzi]=eob;
       /*We don't include the actual EOB cost for this block in the return value.
-        It will be paid for by the fragment that terminates the EOB run.*/
+        It is very likely to eventually be spread over several blocks, and
+         including it more harshly penalizes the first few blocks in a long EOB
+         run.
+        Omitting it here gives a small PSNR and SSIM gain.*/
       bits-=tokens[zzi][ti].bits;
       zzi=_zzi;
       break;
