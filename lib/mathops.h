@@ -138,4 +138,7 @@ int oc_ilog64(ogg_int64_t _v);
 ogg_int64_t oc_bexp64(ogg_int64_t _z);
 ogg_int64_t oc_blog64(ogg_int64_t _w);
 
+ogg_uint32_t oc_bexp32_q10(int _z);
+int oc_blog32_q10(ogg_uint32_t _w);
+
 #endif

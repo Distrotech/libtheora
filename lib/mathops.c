@@ -294,3 +294,27 @@ ogg_int64_t oc_blog64(ogg_int64_t _w){
   }
   return OC_Q57(ipart)+z;
 }
+
+/*Polynomial approximation of a binary exponential.
+  Q10 input, Q0 output.*/
+ogg_uint32_t oc_bexp32_q10(int _z){
+  unsigned n;
+  int      ipart;
+  ipart=_z>>10;
+  n=(_z&(1<<10)-1)<<4;
+  n=(n*((n*((n*((n*3548>>15)+6817)>>15)+15823)>>15)+22708)>>15)+16384;
+  return 14-ipart>0?n+(1<<13-ipart)>>14-ipart:n<<ipart-14;
+}
+
+/*Polynomial approximation of a binary logarithm.
+  Q0 input, Q10 output.*/
+int oc_blog32_q10(ogg_uint32_t _w){
+  int n;
+  int ipart;
+  int fpart;
+  if(_w<=0)return -1;
+  ipart=OC_ILOGNZ_32(_w);
+  n=(ipart-16>0?_w>>ipart-16:_w<<16-ipart)-32768-16384;
+  fpart=(n*((n*((n*((n*-1402>>15)+2546)>>15)-5216)>>15)+15745)>>15)-6793;
+  return (ipart<<10)+(fpart>>4);
+}

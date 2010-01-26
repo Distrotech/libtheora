@@ -336,6 +336,9 @@ struct th_enc_ctx{
   int                      mcu_nvsbs;
   /*The SSD error for skipping each fragment in the current MCU.*/
   unsigned                *mcu_skip_ssd;
+  /*The masking scale factors for chroma blocks in the current MCU.*/
+  ogg_uint16_t            *mcu_rd_scale;
+  ogg_uint16_t            *mcu_rd_iscale;
   /*The DCT token lists for each coefficient and each plane.*/
   unsigned char          **dct_tokens[3];
   /*The extra bits associated with each DCT token.*/
@@ -356,6 +359,10 @@ struct th_enc_ctx{
 #endif
   /*The R-D optimization parameter.*/
   int                      lambda;
+  /*The average block "activity" of the previous frame.*/
+  unsigned                 activity_avg;
+  /*The average MB luma of the previous frame.*/
+  unsigned                 luma_avg;
   /*The huffman tables in use.*/
   th_huff_code             huff_codes[TH_NHUFFMAN_TABLES][TH_NDCT_TOKENS];
   /*The quantization parameters in use.*/
@@ -366,8 +373,8 @@ struct th_enc_ctx{
      value.
     This is used to paramterize the rate control decisions.
     They are kept in the log domain to simplify later processing.
-    Keep in mind these are DCT domain quantizers, and so are scaled by an
-     additional factor of 4 from the pixel domain.*/
+    These are DCT domain quantizers, and so are scaled by an additional factor
+     of 4 from the pixel domain.*/
   ogg_int64_t              log_qavg[2][64];
   /*The buffer state used to drive rate control.*/
   oc_rc_state              rc;
@@ -413,7 +420,7 @@ struct oc_token_checkpoint{
 void oc_enc_tokenize_start(oc_enc_ctx *_enc);
 int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
  ogg_int16_t *_qdct,const ogg_uint16_t *_dequant,const ogg_int16_t *_dct,
- int _zzi,oc_token_checkpoint **_stack,int _acmin);
+ int _zzi,oc_token_checkpoint **_stack,int _lambda,int _acmin);
 void oc_enc_tokenlog_rollback(oc_enc_ctx *_enc,
  const oc_token_checkpoint *_stack,int _n);
 void oc_enc_pred_dc_frag_rows(oc_enc_ctx *_enc,

@@ -1039,6 +1039,7 @@ static void oc_enc_clear(oc_enc_ctx *_enc);
 static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   th_info   info;
   size_t    mcu_nmbs;
+  ptrdiff_t mcu_ncfrags;
   ptrdiff_t mcu_nfrags;
   int       hdec;
   int       vdec;
@@ -1065,9 +1066,14 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
      super block rows of Y' for each super block row of Cb and Cr.*/
   _enc->mcu_nvsbs=1<<vdec;
   mcu_nmbs=_enc->mcu_nvsbs*_enc->state.fplanes[0].nhsbs*(size_t)4;
-  mcu_nfrags=4*mcu_nmbs+(8*mcu_nmbs>>hdec+vdec);
+  mcu_ncfrags=mcu_nmbs<<3-(hdec+vdec);
+  mcu_nfrags=4*mcu_nmbs+mcu_ncfrags;
   _enc->mcu_skip_ssd=(unsigned *)_ogg_malloc(
    mcu_nfrags*sizeof(*_enc->mcu_skip_ssd));
+  _enc->mcu_rd_scale=(ogg_uint16_t *)_ogg_malloc(
+   (mcu_ncfrags>>1)*sizeof(*_enc->mcu_rd_scale));
+  _enc->mcu_rd_iscale=(ogg_uint16_t *)_ogg_malloc(
+   (mcu_ncfrags>>1)*sizeof(*_enc->mcu_rd_iscale));
   for(pli=0;pli<3;pli++){
     _enc->dct_tokens[pli]=(unsigned char **)oc_malloc_2d(64,
      _enc->state.fplanes[pli].nfrags,sizeof(**_enc->dct_tokens));
@@ -1086,6 +1092,8 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   _enc->keyframe_frequency_force=1<<_enc->state.info.keyframe_granule_shift;
   _enc->state.qis[0]=_enc->state.info.quality;
   _enc->state.nqis=1;
+  _enc->activity_avg=90<<12;
+  _enc->luma_avg=128<<8;
   oc_rc_state_init(&_enc->rc,_enc);
   oggpackB_writeinit(&_enc->opb);
   if(_enc->mb_info==NULL||_enc->frag_dc==NULL||_enc->coded_mbis==NULL||
@@ -1134,6 +1142,8 @@ static void oc_enc_clear(oc_enc_ctx *_enc){
     oc_free_2d(_enc->extra_bits[pli]);
     oc_free_2d(_enc->dct_tokens[pli]);
   }
+  _ogg_free(_enc->mcu_rd_iscale);
+  _ogg_free(_enc->mcu_rd_scale);
   _ogg_free(_enc->mcu_skip_ssd);
   _ogg_free(_enc->coded_mbis);
   _ogg_free(_enc->frag_dc);
