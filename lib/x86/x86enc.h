@@ -29,12 +29,12 @@ unsigned oc_enc_frag_sad_thresh_mmxext(const unsigned char *_src,
 unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
  const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
  unsigned _thresh);
-unsigned oc_enc_frag_satd_thresh_mmxext(const unsigned char *_src,
- const unsigned char *_ref,int _ystride,unsigned _thresh);
-unsigned oc_enc_frag_satd2_thresh_mmxext(const unsigned char *_src,
- const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
- unsigned _thresh);
-unsigned oc_enc_frag_intra_satd_mmxext(const unsigned char *_src,int _ystride);
+unsigned oc_enc_frag_satd_mmxext(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_satd2_mmxext(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
+unsigned oc_enc_frag_intra_satd_mmxext(unsigned *_dc,
+ const unsigned char *_src,int _ystride);
 void oc_enc_frag_sub_mmx(ogg_int16_t _diff[64],
  const unsigned char *_x,const unsigned char *_y,int _stride);
 void oc_enc_frag_sub_128_mmx(ogg_int16_t _diff[64],

@@ -447,12 +447,14 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
    mm6 = d2 c2 b2 a2 \
    mm7 = d3 c3 b3 a3*/ \
 
-static unsigned oc_int_frag_satd_thresh_mmxext(const unsigned char *_src,
- int _src_ystride,const unsigned char *_ref,int _ref_ystride,unsigned _thresh){
-  OC_ALIGN8(ogg_int16_t  buf[64]);
+static unsigned oc_int_frag_satd_mmxext(unsigned *_dc,
+ const unsigned char *_src,int _src_ystride,
+ const unsigned char *_ref,int _ref_ystride){
+  OC_ALIGN8(ogg_int16_t buf[64]);
   ogg_int16_t *bufp;
   unsigned     ret;
   unsigned     ret2;
+  unsigned     dc;
   bufp=buf;
   __asm__ __volatile__(
     OC_LOAD_SUB_8x4("0x00")
@@ -475,14 +477,18 @@ static unsigned oc_int_frag_satd_thresh_mmxext(const unsigned char *_src,
     "movq 0x20(%[buf]),%%mm2\n\t"
     "movq 0x30(%[buf]),%%mm3\n\t"
     "movq 0x00(%[buf]),%%mm0\n\t"
-    OC_HADAMARD_ABS_ACCUM_8x4("0x28","0x38")
+    /*We split out the stages here so we can save the DC coefficient in the
+       middle.*/
+    OC_HADAMARD_AB_8x4
+    OC_HADAMARD_C_ABS_ACCUM_A_8x4("0x28","0x38")
+    "movd %%mm1,%[dc]\n\t"
+    OC_HADAMARD_C_ABS_ACCUM_B_8x4("0x28","0x38")
     /*Up to this point, everything fit in 16 bits (8 input + 1 for the
        difference + 2*3 for the two 8-point 1-D Hadamards - 1 for the abs - 1
        for the factor of two we dropped + 3 for the vertical accumulation).
       Now we finally have to promote things to dwords.
       We break this part out of OC_HADAMARD_ABS_ACCUM_8x4 to hide the long
        latency of pmaddwd by starting the next series of loads now.*/
-    "mov %[thresh],%[ret2]\n\t"
     "pmaddwd %%mm7,%%mm0\n\t"
     "movq 0x50(%[buf]),%%mm1\n\t"
     "movq 0x58(%[buf]),%%mm5\n\t"
@@ -492,29 +498,27 @@ static unsigned oc_int_frag_satd_thresh_mmxext(const unsigned char *_src,
     "movq 0x68(%[buf]),%%mm6\n\t"
     "paddd %%mm0,%%mm4\n\t"
     "movq 0x70(%[buf]),%%mm3\n\t"
-    "movd %%mm4,%[ret]\n\t"
+    "movd %%mm4,%[ret2]\n\t"
     "movq 0x78(%[buf]),%%mm7\n\t"
     /*The sums produced by OC_HADAMARD_ABS_ACCUM_8x4 each have an extra 4
        added to them, and a factor of two removed; correct the final sum here.*/
-    "lea -32(%[ret],%[ret]),%[ret]\n\t"
     "movq 0x40(%[buf]),%%mm0\n\t"
-    "cmp %[ret2],%[ret]\n\t"
     "movq 0x48(%[buf]),%%mm4\n\t"
-    "jae 1f\n\t"
     OC_HADAMARD_ABS_ACCUM_8x4("0x68","0x78")
     "pmaddwd %%mm7,%%mm0\n\t"
-    /*There isn't much to stick in here to hide the latency this time, but the
-       alternative to pmaddwd is movq->punpcklwd->punpckhwd->paddd, whose
-       latency is even worse.*/
-    "sub $32,%[ret]\n\t"
+    /*Compute abs(dc).*/
+    "movsx %w[dc],%[ret]\n\t"
+    "cdq\n\t"
+    "add %[ret2],%[ret2]\n\t"
+    "add %[dc],%[ret]\n\t"
     "movq %%mm0,%%mm4\n\t"
     "punpckhdq %%mm0,%%mm0\n\t"
+    "xor %[ret],%[dc]\n\t"
     "paddd %%mm0,%%mm4\n\t"
-    "movd %%mm4,%[ret2]\n\t"
-    "lea (%[ret],%[ret2],2),%[ret]\n\t"
-    ".p2align 4,,15\n\t"
-    "1:\n\t"
-    /*Although it looks like we're using 7 registers here, gcc can alias %[ret]
+    "sub %[dc],%[ret2]\n\t"
+    "movd %%mm4,%[ret]\n\t"
+    "lea -64(%[ret2],%[ret],2),%[ret]\n\t"
+    /*Although it looks like we're using 8 registers here, gcc can alias %[ret]
        and %[ret2] with some of the inputs, since for once we don't write to
        them until after we're done using everything but %[buf] (which is also
        listed as an output to ensure gcc _doesn't_ alias them against it).*/
@@ -522,24 +526,24 @@ static unsigned oc_int_frag_satd_thresh_mmxext(const unsigned char *_src,
        constraints, otherewise if gcc can prove they're equal it will allocate
        them to the same register (which is bad); _src and _ref face a similar
        problem, though those are never actually the same.*/
-    :[ret]"=a"(ret),[ret2]"=r"(ret2),[buf]"+r"(bufp)
+    :[ret]"=a"(ret),[ret2]"=r"(ret2),[dc]"=d"(dc),[buf]"+r"(bufp)
     :[src]"r"(_src),[src_ystride]"c"((ptrdiff_t)_src_ystride),
-     [ref]"r"(_ref),[ref_ystride]"d"((ptrdiff_t)_ref_ystride),
-     [thresh]"m"(_thresh)
+     [ref]"r"(_ref),[ref_ystride]"d"((ptrdiff_t)_ref_ystride)
     /*We have to use neg, so we actually clobber the condition codes for once
        (not to mention cmp, sub, and add).*/
     :"cc"
   );
+  *_dc=dc;
   return ret;
 }
 
-unsigned oc_enc_frag_satd_thresh_mmxext(const unsigned char *_src,
- const unsigned char *_ref,int _ystride,unsigned _thresh){
-  return oc_int_frag_satd_thresh_mmxext(_src,_ystride,_ref,_ystride,_thresh);
+unsigned oc_enc_frag_satd_mmxext(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride){
+  return oc_int_frag_satd_mmxext(_dc,_src,_ystride,_ref,_ystride);
 }
 
 /*Our internal implementation of frag_copy2 takes an extra stride parameter so
-   we can share code with oc_enc_frag_satd2_thresh_mmxext().*/
+   we can share code with oc_enc_frag_satd2_mmxext().*/
 static void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
  const unsigned char *_src1,const unsigned char *_src2,int _src_ystride){
   __asm__ __volatile__(
@@ -656,20 +660,20 @@ static void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
   );
 }
 
-unsigned oc_enc_frag_satd2_thresh_mmxext(const unsigned char *_src,
- const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
- unsigned _thresh){
+unsigned oc_enc_frag_satd2_mmxext(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref1,const unsigned char *_ref2,int _ystride){
   OC_ALIGN8(unsigned char ref[64]);
   oc_int_frag_copy2_mmxext(ref,8,_ref1,_ref2,_ystride);
-  return oc_int_frag_satd_thresh_mmxext(_src,_ystride,ref,8,_thresh);
+  return oc_int_frag_satd_mmxext(_dc,_src,_ystride,ref,8);
 }
 
-unsigned oc_enc_frag_intra_satd_mmxext(const unsigned char *_src,
- int _ystride){
-  OC_ALIGN8(ogg_int16_t  buf[64]);
+unsigned oc_enc_frag_intra_satd_mmxext(unsigned *_dc,
+ const unsigned char *_src,int _ystride){
+  OC_ALIGN8(ogg_int16_t buf[64]);
   ogg_int16_t *bufp;
   unsigned     ret;
   unsigned     ret2;
+  unsigned     dc;
   bufp=buf;
   __asm__ __volatile__(
     OC_LOAD_8x4("0x00")
@@ -696,7 +700,7 @@ unsigned oc_enc_frag_intra_satd_mmxext(const unsigned char *_src,
        middle.*/
     OC_HADAMARD_AB_8x4
     OC_HADAMARD_C_ABS_ACCUM_A_8x4("0x28","0x38")
-    "movd %%mm1,%[ret]\n\t"
+    "movd %%mm1,%[dc]\n\t"
     OC_HADAMARD_C_ABS_ACCUM_B_8x4("0x28","0x38")
     /*Up to this point, everything fit in 16 bits (8 input + 1 for the
        difference + 2*3 for the two 8-point 1-D Hadamards - 1 for the abs - 1
@@ -714,32 +718,33 @@ unsigned oc_enc_frag_intra_satd_mmxext(const unsigned char *_src,
     "movq 0x70(%[buf]),%%mm3\n\t"
     "paddd %%mm0,%%mm4\n\t"
     "movq 0x78(%[buf]),%%mm7\n\t"
-    "movd %%mm4,%[ret2]\n\t"
+    "movd %%mm4,%[ret]\n\t"
     "movq 0x40(%[buf]),%%mm0\n\t"
     "movq 0x48(%[buf]),%%mm4\n\t"
     OC_HADAMARD_ABS_ACCUM_8x4("0x68","0x78")
     "pmaddwd %%mm7,%%mm0\n\t"
     /*We assume that the DC coefficient is always positive (which is true,
        because the input to the INTRA transform was not a difference).*/
-    "movzx %w[ret],%[ret]\n\t"
-    "add %[ret2],%[ret2]\n\t"
-    "sub %[ret],%[ret2]\n\t"
+    "movzx %w[dc],%[dc]\n\t"
+    "add %[ret],%[ret]\n\t"
+    "sub %[dc],%[ret]\n\t"
     "movq %%mm0,%%mm4\n\t"
     "punpckhdq %%mm0,%%mm0\n\t"
     "paddd %%mm0,%%mm4\n\t"
-    "movd %%mm4,%[ret]\n\t"
-    "lea -64(%[ret2],%[ret],2),%[ret]\n\t"
-    /*Although it looks like we're using 7 registers here, gcc can alias %[ret]
+    "movd %%mm4,%[ret2]\n\t"
+    "lea -64(%[ret],%[ret2],2),%[ret]\n\t"
+    /*Although it looks like we're using 8 registers here, gcc can alias %[ret]
        and %[ret2] with some of the inputs, since for once we don't write to
        them until after we're done using everything but %[buf] (which is also
        listed as an output to ensure gcc _doesn't_ alias them against it).*/
-    :[ret]"=a"(ret),[ret2]"=r"(ret2),[buf]"+r"(bufp)
+    :[ret]"=a"(ret),[ret2]"=r"(ret2),[dc]"=r"(dc),[buf]"+r"(bufp)
     :[src]"r"(_src),[src4]"r"(_src+4*_ystride),
      [ystride]"r"((ptrdiff_t)_ystride),[ystride3]"r"((ptrdiff_t)3*_ystride)
     /*We have to use sub, so we actually clobber the condition codes for once
        (not to mention add).*/
     :"cc"
   );
+  *_dc=dc;
   return ret;
 }
 

@@ -177,13 +177,15 @@ static unsigned oc_satd16_halfpel(const oc_enc_ctx *_enc,
  int _mvoffset0,int _mvoffset1,const unsigned char *_src,
  const unsigned char *_ref,int _ystride,unsigned _best_err){
   unsigned err;
+  unsigned dc;
   int      bi;
   err=0;
   for(bi=0;bi<4;bi++){
     ptrdiff_t frag_offs;
     frag_offs=_frag_buf_offs[_fragis[bi]];
-    err+=oc_enc_frag_satd2_thresh(_enc,_src+frag_offs,_ref+frag_offs+_mvoffset0,
-     _ref+frag_offs+_mvoffset1,_ystride,_best_err-err);
+    err+=oc_enc_frag_satd2(_enc,&dc,_src+frag_offs,
+     _ref+frag_offs+_mvoffset0,_ref+frag_offs+_mvoffset1,_ystride);
+    err+=dc;
   }
   return err;
 }
@@ -219,9 +221,11 @@ static int oc_mcenc_ysatd_check_mbcandidate_fullpel(const oc_enc_ctx *_enc,
   err=0;
   for(bi=0;bi<4;bi++){
     ptrdiff_t frag_offs;
+    unsigned  dc;
     frag_offs=_frag_buf_offs[_fragis[bi]];
-    err+=oc_enc_frag_satd_thresh(_enc,
-     _src+frag_offs,_ref+frag_offs+mvoffset,_ystride,UINT_MAX);
+    err+=oc_enc_frag_satd(_enc,&dc,
+     _src+frag_offs,_ref+frag_offs+mvoffset,_ystride);
+    err+=dc;
   }
   return err;
 }
@@ -229,8 +233,11 @@ static int oc_mcenc_ysatd_check_mbcandidate_fullpel(const oc_enc_ctx *_enc,
 static unsigned oc_mcenc_ysatd_check_bcandidate_fullpel(const oc_enc_ctx *_enc,
  ptrdiff_t _frag_offs,int _dx,int _dy,
  const unsigned char *_src,const unsigned char *_ref,int _ystride){
-  return oc_enc_frag_satd_thresh(_enc,
-   _src+_frag_offs,_ref+_frag_offs+_dx+_dy*_ystride,_ystride,UINT_MAX);
+  unsigned err;
+  unsigned dc;
+  err=oc_enc_frag_satd(_enc,&dc,
+   _src+_frag_offs,_ref+_frag_offs+_dx+_dy*_ystride,_ystride);
+  return err+dc;
 }
 
 /*Perform a motion vector search for this macro block against a single
@@ -704,6 +711,7 @@ static unsigned oc_mcenc_ysatd_halfpel_brefine(const oc_enc_ctx *_enc,
   best_site=4;
   for(sitei=0;sitei<8;sitei++){
     unsigned err;
+    unsigned dc;
     int      site;
     int      xmask;
     int      ymask;
@@ -723,8 +731,9 @@ static unsigned oc_mcenc_ysatd_halfpel_brefine(const oc_enc_ctx *_enc,
     ymask=OC_SIGNMASK(((_vec[1]<<1)+dy)^dy);
     mvoffset0=mvoffset_base+(dx&xmask)+(_offset_y[site]&ymask);
     mvoffset1=mvoffset_base+(dx&~xmask)+(_offset_y[site]&~ymask);
-    err=oc_enc_frag_satd2_thresh(_enc,_src,
-     _ref+mvoffset0,_ref+mvoffset1,_ystride,_best_err);
+    err=oc_enc_frag_satd2(_enc,&dc,_src,
+     _ref+mvoffset0,_ref+mvoffset1,_ystride);
+    err+=dc;
     if(err<_best_err){
       _best_err=err;
       best_site=site;

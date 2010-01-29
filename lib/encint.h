@@ -82,12 +82,12 @@ struct oc_enc_opt_vtable{
   unsigned (*frag_sad2_thresh)(const unsigned char *_src,
    const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
    unsigned _thresh);
-  unsigned (*frag_satd_thresh)(const unsigned char *_src,
-   const unsigned char *_ref,int _ystride,unsigned _thresh);
-  unsigned (*frag_satd2_thresh)(const unsigned char *_src,
-   const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
-   unsigned _thresh);
-  unsigned (*frag_intra_satd)(const unsigned char *_src,int _ystride);
+  unsigned (*frag_satd)(unsigned *_dc,const unsigned char *_src,
+   const unsigned char *_ref,int _ystride);
+  unsigned (*frag_satd2)(unsigned *_dc,const unsigned char *_src,
+   const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
+  unsigned (*frag_intra_satd)(unsigned *_dc,const unsigned char *_src,
+   int _ystride);
   void     (*frag_sub)(ogg_int16_t _diff[64],const unsigned char *_src,
    const unsigned char *_ref,int _ystride);
   void     (*frag_sub_128)(ogg_int16_t _diff[64],
@@ -453,13 +453,12 @@ unsigned oc_enc_frag_sad_thresh(const oc_enc_ctx *_enc,
 unsigned oc_enc_frag_sad2_thresh(const oc_enc_ctx *_enc,
  const unsigned char *_src,const unsigned char *_ref1,
  const unsigned char *_ref2,int _ystride,unsigned _thresh);
-unsigned oc_enc_frag_satd_thresh(const oc_enc_ctx *_enc,
- const unsigned char *_src,const unsigned char *_ref,int _ystride,
- unsigned _thresh);
-unsigned oc_enc_frag_satd2_thresh(const oc_enc_ctx *_enc,
+unsigned oc_enc_frag_satd(const oc_enc_ctx *_enc,unsigned *_dc,
+ const unsigned char *_src,const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_satd2(const oc_enc_ctx *_enc,unsigned *_dc,
  const unsigned char *_src,const unsigned char *_ref1,
- const unsigned char *_ref2,int _ystride,unsigned _thresh);
-unsigned oc_enc_frag_intra_satd(const oc_enc_ctx *_enc,
+ const unsigned char *_ref2,int _ystride);
+unsigned oc_enc_frag_intra_satd(const oc_enc_ctx *_enc,unsigned *_dc,
  const unsigned char *_src,int _ystride);
 void oc_enc_frag_copy2(const oc_enc_ctx *_enc,unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride);
@@ -486,12 +485,12 @@ unsigned oc_enc_frag_sad_thresh_c(const unsigned char *_src,
 unsigned oc_enc_frag_sad2_thresh_c(const unsigned char *_src,
  const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
  unsigned _thresh);
-unsigned oc_enc_frag_satd_thresh_c(const unsigned char *_src,
- const unsigned char *_ref,int _ystride,unsigned _thresh);
-unsigned oc_enc_frag_satd2_thresh_c(const unsigned char *_src,
- const unsigned char *_ref1,const unsigned char *_ref2,int _ystride,
- unsigned _thresh);
-unsigned oc_enc_frag_intra_satd_c(const unsigned char *_src,int _ystride);
+unsigned oc_enc_frag_satd_c(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_satd2_c(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
+unsigned oc_enc_frag_intra_satd_c(unsigned *_dc,const unsigned char *_src,
+ int _ystride);
 void oc_enc_fdct8x8_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
 
 #endif

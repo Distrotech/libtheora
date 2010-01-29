@@ -732,14 +732,17 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
 #if defined(OC_COLLECT_METRICS)
   {
     unsigned satd;
+    unsigned dc;
     switch(nmv_offs){
-      case 0:satd=oc_enc_frag_intra_satd(_enc,src,ystride);break;
+      case 0:satd=oc_enc_frag_intra_satd(_enc,&dc,src,ystride);break;
       case 1:{
-        satd=oc_enc_frag_satd_thresh(_enc,src,ref+mv_offs[0],ystride,UINT_MAX);
+        satd=oc_enc_frag_satd(_enc,&dc,src,ref+mv_offs[0],ystride);
+        satd+=dc;
       }break;
       default:{
-        satd=oc_enc_frag_satd_thresh(_enc,src,dst,ystride,UINT_MAX);
-      }
+        satd=oc_enc_frag_satd(_enc,&dc,src,dst,ystride);
+        satd+=dc;
+      }break;
     }
     _enc->frag_satd[_fragi]=satd;
   }
@@ -1286,6 +1289,7 @@ static unsigned oc_analyze_intra_mb_luma(oc_enc_ctx *_enc,
   unsigned             rate[4][3];
   int                  prev[3][3];
   unsigned             satd;
+  unsigned             dc;
   unsigned             best_cost;
   unsigned             best_ssd;
   unsigned             best_rate;
@@ -1301,7 +1305,7 @@ static unsigned oc_analyze_intra_mb_luma(oc_enc_ctx *_enc,
   ystride=_enc->state.ref_ystride[0];
   fragi=sb_maps[_mbi>>2][_mbi&3][0];
   frag_offs=frag_buf_offs[fragi];
-  satd=oc_enc_frag_intra_satd(_enc,src+frag_offs,ystride);
+  satd=oc_enc_frag_intra_satd(_enc,&dc,src+frag_offs,ystride);
   nqis=_enc->state.nqis;
   lambda=_enc->lambda;
   for(qii=0;qii<nqis;qii++){
@@ -1314,7 +1318,7 @@ static unsigned oc_analyze_intra_mb_luma(oc_enc_ctx *_enc,
   for(bi=1;bi<4;bi++){
     fragi=sb_maps[_mbi>>2][_mbi&3][bi];
     frag_offs=frag_buf_offs[fragi];
-    satd=oc_enc_frag_intra_satd(_enc,src+frag_offs,ystride);
+    satd=oc_enc_frag_intra_satd(_enc,&dc,src+frag_offs,ystride);
     for(qii=0;qii<nqis;qii++){
       oc_qii_state qt[3];
       unsigned     cur_ssd;
@@ -1379,6 +1383,7 @@ static unsigned oc_analyze_intra_chroma_block(oc_enc_ctx *_enc,
   oc_qii_state         qt[3];
   unsigned             cost[3];
   unsigned             satd;
+  unsigned             dc;
   unsigned             best_cost;
   int                  best_qii;
   int                  qii;
@@ -1388,7 +1393,7 @@ static unsigned oc_analyze_intra_chroma_block(oc_enc_ctx *_enc,
   src=_enc->state.ref_frame_data[OC_FRAME_IO];
   ystride=_enc->state.ref_ystride[_pli];
   frag_offs=_enc->state.frag_buf_offs[_fragi];
-  satd=oc_enc_frag_intra_satd(_enc,src+frag_offs,ystride);
+  satd=oc_enc_frag_intra_satd(_enc,&dc,src+frag_offs,ystride);
   /*Most chroma blocks have no AC coefficients to speak of anyway, so it's not
      worth spending the bits to change the AC quantizer.
     TODO: This may be worth revisiting when we separate out DC and AC
@@ -1893,6 +1898,7 @@ static void oc_mb_intra_satd(oc_enc_ctx *_enc,unsigned _mbi,
   int                    bi;
   ptrdiff_t              fragi;
   ptrdiff_t              frag_offs;
+  unsigned               dc;
   frag_buf_offs=_enc->state.frag_buf_offs;
   sb_map=_enc->state.sb_maps[_mbi>>2][_mbi&3];
   src=_enc->state.ref_frame_data[OC_FRAME_IO];
@@ -1900,7 +1906,7 @@ static void oc_mb_intra_satd(oc_enc_ctx *_enc,unsigned _mbi,
   for(bi=0;bi<4;bi++){
     fragi=sb_map[bi];
     frag_offs=frag_buf_offs[fragi];
-    _frag_satd[bi]=oc_enc_frag_intra_satd(_enc,src+frag_offs,ystride);
+    _frag_satd[bi]=oc_enc_frag_intra_satd(_enc,&dc,src+frag_offs,ystride);
   }
   mb_map=(const oc_mb_map_plane *)_enc->state.mb_maps[_mbi];
   map_idxs=OC_MB_MAP_IDXS[_enc->state.info.pixel_fmt];
@@ -1913,7 +1919,7 @@ static void oc_mb_intra_satd(oc_enc_ctx *_enc,unsigned _mbi,
     bi=mapi&3;
     fragi=mb_map[pli][bi];
     frag_offs=frag_buf_offs[fragi];
-    _frag_satd[mapii]=oc_enc_frag_intra_satd(_enc,src+frag_offs,ystride);
+    _frag_satd[mapii]=oc_enc_frag_intra_satd(_enc,&dc,src+frag_offs,ystride);
   }
 }
 
@@ -1951,6 +1957,7 @@ static void oc_cost_inter(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   int                    bi;
   ptrdiff_t              fragi;
   ptrdiff_t              frag_offs;
+  unsigned               dc;
   src=_enc->state.ref_frame_data[OC_FRAME_IO];
   ref=_enc->state.ref_frame_data[
    _enc->state.ref_frame_idx[OC_FRAME_FOR_MODE(_mb_mode)]];
@@ -1964,16 +1971,18 @@ static void oc_cost_inter(oc_enc_ctx *_enc,oc_mode_choice *_modec,
     for(bi=0;bi<4;bi++){
       fragi=sb_map[bi];
       frag_offs=frag_buf_offs[fragi];
-      frag_satd[bi]=oc_enc_frag_satd2_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride,UINT_MAX);
+      frag_satd[bi]=oc_enc_frag_satd2(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride);
+      frag_satd[bi]+=dc;
     }
   }
   else{
     for(bi=0;bi<4;bi++){
       fragi=sb_map[bi];
       frag_offs=frag_buf_offs[fragi];
-      frag_satd[bi]=oc_enc_frag_satd_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ystride,UINT_MAX);
+      frag_satd[bi]=oc_enc_frag_satd(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ystride);
+      frag_satd[bi]+=dc;
     }
   }
   mb_map=(const oc_mb_map_plane *)_enc->state.mb_maps[_mbi];
@@ -1988,8 +1997,9 @@ static void oc_cost_inter(oc_enc_ctx *_enc,oc_mode_choice *_modec,
       bi=mapi&3;
       fragi=mb_map[pli][bi];
       frag_offs=frag_buf_offs[fragi];
-      frag_satd[mapii]=oc_enc_frag_satd2_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride,UINT_MAX);
+      frag_satd[mapii]=oc_enc_frag_satd2(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride);
+      frag_satd[mapii]+=dc;
     }
   }
   else{
@@ -1999,8 +2009,9 @@ static void oc_cost_inter(oc_enc_ctx *_enc,oc_mode_choice *_modec,
       bi=mapi&3;
       fragi=mb_map[pli][bi];
       frag_offs=frag_buf_offs[fragi];
-      frag_satd[mapii]=oc_enc_frag_satd_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ystride,UINT_MAX);
+      frag_satd[mapii]=oc_enc_frag_satd(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ystride);
+      frag_satd[mapii]+=dc;
     }
   }
   oc_analyze_mb_mode_luma(_enc,_modec,_fr,_qs,frag_satd,_skip_ssd,_rd_scale,1);
@@ -2064,6 +2075,7 @@ static void oc_cost_inter4mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   int                    bits0;
   int                    bits1;
   unsigned               satd;
+  unsigned               dc;
   src=_enc->state.ref_frame_data[OC_FRAME_IO];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_PREV]];
   ystride=_enc->state.ref_ystride[0];
@@ -2081,14 +2093,14 @@ static void oc_cost_inter4mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
     frag_mvs[fragi][1]=(signed char)dy;
     frag_offs=frag_buf_offs[fragi];
     if(oc_state_get_mv_offsets(&_enc->state,mv_offs,0,dx,dy)>1){
-      satd=oc_enc_frag_satd2_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride,UINT_MAX);
+      satd=oc_enc_frag_satd2(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride);
     }
     else{
-      satd=oc_enc_frag_satd_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ystride,UINT_MAX);
+      satd=oc_enc_frag_satd(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ystride);
     }
-    frag_satd[OC_MB_PHASE[_mbi&3][bi]]=satd;
+    frag_satd[OC_MB_PHASE[_mbi&3][bi]]=satd+dc;
   }
   oc_analyze_mb_mode_luma(_enc,_modec,_fr,_qs,frag_satd,
    _enc->vp3_compatible?OC_NOSKIP:_skip_ssd,_rd_scale,1);
@@ -2123,14 +2135,14 @@ static void oc_cost_inter4mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
     /*TODO: We could save half these calls by re-using the results for the Cb
        and Cr planes; is it worth it?*/
     if(oc_state_get_mv_offsets(&_enc->state,mv_offs,pli,dx,dy)>1){
-      satd=oc_enc_frag_satd2_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride,UINT_MAX);
+      satd=oc_enc_frag_satd2(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ref+frag_offs+mv_offs[1],ystride);
     }
     else{
-      satd=oc_enc_frag_satd_thresh(_enc,src+frag_offs,
-       ref+frag_offs+mv_offs[0],ystride,UINT_MAX);
+      satd=oc_enc_frag_satd(_enc,&dc,src+frag_offs,
+       ref+frag_offs+mv_offs[0],ystride);
     }
-    frag_satd[mapii]=satd;
+    frag_satd[mapii]=satd+dc;
   }
   oc_analyze_mb_mode_chroma(_enc,_modec,_fr,_qs,
    frag_satd,_skip_ssd,_rd_scale[4],1);

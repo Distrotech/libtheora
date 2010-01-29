@@ -35,8 +35,8 @@ void oc_enc_vtable_init_x86(oc_enc_ctx *_enc){
     _enc->opt_vtable.frag_sad=oc_enc_frag_sad_mmxext;
     _enc->opt_vtable.frag_sad_thresh=oc_enc_frag_sad_thresh_mmxext;
     _enc->opt_vtable.frag_sad2_thresh=oc_enc_frag_sad2_thresh_mmxext;
-    _enc->opt_vtable.frag_satd_thresh=oc_enc_frag_satd_thresh_mmxext;
-    _enc->opt_vtable.frag_satd2_thresh=oc_enc_frag_satd2_thresh_mmxext;
+    _enc->opt_vtable.frag_satd=oc_enc_frag_satd_mmxext;
+    _enc->opt_vtable.frag_satd2=oc_enc_frag_satd2_mmxext;
     _enc->opt_vtable.frag_intra_satd=oc_enc_frag_intra_satd_mmxext;
     _enc->opt_vtable.frag_copy2=oc_enc_frag_copy2_mmxext;
   }
