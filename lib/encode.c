@@ -1487,6 +1487,12 @@ static void oc_img_plane_copy_pad(th_img_plane *_dst,th_img_plane *_src,
 
 int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
   th_ycbcr_buffer img;
+  int             frame_width;
+  int             frame_height;
+  int             pic_width;
+  int             pic_height;
+  int             pic_x;
+  int             pic_y;
   int             cframe_width;
   int             cframe_height;
   int             cpic_width;
@@ -1504,24 +1510,26 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
   if(_enc->rc.twopass&&_enc->rc.twopass_buffer_bytes==0)return TH_EINVAL;
   hdec=!(_enc->state.info.pixel_fmt&1);
   vdec=!(_enc->state.info.pixel_fmt&2);
-  cframe_width=_enc->state.info.frame_width>>hdec;
-  cframe_height=_enc->state.info.frame_height>>vdec;
-  cpic_x=_enc->state.info.pic_x>>hdec;
-  cpic_y=_enc->state.info.pic_y>>vdec;
-  cpic_width=(_enc->state.info.pic_x+_enc->state.info.pic_width+hdec>>hdec)
-   -cpic_x;
-  cpic_height=(_enc->state.info.pic_y+_enc->state.info.pic_height+vdec>>vdec)
-   -cpic_y;
+  frame_width=_enc->state.info.frame_width;
+  frame_height=_enc->state.info.frame_height;
+  pic_x=_enc->state.info.pic_x;
+  pic_y=_enc->state.info.pic_y;
+  pic_width=_enc->state.info.pic_width;
+  pic_height=_enc->state.info.pic_height;
+  cframe_width=frame_width>>hdec;
+  cframe_height=frame_height>>vdec;
+  cpic_x=pic_x>>hdec;
+  cpic_y=pic_y>>vdec;
+  cpic_width=(pic_x+pic_width+hdec>>hdec)-cpic_x;
+  cpic_height=(pic_y+pic_height+vdec>>vdec)-cpic_y;
   /*Flip the input buffer upside down.*/
   oc_ycbcr_buffer_flip(img,_img);
-  if((ogg_uint32_t)img[0].width!=_enc->state.info.frame_width||
-   (ogg_uint32_t)img[0].height!=_enc->state.info.frame_height||
+  if(img[0].width!=frame_width||img[0].height!=frame_height||
    img[1].width!=cframe_width||img[2].width!=cframe_width||
    img[1].height!=cframe_height||img[2].height!=cframe_height){
     /*The buffer does not match the frame size.
       Check to see if it matches the picture size.*/
-    if((ogg_uint32_t)img[0].width!=_enc->state.info.pic_width||
-     (ogg_uint32_t)img[0].height!=_enc->state.info.pic_height||
+    if(img[0].width!=pic_width||img[0].height!=pic_height||
      img[1].width!=cpic_width||img[2].width!=cpic_width||
      img[1].height!=cpic_height||img[2].height!=cpic_height){
       /*It doesn't; we don't know how to handle it.*/
@@ -1529,22 +1537,23 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
     }
     /*Adjust the pointers to address a full frame.
       We still only use the picture region, however.*/
-    img[0].data-=_enc->state.info.pic_y*(ptrdiff_t)img[0].stride
-     +_enc->state.info.pic_x;
+    img[0].data-=pic_y*(ptrdiff_t)img[0].stride+pic_x;
     img[1].data-=cpic_y*(ptrdiff_t)img[1].stride+cpic_x;
     img[2].data-=cpic_y*(ptrdiff_t)img[2].stride+cpic_x;
   }
   /*Step 2: Copy the input to our internal buffer.
-    This lets us add padding, if necessary, so we don't have to worry about
-     dereferencing possibly invalid addresses, and allows us to use the same
-     strides and fragment offsets for both the input frame and the reference
-     frames.*/
+    This lets us add padding, so we don't have to worry about dereferencing
+     possibly invalid addresses, and allows us to use the same strides and
+     fragment offsets for both the input frame and the reference frames.*/
   oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[OC_FRAME_IO]+0,img+0,
-   _enc->state.info.pic_x,_enc->state.info.pic_y,
-   _enc->state.info.pic_width,_enc->state.info.pic_height);
+   pic_x,pic_y,pic_width,pic_height);
+  oc_state_borders_fill_rows(&_enc->state,OC_FRAME_IO,0,0,frame_height);
+  oc_state_borders_fill_caps(&_enc->state,OC_FRAME_IO,0);
   for(pli=1;pli<3;pli++){
     oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[OC_FRAME_IO]+pli,img+pli,
      cpic_x,cpic_y,cpic_width,cpic_height);
+    oc_state_borders_fill_rows(&_enc->state,OC_FRAME_IO,pli,0,cframe_height);
+    oc_state_borders_fill_caps(&_enc->state,OC_FRAME_IO,pli);
   }
   /*Step 3: Update the buffer state.*/
   if(_enc->state.ref_frame_idx[OC_FRAME_SELF]>=0){
