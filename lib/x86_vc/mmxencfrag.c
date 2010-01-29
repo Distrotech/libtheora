@@ -709,7 +709,7 @@ unsigned oc_enc_frag_satd2_mmxext(unsigned *_dc,const unsigned char *_src,
  const unsigned char *_ref1,const unsigned char *_ref2,int _ystride){
   OC_ALIGN8(unsigned char ref[64]);
   oc_int_frag_copy2_mmxext(ref,8,_ref1,_ref2,_ystride);
-  return oc_int_frag_satd_thresh_mmxext(dc,_src,_ystride,ref,8);
+  return oc_int_frag_satd_mmxext(_dc,_src,_ystride,ref,8);
 }
 
 unsigned oc_enc_frag_intra_satd_mmxext(unsigned *_dc,const unsigned char *_src,
