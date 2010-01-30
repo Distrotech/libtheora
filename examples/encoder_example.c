@@ -940,8 +940,8 @@ int fetch_and_process_audio(FILE *audio,ogg_page *audiopage,
   static ogg_int64_t samples_sofar=0;
   ogg_packet op;
   int i,j;
-  ogg_int64_t beginsample = audio_hz*begin_sec + audio_hz*begin_usec*.000001;
-  ogg_int64_t endsample = audio_hz*end_sec + audio_hz*end_usec*.000001;
+  ogg_int64_t beginsample = audio_hz*(begin_sec+begin_usec*.000001);
+  ogg_int64_t endsample = audio_hz*(end_sec+end_usec*.000001);
 
   while(audio && !audioflag){
     /* process any audio already buffered */
@@ -1031,8 +1031,8 @@ int fetch_and_process_video_packet(FILE *video,FILE *twopass_file,int passno,
   ogg_int64_t                beginframe;
   ogg_int64_t                endframe;
   spinnit();
-  beginframe=(video_fps_n*begin_sec+video_fps_n*begin_usec*.000001)/video_fps_d;
-  endframe=(video_fps_n*end_sec+video_fps_n*end_usec*.000001)/video_fps_d;
+  beginframe=video_fps_n*(begin_sec+begin_usec*.000001)/video_fps_d;
+  endframe=video_fps_n*(end_sec+end_usec*.000001)/video_fps_d;
   if(frame_state==-1){
     /* initialize the double frame buffer */
     yuvframe[0]=(unsigned char *)malloc(y4m_dst_buf_sz);
@@ -1211,6 +1211,35 @@ static int ilog(unsigned _v){
   return ret;
 }
 
+static int parse_time(long *_sec,long *_usec,const char *_optarg){
+  double      secf;
+  long        secl;
+  const char *pos;
+  char       *end;
+  int         err;
+  err=0;
+  secl=0;
+  pos=strchr(_optarg,':');
+  if(pos!=NULL){
+    char *pos2;
+    secl=strtol(_optarg,&end,10)*60;
+    err|=pos!=end;
+    pos2=strchr(++pos,':');
+    if(pos2!=NULL){
+      secl=(secl+strtol(pos,&end,10))*60;
+      err|=pos2!=end;
+      pos=pos2+1;
+    }
+  }
+  else pos=_optarg;
+  secf=strtod(pos,&end);
+  printf("%G %G\n",secf,secf-floor(secf));
+  if(err||*end!='\0')return -1;
+  *_sec=secl+(long)floor(secf);
+  *_usec=(long)((secf-floor(secf))*1E6+0.5);
+  return 0;
+}
+
 int main(int argc,char *argv[]){
   int c,long_option_index,ret;
 
@@ -1353,51 +1382,17 @@ int main(int argc,char *argv[]){
 
     case 'b':
       {
-        char *pos=strchr(optarg,':');
-        begin_sec=atol(optarg);
-        if(pos){
-          char *pos2=strchr(++pos,':');
-          begin_sec*=60;
-          begin_sec+=atol(pos);
-          if(pos2){
-            pos2++;
-            begin_sec*=60;
-            begin_sec+=atol(pos2);
-            pos=pos2;
-          }
-        }else
-          pos=optarg;
-        pos=strchr(pos,'.');
-        if(pos){
-          int digits = strlen(++pos);
-          begin_usec=atol(pos);
-          while(digits++ < 6)
-            begin_usec*=10;
+        if(parse_time(&begin_sec,&begin_usec,optarg)<0){
+          fprintf(stderr,"Error parsing begin time '%s'.\n",optarg);
+          exit(1);
         }
       }
       break;
     case 'e':
       {
-        char *pos=strchr(optarg,':');
-        end_sec=atol(optarg);
-        if(pos){
-          char *pos2=strchr(++pos,':');
-          end_sec*=60;
-          end_sec+=atol(pos);
-          if(pos2){
-            pos2++;
-            end_sec*=60;
-            end_sec+=atol(pos2);
-            pos=pos2;
-          }
-        }else
-          pos=optarg;
-        pos=strchr(pos,'.');
-        if(pos){
-          int digits = strlen(++pos);
-          end_usec=atol(pos);
-          while(digits++ < 6)
-            end_usec*=10;
+        if(parse_time(&end_sec,&end_usec,optarg)<0){
+          fprintf(stderr,"Error parsing end time '%s'.\n",optarg);
+          exit(1);
         }
       }
       break;
