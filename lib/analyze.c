@@ -211,20 +211,39 @@ static int oc_block_run_bits(int _run_count){
 
 
 
-/*State to track coded block flags and their bit cost.*/
+/*State to track coded block flags and their bit cost.
+  We use opportunity cost to measure the bits required to code or skip the next
+   block, using the cheaper of the cost to code it fully or partially, so long
+   as both are possible.*/
 struct oc_fr_state{
+  /*The number of bits required for the coded block flags so far this frame.*/
   ptrdiff_t  bits;
+  /*The length of the current run for the partial super block flag, not
+     including the current super block.*/
   unsigned   sb_partial_count:16;
+  /*The length of the current run for the full super block flag, not
+     including the current super block.*/
   unsigned   sb_full_count:16;
+  /*The length of the coded block flag run when the current super block
+     started.*/
   unsigned   b_coded_count_prev:6;
-  unsigned   b_coded_count:6;
-  unsigned   b_count:5;
-  unsigned   sb_prefer_partial:1;
-  unsigned   sb_bits:6;
-  signed int sb_partial:2;
-  signed int sb_full:2;
+  /*The coded block flag when the current super block started.*/
   signed int b_coded_prev:2;
+  /*The length of the current coded block flag run.*/
+  unsigned   b_coded_count:6;
+  /*The current coded block flag.*/
   signed int b_coded:2;
+  /*The number of blocks processed in the current super block.*/
+  unsigned   b_count:5;
+  /*Whether or not it is cheaper to code the current super block partially,
+     even if it could still be coded fully.*/
+  unsigned   sb_prefer_partial:1;
+  /*Whether the last super block was coded partially.*/
+  signed int sb_partial:2;
+  /*The number of bits required for the flags for the current super block.*/
+  unsigned   sb_bits:6;
+  /*Whether the last non-partial super block was coded fully.*/
+  signed int sb_full:2;
 };
 
 
@@ -251,7 +270,7 @@ static int oc_fr_state_sb_cost(const oc_fr_state *_fr,
   int sb_partial_count;
   int sb_full_count;
   bits=0;
-  sb_partial_count=_fr->sb_partial;
+  sb_partial_count=_fr->sb_partial_count;
   /*Extend the sb_partial run, or start a new one.*/
   if(_fr->sb_partial==_sb_partial){
     if(sb_partial_count>=4129){
@@ -307,8 +326,7 @@ static void oc_fr_state_advance_sb(oc_fr_state *_fr,
   _fr->sb_bits=0;
 }
 
-/*Flush any outstanding block flags for a SB (e.g., one with fewer than 16
-   blocks).*/
+/*Commit the state of the current super block and advance to the next.*/
 static void oc_fr_state_flush_sb(oc_fr_state *_fr){
   int sb_partial;
   int sb_full;
@@ -320,13 +338,13 @@ static void oc_fr_state_flush_sb(oc_fr_state *_fr){
     sb_full=_fr->b_coded;
     sb_partial=b_coded_count<b_count;
     if(!sb_partial){
-      /*If the SB is fully coded/uncoded...*/
+      /*If the super block is fully coded/uncoded...*/
       if(_fr->sb_prefer_partial){
-        /*So far coding this SB as partial was cheaper anyway.*/
+        /*So far coding this super block as partial was cheaper anyway.*/
         if(b_coded_count>15){
           int sb_bits;
           /*If the block run is too long, this will limit how far it can be
-             extended into the next partial SB.
+             extended into the next partial super block.
             If we need to extend it farther, we don't want to have to roll all
              the way back here (since there could be many full SBs between now
              and then), so we disallow this.*/
@@ -354,7 +372,7 @@ static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
   sb_prefer_partial=_fr->sb_prefer_partial;
   if(b_coded_count>=b_count){
     int sb_partial_bits;
-    /*This SB is currently fully coded/uncoded.*/
+    /*This super block is currently fully coded/uncoded.*/
     if(b_count<=0){
       /*This is the first block in this SB.*/
       b_count=1;
@@ -384,10 +402,16 @@ static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
           sb_prefer_partial=sb_partial_bits<sb_bits;
           sb_bits^=(sb_partial_bits^sb_bits)&-sb_prefer_partial;
         }
+        /*There's no need to check the converse (whether it's cheaper to code
+           this SB partially if we were coding it fully), since the cost to
+           code a SB partially can only increase as we add more blocks, whereas
+           the cost to code it fully stays constant.*/
       }
       else{
-        /*If we get to the end and we're still full, then force this SB to
-           be full.*/
+        /*If we get to the end and this SB is still full, then force it to be
+           coded full.
+          Otherwise we might not be able to extend the block run far enough
+           into the next partial SB.*/
         if(sb_prefer_partial){
           sb_prefer_partial=0;
           sb_bits=oc_fr_state_sb_cost(_fr,0,_b_coded);
@@ -417,10 +441,10 @@ static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
   }
   _fr->bits=bits+sb_bits;
   _fr->b_coded_count=b_coded_count;
+  _fr->b_coded=_b_coded;
   _fr->b_count=b_count;
   _fr->sb_prefer_partial=sb_prefer_partial;
   _fr->sb_bits=sb_bits;
-  _fr->b_coded=_b_coded;
 }
 
 static void oc_fr_skip_block(oc_fr_state *_fr){
