@@ -248,7 +248,7 @@ static void oc_fr_state_advance_sb(oc_fr_state *_fr,
   int       sb_full_count;
   bits=_fr->bits;
   /*Extend the sb_partial run, or start a new one.*/
-  sb_partial_count=_fr->sb_partial;
+  sb_partial_count=_fr->sb_partial_count;
   if(_fr->sb_partial==_sb_partial){
     if(sb_partial_count>=4129){
       bits++;
