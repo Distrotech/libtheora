@@ -216,9 +216,11 @@ struct oc_fr_state{
   ptrdiff_t  bits;
   unsigned   sb_partial_count:16;
   unsigned   sb_full_count:16;
-  unsigned   b_coded_count_prev:8;
-  unsigned   b_coded_count:8;
-  unsigned   b_count:8;
+  unsigned   b_coded_count_prev:6;
+  unsigned   b_coded_count:6;
+  unsigned   b_count:5;
+  unsigned   sb_prefer_partial:1;
+  unsigned   sb_bits:6;
   signed int sb_partial:2;
   signed int sb_full:2;
   signed int b_coded_prev:2;
@@ -234,6 +236,8 @@ static void oc_fr_state_init(oc_fr_state *_fr){
   _fr->b_coded_count_prev=0;
   _fr->b_coded_count=0;
   _fr->b_count=0;
+  _fr->sb_prefer_partial=0;
+  _fr->sb_bits=0;
   _fr->sb_partial=-1;
   _fr->sb_full=-1;
   _fr->b_coded_prev=-1;
@@ -241,14 +245,14 @@ static void oc_fr_state_init(oc_fr_state *_fr){
 }
 
 
-static void oc_fr_state_advance_sb(oc_fr_state *_fr,
+static int oc_fr_state_sb_cost(const oc_fr_state *_fr,
  int _sb_partial,int _sb_full){
-  ptrdiff_t bits;
-  int       sb_partial_count;
-  int       sb_full_count;
-  bits=_fr->bits;
+  int bits;
+  int sb_partial_count;
+  int sb_full_count;
+  bits=0;
+  sb_partial_count=_fr->sb_partial;
   /*Extend the sb_partial run, or start a new one.*/
-  sb_partial_count=_fr->sb_partial_count;
   if(_fr->sb_partial==_sb_partial){
     if(sb_partial_count>=4129){
       bits++;
@@ -257,8 +261,7 @@ static void oc_fr_state_advance_sb(oc_fr_state *_fr,
     else bits-=oc_sb_run_bits(sb_partial_count);
   }
   else sb_partial_count=0;
-  sb_partial_count++;
-  bits+=oc_sb_run_bits(sb_partial_count);
+  bits+=oc_sb_run_bits(++sb_partial_count);
   if(!_sb_partial){
     /*Extend the sb_full run, or start a new one.*/
     sb_full_count=_fr->sb_full_count;
@@ -270,98 +273,154 @@ static void oc_fr_state_advance_sb(oc_fr_state *_fr,
       else bits-=oc_sb_run_bits(sb_full_count);
     }
     else sb_full_count=0;
-    sb_full_count++;
-    bits+=oc_sb_run_bits(sb_full_count);
-    _fr->sb_full=_sb_full;
-    _fr->sb_full_count=sb_full_count;
+    bits+=oc_sb_run_bits(++sb_full_count);
   }
-  _fr->bits=bits;
-  _fr->sb_partial=_sb_partial;
+  return bits;
+}
+
+static void oc_fr_state_advance_sb(oc_fr_state *_fr,
+ int _sb_partial,int _sb_full){
+  int sb_partial_count;
+  int sb_full_count;
+  sb_partial_count=_fr->sb_partial_count;
+  if(_fr->sb_partial!=_sb_partial||sb_partial_count>=4129)sb_partial_count=0;
+  sb_partial_count++;
+  if(!_sb_partial){
+    sb_full_count=_fr->sb_full_count;
+    if(_fr->sb_full!=_sb_full||sb_full_count>=4129)sb_full_count=0;
+    sb_full_count++;
+    _fr->sb_full_count=sb_full_count;
+    _fr->sb_full=_sb_full;
+    /*Roll back the partial block state.*/
+    _fr->b_coded=_fr->b_coded_prev;
+    _fr->b_coded_count=_fr->b_coded_count_prev;
+  }
+  else{
+    /*Commit back the partial block state.*/
+    _fr->b_coded_prev=_fr->b_coded;
+    _fr->b_coded_count_prev=_fr->b_coded_count;
+  }
   _fr->sb_partial_count=sb_partial_count;
+  _fr->sb_partial=_sb_partial;
+  _fr->b_count=0;
+  _fr->sb_prefer_partial=0;
+  _fr->sb_bits=0;
 }
 
 /*Flush any outstanding block flags for a SB (e.g., one with fewer than 16
    blocks).*/
 static void oc_fr_state_flush_sb(oc_fr_state *_fr){
-  ptrdiff_t bits;
-  int       sb_partial;
-  int       sb_full=sb_full;
-  int       b_coded_count;
-  int       b_coded;
-  int       b_count;
+  int sb_partial;
+  int sb_full;
+  int b_coded_count;
+  int b_count;
   b_count=_fr->b_count;
   if(b_count>0){
-    bits=_fr->bits;
-    b_coded=_fr->b_coded;
     b_coded_count=_fr->b_coded_count;
-    if(b_coded_count>=b_count){
-      /*This SB was fully coded/uncoded; roll back the partial block flags.*/
-      bits-=oc_block_run_bits(b_coded_count);
-      if(b_coded_count>b_count)bits+=oc_block_run_bits(b_coded_count-b_count);
-      sb_partial=0;
-      sb_full=b_coded;
-      b_coded=_fr->b_coded_prev;
-      b_coded_count=_fr->b_coded_count_prev;
+    sb_full=_fr->b_coded;
+    sb_partial=b_coded_count<b_count;
+    if(!sb_partial){
+      /*If the SB is fully coded/uncoded...*/
+      if(_fr->sb_prefer_partial){
+        /*So far coding this SB as partial was cheaper anyway.*/
+        if(b_coded_count>15){
+          int sb_bits;
+          /*If the block run is too long, this will limit how far it can be
+             extended into the next partial SB.
+            If we need to extend it farther, we don't want to have to roll all
+             the way back here (since there could be many full SBs between now
+             and then), so we disallow this.*/
+          sb_bits=oc_fr_state_sb_cost(_fr,sb_partial,sb_full);
+          _fr->bits+=sb_bits-_fr->sb_bits;
+          _fr->sb_bits=sb_bits;
+        }
+        else sb_partial=1;
+      }
     }
-    else{
-      /*It was partially coded.*/
-      sb_partial=1;
-      /*sb_full is unused.*/
-    }
-    _fr->bits=bits;
-    _fr->b_coded_count=b_coded_count;
-    _fr->b_coded_count_prev=b_coded_count;
-    _fr->b_count=0;
-    _fr->b_coded=b_coded;
-    _fr->b_coded_prev=b_coded;
     oc_fr_state_advance_sb(_fr,sb_partial,sb_full);
   }
 }
 
 static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
   ptrdiff_t bits;
+  int       sb_bits;
   int       b_coded_count;
   int       b_count;
-  int       sb_partial;
-  int       sb_full=sb_full;
-  bits=_fr->bits;
-  /*Extend the b_coded run, or start a new one.*/
+  int       sb_prefer_partial;
+  sb_bits=_fr->sb_bits;
+  bits=_fr->bits-sb_bits;
+  b_count=_fr->b_count;
   b_coded_count=_fr->b_coded_count;
-  if(_fr->b_coded==_b_coded)bits-=oc_block_run_bits(b_coded_count);
-  else b_coded_count=0;
-  b_coded_count++;
-  b_count=_fr->b_count+1;
-  if(b_count>=16){
-    /*We finished a superblock.*/
-    if(b_coded_count>=16){
-      /*It was fully coded/uncoded; roll back the partial block flags.*/
-      if(b_coded_count>16)bits+=oc_block_run_bits(b_coded_count-16);
-      sb_partial=0;
-      sb_full=_b_coded;
-      _b_coded=_fr->b_coded_prev;
-      b_coded_count=_fr->b_coded_count_prev;
+  sb_prefer_partial=_fr->sb_prefer_partial;
+  if(b_coded_count>=b_count){
+    int sb_partial_bits;
+    /*This SB is currently fully coded/uncoded.*/
+    if(b_count<=0){
+      /*This is the first block in this SB.*/
+      b_count=1;
+      /*Check to see whether it's cheaper to code it partially or fully.*/
+      if(_fr->b_coded==_b_coded){
+        sb_partial_bits=-oc_block_run_bits(b_coded_count);
+        sb_partial_bits+=oc_block_run_bits(++b_coded_count);
+      }
+      else{
+        b_coded_count=1;
+        sb_partial_bits=2;
+      }
+      sb_partial_bits+=oc_fr_state_sb_cost(_fr,1,_b_coded);
+      sb_bits=oc_fr_state_sb_cost(_fr,0,_b_coded);
+      sb_prefer_partial=sb_partial_bits<sb_bits;
+      sb_bits^=(sb_partial_bits^sb_bits)&-sb_prefer_partial;
+    }
+    else if(_fr->b_coded==_b_coded){
+      b_coded_count++;
+      if(++b_count<16){
+        if(sb_prefer_partial){
+          /*Check to see if it's cheaper to code it fully.*/
+          sb_partial_bits=sb_bits;
+          sb_partial_bits-=oc_block_run_bits(b_coded_count-1);
+          sb_partial_bits+=oc_block_run_bits(b_coded_count);
+          sb_bits^=oc_fr_state_sb_cost(_fr,0,_b_coded);
+          sb_prefer_partial=sb_partial_bits<sb_bits;
+          sb_bits^=(sb_partial_bits^sb_bits)&-sb_prefer_partial;
+        }
+      }
+      else{
+        /*If we get to the end and we're still full, then force this SB to
+           be full.*/
+        if(sb_prefer_partial){
+          sb_prefer_partial=0;
+          sb_bits=oc_fr_state_sb_cost(_fr,0,_b_coded);
+        }
+      }
     }
     else{
-      bits+=oc_block_run_bits(b_coded_count);
-      /*It was partially coded.*/
-      sb_partial=1;
-      /*sb_full is unused.*/
+      /*This SB was full, but now must be made partial.*/
+      if(!sb_prefer_partial){
+        sb_bits=oc_block_run_bits(b_coded_count);
+        if(b_coded_count>b_count){
+          sb_bits-=oc_block_run_bits(b_coded_count-b_count);
+        }
+        sb_bits+=oc_fr_state_sb_cost(_fr,1,_b_coded);
+      }
+      b_count++;
+      b_coded_count=1;
+      sb_prefer_partial=1;
+      sb_bits+=2;
     }
-    _fr->bits=bits;
-    _fr->b_coded_count=b_coded_count;
-    _fr->b_coded_count_prev=b_coded_count;
-    _fr->b_count=0;
-    _fr->b_coded=_b_coded;
-    _fr->b_coded_prev=_b_coded;
-    oc_fr_state_advance_sb(_fr,sb_partial,sb_full);
   }
   else{
-    bits+=oc_block_run_bits(b_coded_count);
-    _fr->bits=bits;
-    _fr->b_coded_count=b_coded_count;
-    _fr->b_count=b_count;
-    _fr->b_coded=_b_coded;
+    b_count++;
+    if(_fr->b_coded==_b_coded)sb_bits-=oc_block_run_bits(b_coded_count);
+    else b_coded_count=0;
+    sb_bits+=oc_block_run_bits(++b_coded_count);
   }
+  _fr->bits=bits+sb_bits;
+  _fr->b_coded_count=b_coded_count;
+  _fr->b_count=b_count;
+  _fr->sb_prefer_partial=sb_prefer_partial;
+  _fr->sb_bits=sb_bits;
+  _fr->b_coded=_b_coded;
 }
 
 static void oc_fr_skip_block(oc_fr_state *_fr){
