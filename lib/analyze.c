@@ -333,30 +333,30 @@ static void oc_fr_state_flush_sb(oc_fr_state *_fr){
   int b_coded_count;
   int b_count;
   b_count=_fr->b_count;
-  if(b_count>0){
-    b_coded_count=_fr->b_coded_count;
-    sb_full=_fr->b_coded;
-    sb_partial=b_coded_count<b_count;
-    if(!sb_partial){
-      /*If the super block is fully coded/uncoded...*/
-      if(_fr->sb_prefer_partial){
-        /*So far coding this super block as partial was cheaper anyway.*/
-        if(b_coded_count>15){
-          int sb_bits;
-          /*If the block run is too long, this will limit how far it can be
-             extended into the next partial super block.
-            If we need to extend it farther, we don't want to have to roll all
-             the way back here (since there could be many full SBs between now
-             and then), so we disallow this.*/
-          sb_bits=oc_fr_state_sb_cost(_fr,sb_partial,sb_full);
-          _fr->bits+=sb_bits-_fr->sb_bits;
-          _fr->sb_bits=sb_bits;
-        }
-        else sb_partial=1;
+  b_coded_count=_fr->b_coded_count;
+  sb_full=_fr->b_coded;
+  sb_partial=b_coded_count<b_count;
+  if(!sb_partial){
+    /*If the super block is fully coded/uncoded...*/
+    if(_fr->sb_prefer_partial){
+      /*So far coding this super block as partial was cheaper anyway.*/
+      if(b_coded_count>15||_fr->b_coded_prev<0){
+        int sb_bits;
+        /*If the block run is too long, this will limit how far it can be
+           extended into the next partial super block.
+          If we need to extend it farther, we don't want to have to roll all
+           the way back here (since there could be many full SBs between now
+           and then), so we disallow this.
+          Similarly, if this is the start of a stripe, we don't know how the
+           length of the outstanding block run from the previous stripe.*/
+        sb_bits=oc_fr_state_sb_cost(_fr,sb_partial,sb_full);
+        _fr->bits+=sb_bits-_fr->sb_bits;
+        _fr->sb_bits=sb_bits;
       }
+      else sb_partial=1;
     }
-    oc_fr_state_advance_sb(_fr,sb_partial,sb_full);
   }
+  oc_fr_state_advance_sb(_fr,sb_partial,sb_full);
 }
 
 static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
@@ -396,9 +396,11 @@ static void oc_fr_state_advance_block(oc_fr_state *_fr,int _b_coded){
         if(sb_prefer_partial){
           /*Check to see if it's cheaper to code it fully.*/
           sb_partial_bits=sb_bits;
-          sb_partial_bits-=oc_block_run_bits(b_coded_count-1);
           sb_partial_bits+=oc_block_run_bits(b_coded_count);
-          sb_bits^=oc_fr_state_sb_cost(_fr,0,_b_coded);
+          if(b_coded_count>0){
+            sb_partial_bits-=oc_block_run_bits(b_coded_count-1);
+          }
+          sb_bits=oc_fr_state_sb_cost(_fr,0,_b_coded);
           sb_prefer_partial=sb_partial_bits<sb_bits;
           sb_bits^=(sb_partial_bits^sb_bits)&-sb_prefer_partial;
         }
