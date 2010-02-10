@@ -732,9 +732,9 @@ struct oc_rd_metric{
 
 
 static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
- oc_enc_pipeline_state *_pipe,int _pli,ptrdiff_t _fragi,int _overhead_bits,
+ oc_enc_pipeline_state *_pipe,int _pli,ptrdiff_t _fragi,
  unsigned _rd_scale,unsigned _rd_iscale,oc_rd_metric *_mo,
- oc_token_checkpoint **_stack){
+ oc_fr_state *_fr,oc_token_checkpoint **_stack){
   OC_ALIGN16(ogg_int16_t  dct[64]);
   OC_ALIGN16(ogg_int16_t  data[64]);
   ogg_uint16_t            dc_dequant;
@@ -745,7 +745,6 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   const unsigned char    *src;
   const unsigned char    *ref;
   unsigned char          *dst;
-  int                     frame_type;
   int                     nonzero;
   unsigned                uncoded_ssd;
   unsigned                coded_ssd;
@@ -777,6 +776,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     if(_enc->sp_level>=OC_SP_LEVEL_EARLY_SKIP){
       /*Enable early skip detection.*/
       frags[_fragi].coded=0;
+      oc_fr_skip_block(_fr);
       return 0;
     }
 #endif
@@ -891,9 +891,9 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     oc_enc_frag_recon_inter(_enc,dst,
      nmv_offs==1?ref+mv_offs[0]:dst,ystride,data);
   }
-  frame_type=_enc->state.frame_type;
+  /*If _fr is NULL, then this is an INTRA frame, and we can't skip blocks.*/
 #if !defined(OC_COLLECT_METRICS)
-  if(frame_type!=OC_INTRA_FRAME)
+  if(_fr!=NULL)
 #endif
   {
     /*In retrospect, should we have skipped this block?*/
@@ -920,26 +920,29 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
 #if defined(OC_COLLECT_METRICS)
     _enc->frag_ssd[_fragi]=coded_ssd;
   }
-  if(frame_type!=OC_INTRA_FRAME){
+  if(_fr!=NULL){
 #endif
     coded_ssd=OC_RD_SCALE(coded_ssd,_rd_scale);
     uncoded_ssd=_pipe->skip_ssd[_pli][_fragi-_pipe->froffset[_pli]];
-    if(uncoded_ssd<UINT_MAX){
+    if(uncoded_ssd<UINT_MAX&&
+     /*Don't allow luma blocks to be skipped in 4MV mode when VP3 compatibility
+        is enabled.*/
+     (!_enc->vp3_compatible||mb_mode!=OC_MODE_INTER_MV_FOUR||_pli)){
+      int overhead_bits;
+      overhead_bits=oc_fr_cost1(_fr);
       /*Although the fragment coding overhead determination is accurate, it is
          greedy, using very coarse-grained local information.
         Allowing it to mildly discourage coding turns out to be beneficial, but
          it's not clear that allowing it to encourage coding through negative
          coding overhead deltas is useful.
         For that reason, we disallow negative coding_overheads.*/
-      if(_overhead_bits<0)_overhead_bits=0;
-      if(uncoded_ssd<=coded_ssd+(_overhead_bits+ac_bits)*_enc->lambda&&
-       /*Don't allow luma blocks to be skipped in 4MV mode when VP3
-          compatibility is enabled.*/
-       (!_enc->vp3_compatible||mb_mode!=OC_MODE_INTER_MV_FOUR||_pli)){
+      if(overhead_bits<0)overhead_bits=0;
+      if(uncoded_ssd<=coded_ssd+(overhead_bits+ac_bits)*_enc->lambda){
         /*Hm, not worth it; roll back.*/
         oc_enc_tokenlog_rollback(_enc,checkpoint,(*_stack)-checkpoint);
         *_stack=checkpoint;
         frags[_fragi].coded=0;
+        oc_fr_skip_block(_fr);
         return 0;
       }
     }
@@ -947,6 +950,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     _mo->uncoded_ac_ssd+=uncoded_ssd;
     _mo->coded_ac_ssd+=coded_ssd;
     _mo->ac_bits+=ac_bits;
+    oc_fr_code_block(_fr);
   }
   oc_qii_state_advance(_pipe->qs+_pli,_pipe->qs+_pli,qii);
   frags[_fragi].dc=dc;
@@ -954,7 +958,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   return 1;
 }
 
-static int oc_enc_mb_transform_quantize_luma(oc_enc_ctx *_enc,
+static int oc_enc_mb_transform_quantize_inter_luma(oc_enc_ctx *_enc,
  oc_enc_pipeline_state *_pipe,unsigned _mbi,int _mode_overhead,
  const unsigned _rd_scale[4],const unsigned _rd_iscale[4]){
   /*Worst case token stack usage for 4 fragments.*/
@@ -991,68 +995,64 @@ static int oc_enc_mb_transform_quantize_luma(oc_enc_ctx *_enc,
     fragi=sb_maps[_mbi>>2][_mbi&3][bi];
     frags[fragi].mb_mode=mb_mode;
     if(oc_enc_block_transform_quantize(_enc,_pipe,0,fragi,
-     oc_fr_cost1(_pipe->fr+0),_rd_scale[bi],_rd_iscale[bi],&mo,&stackptr)){
-      oc_fr_code_block(_pipe->fr+0);
+     _rd_scale[bi],_rd_iscale[bi],&mo,_pipe->fr+0,&stackptr)){
       coded_fragis[ncoded_fragis++]=fragi;
       ncoded++;
     }
-    else{
-      *(uncoded_fragis-++nuncoded_fragis)=fragi;
-      oc_fr_skip_block(_pipe->fr+0);
+    else *(uncoded_fragis-++nuncoded_fragis)=fragi;
+  }
+  if(ncoded>0&&!mo.dc_flag){
+    int cost;
+    /*Some individual blocks were worth coding.
+      See if that's still true when accounting for mode and MV overhead.*/
+    cost=mo.coded_ac_ssd+_enc->lambda*(mo.ac_bits
+     +oc_fr_cost4(&fr_checkpoint,_pipe->fr+0)+_mode_overhead);
+    if(mo.uncoded_ac_ssd<=cost){
+      /*Taking macroblock overhead into account, it is not worth coding this
+         MB.*/
+      oc_enc_tokenlog_rollback(_enc,stack,stackptr-stack);
+      *(_pipe->fr+0)=*&fr_checkpoint;
+      *(_pipe->qs+0)=*&qs_checkpoint;
+      for(bi=0;bi<4;bi++){
+        fragi=sb_maps[_mbi>>2][_mbi&3][bi];
+        if(frags[fragi].coded){
+          *(uncoded_fragis-++nuncoded_fragis)=fragi;
+          frags[fragi].coded=0;
+        }
+        oc_fr_skip_block(_pipe->fr+0);
+      }
+      ncoded_fragis-=ncoded;
+      ncoded=0;
     }
   }
-  if(_enc->state.frame_type!=OC_INTRA_FRAME){
-    if(ncoded>0&&!mo.dc_flag){
-      int cost;
-      /*Some individual blocks were worth coding.
-        See if that's still true when accounting for mode and MV overhead.*/
-      cost=mo.coded_ac_ssd+_enc->lambda*(mo.ac_bits
-       +oc_fr_cost4(&fr_checkpoint,_pipe->fr+0)+_mode_overhead);
-      if(mo.uncoded_ac_ssd<=cost){
-        /*Taking macroblock overhead into account, it is not worth coding this
-           MB.*/
-        oc_enc_tokenlog_rollback(_enc,stack,stackptr-stack);
-        *(_pipe->fr+0)=*&fr_checkpoint;
-        *(_pipe->qs+0)=*&qs_checkpoint;
-        for(bi=0;bi<4;bi++){
-          fragi=sb_maps[_mbi>>2][_mbi&3][bi];
-          if(frags[fragi].coded){
-            *(uncoded_fragis-++nuncoded_fragis)=fragi;
-            frags[fragi].coded=0;
-          }
-          oc_fr_skip_block(_pipe->fr+0);
-        }
-        ncoded_fragis-=ncoded;
-        ncoded=0;
-      }
-    }
-    /*If no luma blocks coded, the mode is forced.*/
-    if(ncoded==0)mb_modes[_mbi]=OC_MODE_INTER_NOMV;
-    /*Assume that a 1MV with a single coded block is always cheaper than a 4MV
-       with a single coded block.
-      This may not be strictly true: a 4MV computes chroma MVs using (0,0) for
-       skipped blocks, while a 1MV does not.*/
-    else if(ncoded==1&&mb_mode==OC_MODE_INTER_MV_FOUR){
-      mb_modes[_mbi]=OC_MODE_INTER_MV;
-    }
+  /*If no luma blocks coded, the mode is forced.*/
+  if(ncoded==0)mb_modes[_mbi]=OC_MODE_INTER_NOMV;
+  /*Assume that a 1MV with a single coded block is always cheaper than a 4MV
+     with a single coded block.
+    This may not be strictly true: a 4MV computes chroma MVs using (0,0) for
+     skipped blocks, while a 1MV does not.*/
+  else if(ncoded==1&&mb_mode==OC_MODE_INTER_MV_FOUR){
+    mb_modes[_mbi]=OC_MODE_INTER_MV;
   }
   _pipe->ncoded_fragis[0]=ncoded_fragis;
   _pipe->nuncoded_fragis[0]=nuncoded_fragis;
   return ncoded;
 }
 
-static void oc_enc_sb_transform_quantize_chroma(oc_enc_ctx *_enc,
+static void oc_enc_sb_transform_quantize_inter_chroma(oc_enc_ctx *_enc,
  oc_enc_pipeline_state *_pipe,int _pli,int _sbi_start,int _sbi_end){
   const ogg_uint16_t *mcu_rd_scale;
   const ogg_uint16_t *mcu_rd_iscale;
   const oc_sb_map    *sb_maps;
   oc_sb_flags        *sb_flags;
+  oc_fr_state        *fr;
   ptrdiff_t          *coded_fragis;
   ptrdiff_t           ncoded_fragis;
   ptrdiff_t          *uncoded_fragis;
   ptrdiff_t           nuncoded_fragis;
   ptrdiff_t           froffset;
   int                 sbi;
+  fr=_pipe->fr+_pli;
   mcu_rd_scale=(const ogg_uint16_t *)_enc->mcu_rd_scale;
   mcu_rd_iscale=(const ogg_uint16_t *)_enc->mcu_rd_iscale;
   sb_maps=(const oc_sb_map *)_enc->state.sb_maps;
@@ -1080,19 +1080,15 @@ static void oc_enc_sb_transform_quantize_chroma(oc_enc_ctx *_enc,
         rd_iscale=mcu_rd_iscale[fragi-froffset];
         stackptr=stack;
         if(oc_enc_block_transform_quantize(_enc,_pipe,_pli,fragi,
-         oc_fr_cost1(_pipe->fr+_pli),rd_scale,rd_iscale,&mo,&stackptr)){
+         rd_scale,rd_iscale,&mo,fr,&stackptr)){
           coded_fragis[ncoded_fragis++]=fragi;
-          oc_fr_code_block(_pipe->fr+_pli);
         }
-        else{
-          *(uncoded_fragis-++nuncoded_fragis)=fragi;
-          oc_fr_skip_block(_pipe->fr+_pli);
-        }
+        else *(uncoded_fragis-++nuncoded_fragis)=fragi;
       }
     }
-    oc_fr_state_flush_sb(_pipe->fr+_pli);
-    sb_flags[sbi].coded_fully=_pipe->fr[_pli].sb_full;
-    sb_flags[sbi].coded_partially=_pipe->fr[_pli].sb_partial;
+    oc_fr_state_flush_sb(fr);
+    sb_flags[sbi].coded_fully=fr->sb_full;
+    sb_flags[sbi].coded_partially=fr->sb_partial;
   }
   _pipe->ncoded_fragis[_pli]=ncoded_fragis;
   _pipe->nuncoded_fragis[_pli]=nuncoded_fragis;
@@ -1511,6 +1507,37 @@ static unsigned oc_analyze_intra_chroma_block(oc_enc_ctx *_enc,
   return best_cost;
 }
 
+static void oc_enc_mb_transform_quantize_intra_luma(oc_enc_ctx *_enc,
+ oc_enc_pipeline_state *_pipe,unsigned _mbi,
+ const unsigned _rd_scale[4],const unsigned _rd_iscale[4]){
+  /*Worst case token stack usage for 4 fragments.*/
+  oc_token_checkpoint  stack[64*4];
+  oc_token_checkpoint *stackptr;
+  const oc_sb_map     *sb_maps;
+  signed char         *mb_modes;
+  oc_fragment         *frags;
+  ptrdiff_t           *coded_fragis;
+  ptrdiff_t            ncoded_fragis;
+  int                  mb_mode;
+  ptrdiff_t            fragi;
+  int                  bi;
+  sb_maps=(const oc_sb_map *)_enc->state.sb_maps;
+  mb_modes=_enc->state.mb_modes;
+  frags=_enc->state.frags;
+  coded_fragis=_pipe->coded_fragis[0];
+  ncoded_fragis=_pipe->ncoded_fragis[0];
+  mb_mode=mb_modes[_mbi];
+  stackptr=stack;
+  for(bi=0;bi<4;bi++){
+    fragi=sb_maps[_mbi>>2][_mbi&3][bi];
+    frags[fragi].mb_mode=mb_mode;
+    oc_enc_block_transform_quantize(_enc,_pipe,0,fragi,
+     _rd_scale[bi],_rd_iscale[bi],NULL,NULL,&stackptr);
+    coded_fragis[ncoded_fragis++]=fragi;
+  }
+  _pipe->ncoded_fragis[0]=ncoded_fragis;
+}
+
 static void oc_enc_sb_transform_quantize_intra_chroma(oc_enc_ctx *_enc,
  oc_enc_pipeline_state *_pipe,int _pli,int _sbi_start,int _sbi_end){
   const ogg_uint16_t *mcu_rd_scale;
@@ -1543,7 +1570,7 @@ static void oc_enc_sb_transform_quantize_intra_chroma(oc_enc_ctx *_enc,
         oc_analyze_intra_chroma_block(_enc,_pipe->qs+_pli,_pli,fragi,rd_scale);
         stackptr=stack;
         oc_enc_block_transform_quantize(_enc,_pipe,_pli,fragi,
-         0,rd_scale,rd_iscale,NULL,&stackptr);
+         rd_scale,rd_iscale,NULL,NULL,&stackptr);
         coded_fragis[ncoded_fragis++]=fragi;
       }
     }
@@ -1626,7 +1653,8 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
         if(!_recode&&_enc->state.curframe_num>0)oc_mcenc_search(_enc,mbi);
         oc_analyze_intra_mb_luma(_enc,pipe.qs+0,mbi,rd_scale);
         mb_modes[mbi]=OC_MODE_INTRA;
-        oc_enc_mb_transform_quantize_luma(_enc,&pipe,mbi,0,rd_scale,rd_iscale);
+        oc_enc_mb_transform_quantize_intra_luma(_enc,&pipe,
+         mbi,rd_scale,rd_iscale);
         /*Propagate final MB mode and MVs to the chroma blocks.*/
         for(mapii=4;mapii<nmap_idxs;mapii++){
           mapi=map_idxs[mapii];
@@ -2494,7 +2522,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           fragi=sb_maps[mbi>>2][mbi&3][bi];
           frags[fragi].qii=modes[mb_mode].qii[bi];
         }
-        if(oc_enc_mb_transform_quantize_luma(_enc,&pipe,mbi,
+        if(oc_enc_mb_transform_quantize_inter_luma(_enc,&pipe,mbi,
          modes[mb_mode].overhead>>OC_BIT_SCALE,rd_scale,rd_iscale)>0){
           int orig_mb_mode;
           orig_mb_mode=mb_mode;
@@ -2605,7 +2633,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
     oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,0,notstart,notdone);
     /*Code chroma planes.*/
     for(pli=1;pli<3;pli++){
-      oc_enc_sb_transform_quantize_chroma(_enc,&pipe,
+      oc_enc_sb_transform_quantize_inter_chroma(_enc,&pipe,
        pli,pipe.sbi0[pli],pipe.sbi_end[pli]);
       oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,pli,notstart,notdone);
     }
