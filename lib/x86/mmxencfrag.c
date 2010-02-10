@@ -87,7 +87,9 @@ unsigned oc_enc_frag_sad_thresh_mmxext(const unsigned char *_src,
    The latter is exactly 1 too large when the low bit of two corresponding \
     bytes is only set in one of them. \
    Therefore we pxor the operands, pand to mask out the low bits, and psubb to \
-    correct the output of pavgb.*/ \
+    correct the output of pavgb. \
+   TODO: This should be rewritten to compute ~pavgb(~a,~b) instead, which \
+    schedules better; currently, however, this function is unused.*/ \
  "movq %%mm0,%%mm6\n\t" \
  "lea (%[ref1],%[ystride],2),%[ref1]\n\t" \
  "pxor %%mm1,%%mm0\n\t" \
@@ -248,7 +250,7 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
 /*Performs the first two stages of an 8-point 1-D Hadamard transform.
   The transform is performed in place, except that outputs 0-3 are swapped with
    outputs 4-7.
-  Outputs 2, 3, 6 and 7 from the second stage are negated (which allows us to
+  Outputs 2, 3, 6, and 7 from the second stage are negated (which allows us to
    perform this stage in place with no temporary registers).*/
 #define OC_HADAMARD_AB_8x4 \
  "#OC_HADAMARD_AB_8x4\n\t" \
@@ -281,7 +283,7 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
  "psubw %%mm5,%%mm7\n\t" \
 
 /*Performs the last stage of an 8-point 1-D Hadamard transform in place.
-  Ouputs 1, 3, 5, and 7 are negated (which allows us to perform this stage in
+  Outputs 1, 3, 5, and 7 are negated (which allows us to perform this stage in
    place with no temporary registers).*/
 #define OC_HADAMARD_C_8x4 \
  "#OC_HADAMARD_C_8x4\n\t" \
@@ -544,7 +546,7 @@ unsigned oc_enc_frag_satd_mmxext(unsigned *_dc,const unsigned char *_src,
 
 /*Our internal implementation of frag_copy2 takes an extra stride parameter so
    we can share code with oc_enc_frag_satd2_mmxext().*/
-static void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
+void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
  const unsigned char *_src1,const unsigned char *_src2,int _src_ystride){
   __asm__ __volatile__(
     /*Load the first 3 rows.*/

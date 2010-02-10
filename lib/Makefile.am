@@ -6,6 +6,7 @@ EXTRA_DIST = \
 	encoder_disabled.c \
 	x86/mmxencfrag.c \
 	x86/mmxfdct.c \
+	x86/sse2encfrag.c \
 	x86/sse2fdct.c \
 	x86/x86enc.c \
 	x86/x86enc.h \
@@ -30,7 +31,8 @@ else
 encoder_uniq_x86_sources = \
 	x86/mmxencfrag.c \
 	x86/mmxfdct.c \
-	x86/x86enc.c
+	x86/x86enc.c \
+	x86/sse2encfrag.c
 
 encoder_uniq_x86_64_sources = \
 	x86/sse2fdct.c
@@ -126,7 +128,6 @@ noinst_HEADERS = \
 	huffenc.h \
 	mathops.h \
 	modedec.h \
-	x86/x86enc.h \
 	apiwrapper.h \
 	bitpack.h \
 	dct.h \
@@ -136,9 +137,11 @@ noinst_HEADERS = \
 	huffman.h \
 	ocintrin.h \
 	quant.h \
+	x86/x86enc.h \
 	x86/mmxfrag.h \
 	x86/mmxloop.h \
-	x86/x86int.h
+	x86/x86int.h \
+	x86/sse2trans.h
 
 libtheoradec_la_SOURCES = \
 	$(decoder_sources) \

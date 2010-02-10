@@ -266,7 +266,7 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
 /*Performs the first two stages of an 8-point 1-D Hadamard transform.
   The transform is performed in place, except that outputs 0-3 are swapped with
    outputs 4-7.
-  Outputs 2, 3, 6 and 7 from the second stage are negated (which allows us to
+  Outputs 2, 3, 6, and 7 from the second stage are negated (which allows us to
    perform this stage in place with no temporary registers).*/
 #define OC_HADAMARD_AB_8x4 __asm{ \
   /*Stage A: \
@@ -299,7 +299,7 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
 }
 
 /*Performs the last stage of an 8-point 1-D Hadamard transform in place.
-  Ouputs 1, 3, 5, and 7 are negated (which allows us to perform this stage in
+  Outputs 1, 3, 5, and 7 are negated (which allows us to perform this stage in
    place with no temporary registers).*/
 #define OC_HADAMARD_C_8x4 __asm{ \
   /*Stage C:*/ \
