@@ -278,10 +278,12 @@ static unsigned oc_int_frag_satd_sse2(unsigned *_dc,
     /*Note that _src_ystride and _ref_ystride must be given non-overlapping
        constraints, otherewise if gcc can prove they're equal it will allocate
        them to the same register (which is bad); _src and _ref face a similar
-       problem, though those are never actually the same.*/
+       problem.
+      All four are destructively modified, but if we list them as output
+       constraints, gcc can't alias them with other outputs.*/
     :[ret]"=a"(ret),[dc]"=d"(dc),[buf]"+r"(bufp)
-    :[src]"r"(_src),[src_ystride]"c"((ptrdiff_t)_src_ystride),
-     [ref]"r"(_ref),[ref_ystride]"d"((ptrdiff_t)_ref_ystride)
+    :[src]"S"(_src),[src_ystride]"c"((ptrdiff_t)_src_ystride),
+     [ref]"a"(_ref),[ref_ystride]"d"((ptrdiff_t)_ref_ystride)
     /*We have to use neg, so we actually clobber the condition codes for once
        (not to mention sub, and add).*/
     :"cc"
