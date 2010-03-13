@@ -72,13 +72,9 @@
  "neg %[ref_ystride]\n\t" \
  "psubw %%xmm0,%%xmm6\n\t" \
  "movq (%[ref],%[ref_ystride]),%%xmm0\n\t" \
- "lea (%[src],%[src_ystride],8),%[src]\n\t" \
  "punpcklbw %%xmm0,%%xmm7\n\t" \
- "neg %[src_ystride]\n\t" \
  "punpcklbw %%xmm0,%%xmm0\n\t" \
- "lea (%[ref],%[ref_ystride],8),%[ref]\n\t" \
  "psubw %%xmm0,%%xmm7\n\t" \
- "neg %[ref_ystride]\n\t" \
  "movdqa (%[buf]),%%xmm0\n\t" \
 
 /*Load an 8x8 array of pixel values from %[src] into %%xmm0...%%xmm7.*/
@@ -198,20 +194,20 @@
  "pmaxsw %%xmm3,%%xmm2\n\t" \
  "pmaxsw %%xmm1,%%xmm0\n\t" \
  "paddw %%xmm3,%%xmm6\n\t" \
- "paddw %%xmm5,%%xmm1\n\t" \
  "movdqa 0x10(%[buf]),%%xmm3\n\t" \
+ "paddw %%xmm5,%%xmm1\n\t" \
+ "movdqa (%[buf]),%%xmm5\n\t" \
 
 /*Performs the second part of the final stage of the Hadamard transform and
    summing of absolute values.*/
 #define OC_HADAMARD_C_ABS_ACCUM_B_8x8 \
  "#OC_HADAMARD_C_ABS_ACCUM_B_8x8\n\t" \
  "paddsw %%xmm7,%%xmm6\n\t" \
- "movdqa (%[buf]),%%xmm5\n\t" \
  "paddsw %%xmm7,%%xmm1\n\t" \
  "psubw %%xmm6,%%xmm2\n\t" \
  "psubw %%xmm1,%%xmm0\n\t" \
  /*xmm7={1}x4 (needed for the horizontal add that follows) \
-   xmm0+=xmm2+xmm4+max(abs(xmm1),abs(xmm3))-0x7FFF*/ \
+   xmm0+=xmm2+xmm4+max(abs(xmm3),abs(xmm5))-0x7FFF*/ \
  "movdqa %%xmm3,%%xmm6\n\t" \
  "pmaxsw %%xmm5,%%xmm3\n\t" \
  "paddw %%xmm2,%%xmm0\n\t" \
