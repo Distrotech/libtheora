@@ -887,6 +887,49 @@ static void oc_enc_frame_pack(oc_enc_ctx *_enc){
 #endif
 }
 
+/*Packs an explicit drop frame, instead of using the more efficient 0-byte
+   packet.
+  This is only enabled in VP3-compatibility mode, even though it is not
+   strictly required for VP3 compatibility (VP3 could be encoded in AVI, which
+   also supports dropping frames by inserting 0 byte packets).
+  However, almost every _Theora_ player used to get this wrong (and many still
+   do), and it wasn't until we started shipping a post-VP3 encoder that
+   actually non-VP3 features that this began to be discovered and fixed,
+   despite being in the standard since 2004.*/
+static void oc_enc_drop_frame_pack(oc_enc_ctx *_enc){
+  unsigned nsbs;
+  oggpackB_reset(&_enc->opb);
+  /*Mark this as a data packet.*/
+  oggpackB_write(&_enc->opb,0,1);
+  /*Output the frame type (key frame or delta frame).*/
+  oggpackB_write(&_enc->opb,OC_INTER_FRAME,1);
+  /*Write out the current qi list.
+    We always use just 1 qi, to avoid wasting bits on the others.*/
+  oggpackB_write(&_enc->opb,_enc->state.qis[0],6);
+  oggpackB_write(&_enc->opb,0,1);
+  /*Coded block flags: everything is uncoded.*/
+  nsbs=_enc->state.nsbs;
+  /*No partially coded SBs.*/
+  oggpackB_write(&_enc->opb,0,1);
+  oc_sb_run_pack(&_enc->opb,nsbs,0,1);
+  /*No fully coded SBs.*/
+  oggpackB_write(&_enc->opb,0,1);
+  oc_sb_run_pack(&_enc->opb,nsbs,0,1);
+  /*MB modes: just need write which scheme to use.
+    Since we have no coded MBs, we can pick any of them except 0, which would
+     require writing out an additional mode list.*/
+  oggpackB_write(&_enc->opb,7,3);
+  /*MVs: just need write which scheme to use.
+    We can pick either one, since we have no MVs.*/
+  oggpackB_write(&_enc->opb,1,1);
+  /*Write the chosen DC token tables.*/
+  oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][0][0],4);
+  oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][0][1],4);
+  /*Write the chosen AC token tables.*/
+  oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][1][0],4);
+  oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][1][1],4);
+}
+
 
 void oc_enc_vtable_init_c(oc_enc_ctx *_enc){
   /*The implementations prefixed with oc_enc_ are encoder-specific.
@@ -1157,8 +1200,10 @@ static void oc_enc_drop_frame(th_enc_ctx *_enc){
    _enc->state.ref_frame_idx[OC_FRAME_PREV];
   /*Flag motion vector analysis about the frame drop.*/
   _enc->prevframe_dropped=1;
-  /*Zero the packet.*/
-  oggpackB_reset(&_enc->opb);
+  /*Emit an inter frame with no coded blocks in VP3-compatibility mode.*/
+  if(_enc->vp3_compatible)oc_enc_drop_frame_pack(_enc);
+  /*Otherwise zero the packet.*/
+  else oggpackB_reset(&_enc->opb);
 }
 
 static void oc_enc_compress_keyframe(oc_enc_ctx *_enc,int _recode){
@@ -1606,11 +1651,11 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
 }
 
 int th_encode_packetout(th_enc_ctx *_enc,int _last_p,ogg_packet *_op){
+  unsigned char *packet;
   if(_enc==NULL||_op==NULL)return TH_EFAULT;
   if(_enc->packet_state==OC_PACKET_READY){
     _enc->packet_state=OC_PACKET_EMPTY;
     if(_enc->rc.twopass!=1){
-      unsigned char *packet;
       packet=oggpackB_get_buffer(&_enc->opb);
       /*If there's no packet, malloc failed while writing; it's lost forever.*/
       if(packet==NULL)return TH_EFAULT;
@@ -1626,8 +1671,21 @@ int th_encode_packetout(th_enc_ctx *_enc,int _last_p,ogg_packet *_op){
   else if(_enc->packet_state==OC_PACKET_EMPTY){
     if(_enc->nqueued_dups>0){
       _enc->nqueued_dups--;
-      _op->packet=NULL;
-      _op->bytes=0;
+      /*Emit an inter frame with no coded blocks in VP3-compatibility mode.*/
+      if(_enc->vp3_compatible){
+        oc_enc_drop_frame_pack(_enc);
+        packet=oggpackB_get_buffer(&_enc->opb);
+        /*If there's no packet, malloc failed while writing; it's lost
+           forever.*/
+        if(packet==NULL)return TH_EFAULT;
+        _op->packet=packet;
+        _op->bytes=oggpackB_bytes(&_enc->opb);
+      }
+      /*Otherwise emit a 0-byte packet.*/
+      else{
+        _op->packet=NULL;
+        _op->bytes=0;
+      }
     }
     else{
       if(_last_p)_enc->packet_state=OC_PACKET_DONE;

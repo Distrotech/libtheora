@@ -2056,7 +2056,9 @@ static void oc_dec_init_dummy_frame(th_dec_ctx *_dec){
   int      cheight;
   _dec->state.ref_frame_idx[OC_FRAME_GOLD]=0;
   _dec->state.ref_frame_idx[OC_FRAME_PREV]=0;
-  _dec->state.ref_frame_idx[OC_FRAME_SELF]=1;
+  _dec->state.ref_frame_idx[OC_FRAME_SELF]=0;
+  memcpy(_dec->pp_frame_buf,_dec->state.ref_frame_bufs[0],
+   sizeof(_dec->pp_frame_buf[0])*3);
   info=&_dec->state.info;
   yhstride=info->frame_width+2*OC_UMV_PADDING;
   yheight=info->frame_height+2*OC_UMV_PADDING;
@@ -2072,9 +2074,35 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
   int ret;
   if(_dec==NULL||_op==NULL)return TH_EFAULT;
   /*A completely empty packet indicates a dropped frame and is treated exactly
-     like an inter frame with no coded blocks.
-    Only proceed if we have a non-empty packet.*/
-  if(_op->bytes!=0){
+     like an inter frame with no coded blocks.*/
+  if(_op->bytes==0){
+    _dec->state.frame_type=OC_INTER_FRAME;
+    _dec->state.ntotal_coded_fragis=0;
+  }
+  else{
+    oc_pack_readinit(&_dec->opb,_op->packet,_op->bytes);
+    ret=oc_dec_frame_header_unpack(_dec);
+    if(ret<0)return ret;
+    if(_dec->state.frame_type==OC_INTRA_FRAME)oc_dec_mark_all_intra(_dec);
+    else oc_dec_coded_flags_unpack(_dec);
+  }
+  /*If there have been no reference frames, and we need one, initialize one.*/
+  if(_dec->state.frame_type!=OC_INTRA_FRAME&&
+   (_dec->state.ref_frame_idx[OC_FRAME_GOLD]<0||
+   _dec->state.ref_frame_idx[OC_FRAME_PREV]<0)){
+    oc_dec_init_dummy_frame(_dec);
+  }
+  /*If this was an inter frame with no coded blocks...*/
+  if(_dec->state.ntotal_coded_fragis<=0){
+    /*Just update the granule position and return.*/
+    _dec->state.granpos=(_dec->state.keyframe_num+_dec->state.granpos_bias<<
+     _dec->state.info.keyframe_granule_shift)
+     +(_dec->state.curframe_num-_dec->state.keyframe_num);
+    _dec->state.curframe_num++;
+    if(_granpos!=NULL)*_granpos=_dec->state.granpos;
+    return TH_DUPFRAME;
+  }
+  else{
     oc_dec_pipeline_state pipe;
     th_ycbcr_buffer       stripe_buf;
     int                   stripe_fragy;
@@ -2082,28 +2110,14 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
     int                   pli;
     int                   notstart;
     int                   notdone;
-    oc_pack_readinit(&_dec->opb,_op->packet,_op->bytes);
+    /*Select a free buffer to use for the reconstructed version of this frame.*/
+    for(refi=0;refi==_dec->state.ref_frame_idx[OC_FRAME_GOLD]||
+     refi==_dec->state.ref_frame_idx[OC_FRAME_PREV];refi++);
+    _dec->state.ref_frame_idx[OC_FRAME_SELF]=refi;
 #if defined(HAVE_CAIRO)
     _dec->telemetry_frame_bytes=_op->bytes;
 #endif
-    ret=oc_dec_frame_header_unpack(_dec);
-    if(ret<0)return ret;
-    /*Select a free buffer to use for the reconstructed version of this
-       frame.*/
-    if(_dec->state.frame_type!=OC_INTRA_FRAME&&
-     (_dec->state.ref_frame_idx[OC_FRAME_GOLD]<0||
-     _dec->state.ref_frame_idx[OC_FRAME_PREV]<0)){
-      /*No reference frames yet!*/
-      oc_dec_init_dummy_frame(_dec);
-      refi=_dec->state.ref_frame_idx[OC_FRAME_SELF];
-    }
-    else{
-      for(refi=0;refi==_dec->state.ref_frame_idx[OC_FRAME_GOLD]||
-       refi==_dec->state.ref_frame_idx[OC_FRAME_PREV];refi++);
-      _dec->state.ref_frame_idx[OC_FRAME_SELF]=refi;
-    }
     if(_dec->state.frame_type==OC_INTRA_FRAME){
-      oc_dec_mark_all_intra(_dec);
       _dec->state.keyframe_num=_dec->state.curframe_num;
 #if defined(HAVE_CAIRO)
       _dec->telemetry_coding_bytes=
@@ -2112,7 +2126,6 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
 #endif
     }
     else{
-      oc_dec_coded_flags_unpack(_dec);
 #if defined(HAVE_CAIRO)
       _dec->telemetry_coding_bytes=oc_pack_bytes_left(&_dec->opb);
 #endif
@@ -2262,29 +2275,10 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
        gamma values, if nothing else).*/
     oc_restore_fpu(&_dec->state);
 #if defined(OC_DUMP_IMAGES)
-    /*Don't dump images for dropped frames.*/
+    /*We only dump images if there were some coded blocks.*/
     oc_state_dump_frame(&_dec->state,OC_FRAME_SELF,"dec");
 #endif
     return 0;
-  }
-  else{
-    if(_dec->state.ref_frame_idx[OC_FRAME_GOLD]<0||
-     _dec->state.ref_frame_idx[OC_FRAME_PREV]<0){
-      int refi;
-      /*No reference frames yet!*/
-      oc_dec_init_dummy_frame(_dec);
-      refi=_dec->state.ref_frame_idx[OC_FRAME_PREV];
-      _dec->state.ref_frame_idx[OC_FRAME_SELF]=refi;
-      memcpy(_dec->pp_frame_buf,_dec->state.ref_frame_bufs[refi],
-       sizeof(_dec->pp_frame_buf[0])*3);
-    }
-    /*Just update the granule position and return.*/
-    _dec->state.granpos=(_dec->state.keyframe_num+_dec->state.granpos_bias<<
-     _dec->state.info.keyframe_granule_shift)
-     +(_dec->state.curframe_num-_dec->state.keyframe_num);
-    _dec->state.curframe_num++;
-    if(_granpos!=NULL)*_granpos=_dec->state.granpos;
-    return TH_DUPFRAME;
   }
 }
 
