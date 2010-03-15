@@ -737,6 +737,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
  oc_fr_state *_fr,oc_token_checkpoint **_stack){
   OC_ALIGN16(ogg_int16_t  dct[64]);
   OC_ALIGN16(ogg_int16_t  data[64]);
+  oc_qii_state            qs;
   ogg_uint16_t            dc_dequant;
   const ogg_uint16_t     *dequant;
   const oc_iquant        *enquant;
@@ -876,16 +877,25 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   if(nonzero==0){
     ogg_int16_t p;
     int         ci;
+    int         qi01;
+    int         qi12;
     /*We round this dequant product (and not any of the others) because there's
        no iDCT rounding.*/
     p=(ogg_int16_t)(dc*(ogg_int32_t)dc_dequant+15>>5);
     /*LOOP VECTORIZES.*/
     for(ci=0;ci<64;ci++)data[ci]=p;
+    /*We didn't code any AC coefficients, so don't change the quantizer.*/
+    qi01=_pipe->qs[_pli].qi01;
+    qi12=_pipe->qs[_pli].qi12;
+    if(qi01>0)qii=1+qi12;
+    else if(qi01>=0)qii=0;
   }
   else{
     data[0]=dc*dc_dequant;
     oc_idct8x8(&_enc->state,data,nonzero+1);
   }
+  oc_qii_state_advance(&qs,_pipe->qs+_pli,qii);
+  ac_bits+=qs.bits-_pipe->qs[_pli].bits;
   if(!qti)oc_enc_frag_recon_intra(_enc,dst,ystride,data);
   else{
     oc_enc_frag_recon_inter(_enc,dst,
@@ -952,7 +962,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     _mo->ac_bits+=ac_bits;
     oc_fr_code_block(_fr);
   }
-  oc_qii_state_advance(_pipe->qs+_pli,_pipe->qs+_pli,qii);
+  *(_pipe->qs+_pli)=*&qs;
   frags[_fragi].dc=dc;
   frags[_fragi].coded=1;
   return 1;
@@ -1921,7 +1931,7 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   frags=_enc->state.frags;
   frag_buf_offs=_enc->state.frag_buf_offs;
   sb_map=_enc->state.sb_maps[_mbi>>2][_mbi&3];
-  dc_dequant=_enc->state.dequant_tables[_enc->state.qis[0]][0][1][0];
+  dc_dequant=_pipe->dequant[0][0][1][0];
   for(bi=0;bi<4;bi++){
     fragi=sb_map[bi];
     frag_offs=frag_buf_offs[fragi];
@@ -1960,7 +1970,7 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   mapii=4;
   for(pli=1;pli<3;pli++){
     ystride=_enc->state.ref_ystride[pli];
-    dc_dequant=_enc->state.dequant_tables[_enc->state.qis[0]][pli][1][0];
+    dc_dequant=_pipe->dequant[pli][0][1][0];
     for(;mapii<map_nidxs;mapii++){
       mapi=map_idxs[mapii];
       bi=mapi&3;
@@ -1986,6 +1996,7 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
       uncoded_ssd<<=4;
       /*We actually only want the AC contribution to the SSD.*/
       uncoded_ssd-=uncoded_dc*uncoded_dc>>2;
+      uncoded_ssd=OC_RD_SCALE(uncoded_ssd,_rd_scale[4]);
       /*DC is a special case; if there's more than a full-quantizer improvement
          in the effective DC component, always force-code the block.*/
       dc_flag=abs(uncoded_dc)>dc_dequant<<1;
