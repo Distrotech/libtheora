@@ -863,30 +863,6 @@ static void oc_enc_residual_tokens_pack(oc_enc_ctx *_enc){
   }
 }
 
-static void oc_enc_frame_pack(oc_enc_ctx *_enc){
-  oggpackB_reset(&_enc->opb);
-  /*Only proceed if we have some coded blocks.
-    If there are no coded blocks, we can drop this frame simply by emitting a
-     0 byte packet.*/
-  if(_enc->state.ntotal_coded_fragis>0){
-    oc_enc_frame_header_pack(_enc);
-    if(_enc->state.frame_type==OC_INTER_FRAME){
-      /*Coded block flags, MB modes, and MVs are only needed for delta frames.*/
-      oc_enc_coded_flags_pack(_enc);
-      oc_enc_mb_modes_pack(_enc);
-      oc_enc_mvs_pack(_enc);
-    }
-    oc_enc_block_qis_pack(_enc);
-    oc_enc_tokenize_finish(_enc);
-    oc_enc_residual_tokens_pack(_enc);
-  }
-  /*Success: Mark the packet as ready to be flushed.*/
-  _enc->packet_state=OC_PACKET_READY;
-#if defined(OC_COLLECT_METRICS)
-  oc_enc_mode_metrics_collect(_enc);
-#endif
-}
-
 /*Packs an explicit drop frame, instead of using the more efficient 0-byte
    packet.
   This is only enabled in VP3-compatibility mode, even though it is not
@@ -895,10 +871,10 @@ static void oc_enc_frame_pack(oc_enc_ctx *_enc){
   However, almost every _Theora_ player used to get this wrong (and many still
    do), and it wasn't until we started shipping a post-VP3 encoder that
    actually non-VP3 features that this began to be discovered and fixed,
-   despite being in the standard since 2004.*/
+   despite being in the standard since 2004.
+  The pack buffer must be reset before calling this function.*/
 static void oc_enc_drop_frame_pack(oc_enc_ctx *_enc){
   unsigned nsbs;
-  oggpackB_reset(&_enc->opb);
   /*Mark this as a data packet.*/
   oggpackB_write(&_enc->opb,0,1);
   /*Output the frame type (key frame or delta frame).*/
@@ -928,6 +904,32 @@ static void oc_enc_drop_frame_pack(oc_enc_ctx *_enc){
   /*Write the chosen AC token tables.*/
   oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][1][0],4);
   oggpackB_write(&_enc->opb,_enc->huff_idxs[OC_INTER_FRAME][1][1],4);
+}
+
+static void oc_enc_frame_pack(oc_enc_ctx *_enc){
+  oggpackB_reset(&_enc->opb);
+  /*Only proceed if we have some coded blocks.*/
+  if(_enc->state.ntotal_coded_fragis>0){
+    oc_enc_frame_header_pack(_enc);
+    if(_enc->state.frame_type==OC_INTER_FRAME){
+      /*Coded block flags, MB modes, and MVs are only needed for delta frames.*/
+      oc_enc_coded_flags_pack(_enc);
+      oc_enc_mb_modes_pack(_enc);
+      oc_enc_mvs_pack(_enc);
+    }
+    oc_enc_block_qis_pack(_enc);
+    oc_enc_tokenize_finish(_enc);
+    oc_enc_residual_tokens_pack(_enc);
+  }
+  /*If there are no coded blocks, we can drop this frame simply by emitting a
+     0 byte packet.
+    We emit an inter frame with no coded blocks in VP3-compatibility mode.*/
+  else if(_enc->vp3_compatible)oc_enc_drop_frame_pack(_enc);
+  /*Success: Mark the packet as ready to be flushed.*/
+  _enc->packet_state=OC_PACKET_READY;
+#if defined(OC_COLLECT_METRICS)
+  oc_enc_mode_metrics_collect(_enc);
+#endif
 }
 
 
@@ -1200,10 +1202,10 @@ static void oc_enc_drop_frame(th_enc_ctx *_enc){
    _enc->state.ref_frame_idx[OC_FRAME_PREV];
   /*Flag motion vector analysis about the frame drop.*/
   _enc->prevframe_dropped=1;
+  /*Zero the packet.*/
+  oggpackB_reset(&_enc->opb);
   /*Emit an inter frame with no coded blocks in VP3-compatibility mode.*/
   if(_enc->vp3_compatible)oc_enc_drop_frame_pack(_enc);
-  /*Otherwise zero the packet.*/
-  else oggpackB_reset(&_enc->opb);
 }
 
 static void oc_enc_compress_keyframe(oc_enc_ctx *_enc,int _recode){
@@ -1673,6 +1675,7 @@ int th_encode_packetout(th_enc_ctx *_enc,int _last_p,ogg_packet *_op){
       _enc->nqueued_dups--;
       /*Emit an inter frame with no coded blocks in VP3-compatibility mode.*/
       if(_enc->vp3_compatible){
+        oggpackB_reset(&_enc->opb);
         oc_enc_drop_frame_pack(_enc);
         packet=oggpackB_get_buffer(&_enc->opb);
         /*If there's no packet, malloc failed while writing; it's lost
