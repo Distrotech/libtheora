@@ -1742,22 +1742,15 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
   oc_qii_state qs;
   unsigned     ssd;
   unsigned     rate;
-  int          overhead;
   unsigned     satd;
   unsigned     best_ssd;
   unsigned     best_rate;
-  int          best_overhead;
   int          best_fri;
   int          best_qii;
-  unsigned     cur_cost;
-  unsigned     cur_ssd;
-  unsigned     cur_rate;
-  int          cur_overhead;
   int          lambda;
   int          nqis;
   int          nskipped;
   int          bi;
-  int          qii;
   lambda=_enc->lambda;
   nqis=_enc->state.nqis;
   /*We could do a trellis optimization here, but we don't make final skip
@@ -1768,20 +1761,25 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
      code the flags, anyway.*/
   *&fr=*_fr;
   *&qs=*_qs;
-  ssd=rate=overhead=nskipped=0;
+  ssd=rate=nskipped=0;
   for(bi=0;bi<4;bi++){
     oc_fr_state  ft[2];
     oc_qii_state qt[3];
     unsigned     best_cost;
+    unsigned     cur_cost;
+    unsigned     cur_ssd;
+    unsigned     cur_rate;
+    int          cur_overhead;
+    int          qii;
     satd=_frag_satd[bi];
     *(ft+0)=*&fr;
     oc_fr_code_block(ft+0);
     oc_qii_state_advance(qt+0,&qs,0);
-    best_overhead=(ft[0].bits-fr.bits<<OC_BIT_SCALE);
+    cur_overhead=OC_MAXI(ft[0].bits-fr.bits<<OC_BIT_SCALE,0);
     best_rate=oc_dct_cost2(&best_ssd,_enc->state.qis[0],0,_qti,satd)
      +(qt[0].bits-qs.bits<<OC_BIT_SCALE);
     best_ssd=OC_RD_SCALE(best_ssd,_rd_scale[bi]);
-    best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate+best_overhead,lambda);
+    best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate+cur_overhead,lambda);
     best_fri=0;
     best_qii=0;
     for(qii=1;qii<nqis;qii++){
@@ -1789,7 +1787,7 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
       cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],0,_qti,satd)
        +(qt[qii].bits-qs.bits<<OC_BIT_SCALE);
       cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale[bi]);
-      cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate+best_overhead,lambda);
+      cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate+cur_overhead,lambda);
       if(cur_cost<best_cost){
         best_cost=cur_cost;
         best_ssd=cur_ssd;
@@ -1800,28 +1798,25 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     if(_skip_ssd[bi]<UINT_MAX&&nskipped<3){
       *(ft+1)=*&fr;
       oc_fr_skip_block(ft+1);
-      cur_overhead=ft[1].bits-fr.bits<<OC_BIT_SCALE;
+      cur_overhead=OC_MAXI(ft[1].bits-fr.bits<<OC_BIT_SCALE,0);
       cur_ssd=_skip_ssd[bi]<<OC_BIT_SCALE;
       cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_overhead,lambda);
       if(cur_cost<=best_cost){
         best_ssd=cur_ssd;
         best_rate=0;
-        best_overhead=cur_overhead;
         best_fri=1;
         best_qii+=4;
       }
     }
     rate+=best_rate;
     ssd+=best_ssd;
-    overhead+=best_overhead;
     *&fr=*(ft+best_fri);
     if(best_fri==0)*&qs=*(qt+best_qii);
     else nskipped++;
     _modec->qii[bi]=best_qii;
   }
   _modec->ssd=ssd;
-  _modec->rate=rate;
-  _modec->overhead=OC_MAXI(overhead,0);
+  _modec->rate=rate+OC_MAXI(fr.bits-_fr->bits<<OC_BIT_SCALE,0);
 }
 
 static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
@@ -2054,7 +2049,7 @@ static void oc_cost_intra(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   oc_analyze_mb_mode_luma(_enc,_modec,_fr,_qs,_frag_satd,_skip_ssd,_rd_scale,0);
   oc_analyze_mb_mode_chroma(_enc,_modec,_fr,_qs,
    _frag_satd,_skip_ssd,_rd_scale[4],0);
-  _modec->overhead+=
+  _modec->overhead=
    oc_mode_scheme_chooser_cost(&_enc->chooser,OC_MODE_INTRA)<<OC_BIT_SCALE;
   oc_mode_set_cost(_modec,_enc->lambda);
 }
@@ -2141,7 +2136,7 @@ static void oc_cost_inter(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   oc_analyze_mb_mode_luma(_enc,_modec,_fr,_qs,frag_satd,_skip_ssd,_rd_scale,1);
   oc_analyze_mb_mode_chroma(_enc,_modec,_fr,_qs,
    frag_satd,_skip_ssd,_rd_scale[4],1);
-  _modec->overhead+=
+  _modec->overhead=
    oc_mode_scheme_chooser_cost(&_enc->chooser,_mb_mode)<<OC_BIT_SCALE;
   oc_mode_set_cost(_modec,_enc->lambda);
 }
@@ -2161,7 +2156,7 @@ static int oc_cost_inter1mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   int bits0;
   oc_cost_inter(_enc,_modec,_mbi,_mb_mode,_mv,_fr,_qs,_skip_ssd,_rd_scale);
   bits0=OC_MV_BITS[0][_mv[0]+31]+OC_MV_BITS[0][_mv[1]+31];
-  _modec->overhead+=OC_MINI(_enc->mv_bits[0]+bits0,_enc->mv_bits[1]+12)
+  _modec->overhead=OC_MINI(_enc->mv_bits[0]+bits0,_enc->mv_bits[1]+12)
    -OC_MINI(_enc->mv_bits[0],_enc->mv_bits[1])<<OC_BIT_SCALE;
   oc_mode_set_cost(_modec,_enc->lambda);
   return bits0;
@@ -2270,7 +2265,7 @@ static void oc_cost_inter4mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
   }
   oc_analyze_mb_mode_chroma(_enc,_modec,_fr,_qs,
    frag_satd,_skip_ssd,_rd_scale[4],1);
-  _modec->overhead+=
+  _modec->overhead=
    oc_mode_scheme_chooser_cost(&_enc->chooser,OC_MODE_INTER_MV_FOUR)
    +OC_MINI(_enc->mv_bits[0]+bits0,_enc->mv_bits[1]+bits1)
    -OC_MINI(_enc->mv_bits[0],_enc->mv_bits[1])<<OC_BIT_SCALE;
