@@ -945,7 +945,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
         Allowing it to mildly discourage coding turns out to be beneficial, but
          it's not clear that allowing it to encourage coding through negative
          coding overhead deltas is useful.
-        For that reason, we disallow negative coding_overheads.*/
+        For that reason, we disallow negative coding overheads.*/
       if(overhead_bits<0)overhead_bits=0;
       if(uncoded_ssd<=coded_ssd+(overhead_bits+ac_bits)*_enc->lambda){
         /*Hm, not worth it; roll back.*/
@@ -1769,25 +1769,25 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     unsigned     cur_cost;
     unsigned     cur_ssd;
     unsigned     cur_rate;
-    int          cur_overhead;
+    unsigned     cur_overhead;
     int          qii;
     satd=_frag_satd[bi];
     *(ft+0)=*&fr;
     oc_fr_code_block(ft+0);
     oc_qii_state_advance(qt+0,&qs,0);
-    cur_overhead=OC_MAXI(ft[0].bits-fr.bits<<OC_BIT_SCALE,0);
+    cur_overhead=ft[0].bits-fr.bits;
     best_rate=oc_dct_cost2(&best_ssd,_enc->state.qis[0],0,_qti,satd)
-     +(qt[0].bits-qs.bits<<OC_BIT_SCALE);
+     +(cur_overhead+qt[0].bits-qs.bits<<OC_BIT_SCALE);
     best_ssd=OC_RD_SCALE(best_ssd,_rd_scale[bi]);
-    best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate+cur_overhead,lambda);
+    best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate,lambda);
     best_fri=0;
     best_qii=0;
     for(qii=1;qii<nqis;qii++){
       oc_qii_state_advance(qt+qii,&qs,qii);
       cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],0,_qti,satd)
-       +(qt[qii].bits-qs.bits<<OC_BIT_SCALE);
+       +(cur_overhead+qt[qii].bits-qs.bits<<OC_BIT_SCALE);
       cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale[bi]);
-      cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate+cur_overhead,lambda);
+      cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate,lambda);
       if(cur_cost<best_cost){
         best_cost=cur_cost;
         best_ssd=cur_ssd;
@@ -1798,12 +1798,12 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     if(_skip_ssd[bi]<UINT_MAX&&nskipped<3){
       *(ft+1)=*&fr;
       oc_fr_skip_block(ft+1);
-      cur_overhead=OC_MAXI(ft[1].bits-fr.bits<<OC_BIT_SCALE,0);
+      cur_overhead=ft[1].bits-fr.bits<<OC_BIT_SCALE;
       cur_ssd=_skip_ssd[bi]<<OC_BIT_SCALE;
       cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_overhead,lambda);
       if(cur_cost<=best_cost){
         best_ssd=cur_ssd;
-        best_rate=0;
+        best_rate=cur_overhead;
         best_fri=1;
         best_qii+=4;
       }
@@ -1816,7 +1816,7 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     _modec->qii[bi]=best_qii;
   }
   _modec->ssd=ssd;
-  _modec->rate=rate+OC_MAXI(fr.bits-_fr->bits<<OC_BIT_SCALE,0);
+  _modec->rate=rate;
 }
 
 static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
@@ -2657,14 +2657,12 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   /*Finish adding flagging overhead costs to inter bit counts to determine if
      we should have coded a key frame instead.*/
   if(_allow_keyframe){
-    if(interbits>intrabits)return 1;
     /*Technically the chroma plane counts are over-estimations, because they
        don't account for continuing runs from the luma planes, but the
-       inaccuracy is small.*/
-    for(pli=0;pli<3;pli++)interbits+=pipe.fr[pli].bits<<OC_BIT_SCALE;
-    interbits+=OC_MINI(_enc->mv_bits[0],_enc->mv_bits[1])<<OC_BIT_SCALE;
-    interbits+=
-     _enc->chooser.scheme_bits[_enc->chooser.scheme_list[0]]<<OC_BIT_SCALE;
+       inaccuracy is small.
+      We don't need to add the luma plane coding flag costs, because they are
+       already included in the MB rate estimates.*/
+    for(pli=1;pli<3;pli++)interbits+=pipe.fr[pli].bits<<OC_BIT_SCALE;
     if(interbits>intrabits)return 1;
   }
   _enc->ncoded_mbis=ncoded_mbis;
