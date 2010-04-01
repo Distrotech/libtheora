@@ -307,8 +307,8 @@ unsigned oc_hadamard_sad(unsigned *_dc,const ogg_int16_t _buf[64]){
     t5+=t7;
     t7=r-t7;
     /*Hadamard stage 3:*/
-    dc+=abs(t0+t1);
-    r=abs(t0-t1);
+    r=abs(t0+t1);
+    r+=abs(t0-t1);
     r+=abs(t2+t3);
     r+=abs(t2-t3);
     r+=abs(t4+t5);
@@ -317,8 +317,9 @@ unsigned oc_hadamard_sad(unsigned *_dc,const ogg_int16_t _buf[64]){
     r+=abs(t6-t7);
     sad+=r;
   }
+  dc=abs(_buf[0]+_buf[1]+_buf[2]+_buf[3]+_buf[4]+_buf[5]+_buf[6]+_buf[7]);
   *_dc=dc;
-  return sad;
+  return sad-dc;
 }
 
 unsigned oc_enc_frag_satd(const oc_enc_ctx *_enc,unsigned *_dc,
