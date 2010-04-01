@@ -246,11 +246,15 @@ static unsigned oc_mcenc_ysatd_check_bcandidate_fullpel(const oc_enc_ctx *_enc,
    the work can be shared.
   The actual motion vector is stored in the appropriate place in the
    oc_mb_enc_info structure.
-  _mcenc:    The motion compensation context.
-  _accum:    Drop frame/golden MV accumulators.
-  _mbi:      The macro block index.
-  _frame:    The frame to search, either OC_FRAME_PREV or OC_FRAME_GOLD.*/
-void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame){
+  _mcenc:      The motion compensation context.
+  _accum:      Drop frame/golden MV accumulators.
+  _mbi:        The macro block index.
+  _frame:      The frame to use for SATD calculations and refinement,
+               either OC_FRAME_PREV or OC_FRAME_GOLD.
+  _frame_full: The frame to perform the 1px search on, one of OC_FRAME_PREV,
+               OC_FRAME_GOLD, OC_FRAME_PREV_ORIG, or OC_FRAME_GOLD_ORIG.
+  */
+void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, int _frame_full){
   /*Note: Traditionally this search is done using a rate-distortion objective
      function of the form D+lambda*R.
     However, xiphmont tested this and found it produced a small degredation,
@@ -271,6 +275,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame){
   const ptrdiff_t     *fragis;
   const unsigned char *src;
   const unsigned char *ref;
+  const unsigned char *ref_satd;
   int                  ystride;
   oc_mb_enc_info      *embs;
   ogg_int32_t          hit_cache[31];
@@ -294,8 +299,9 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame){
   hit_cache[candy+15]|=(ogg_int32_t)1<<candx+15;
   frag_buf_offs=_enc->state.frag_buf_offs;
   fragis=_enc->state.mb_maps[_mbi][0];
-  src=_enc->state.ref_frame_data[OC_FRAME_IO];
-  ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame]];
+  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
+  ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame_full]];
+  ref_satd=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame]];
   ystride=_enc->state.ref_ystride[0];
   /*TODO: customize error function for speed/(quality+size) tradeoff.*/
   best_err=oc_mcenc_ysad_check_mbcandidate_fullpel(_enc,
@@ -482,7 +488,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame){
   candx=best_vec[0];
   candy=best_vec[1];
   embs[_mbi].satd[_frame]=oc_mcenc_ysatd_check_mbcandidate_fullpel(_enc,
-   frag_buf_offs,fragis,candx,candy,src,ref,ystride);
+   frag_buf_offs,fragis,candx,candy,src,ref_satd,ystride);
   embs[_mbi].analysis_mv[0][_frame][0]=(signed char)(candx<<1);
   embs[_mbi].analysis_mv[0][_frame][1]=(signed char)(candy<<1);
   if(_frame==OC_FRAME_PREV){
@@ -490,7 +496,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame){
       candx=best_block_vec[bi][0];
       candy=best_block_vec[bi][1];
       embs[_mbi].block_satd[bi]=oc_mcenc_ysatd_check_bcandidate_fullpel(_enc,
-       frag_buf_offs[fragis[bi]],candx,candy,src,ref,ystride);
+       frag_buf_offs[fragis[bi]],candx,candy,src,ref_satd,ystride);
       embs[_mbi].block_mv[bi][0]=(signed char)(candx<<1);
       embs[_mbi].block_mv[bi][1]=(signed char)(candy<<1);
     }
@@ -514,7 +520,7 @@ void oc_mcenc_search(oc_enc_ctx *_enc,int _mbi){
   /*Move the motion vector predictors back a frame.*/
   memmove(mvs+1,mvs,2*sizeof(*mvs));
   /*Search the last frame.*/
-  oc_mcenc_search_frame(_enc,accum_p,_mbi,OC_FRAME_PREV);
+  oc_mcenc_search_frame(_enc,accum_p,_mbi,OC_FRAME_PREV,OC_FRAME_PREV_ORIG);
   mvs[2][OC_FRAME_PREV][0]=accum_p[0];
   mvs[2][OC_FRAME_PREV][1]=accum_p[1];
   /*GOLDEN MVs are different from PREV MVs in that they're each absolute
@@ -527,7 +533,7 @@ void oc_mcenc_search(oc_enc_ctx *_enc,int _mbi){
   mvs[2][OC_FRAME_GOLD][0]-=accum_g[0];
   mvs[2][OC_FRAME_GOLD][1]-=accum_g[1];
   /*Search the golden frame.*/
-  oc_mcenc_search_frame(_enc,accum_g,_mbi,OC_FRAME_GOLD);
+  oc_mcenc_search_frame(_enc,accum_g,_mbi,OC_FRAME_GOLD,OC_FRAME_GOLD_ORIG);
   /*Put GOLDEN MVs back into absolute offset form.
     The newest MV is already an absolute offset.*/
   mvs[2][OC_FRAME_GOLD][0]+=accum_g[0];
@@ -549,7 +555,7 @@ static int oc_mcenc_ysad_halfpel_mbrefine(const oc_enc_ctx *_enc,int _mbi,
   int                  best_site;
   int                  sitei;
   int                  err;
-  src=_enc->state.ref_frame_data[OC_FRAME_IO];
+  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_framei]];
   frag_buf_offs=_enc->state.frag_buf_offs;
   fragis=_enc->state.mb_maps[_mbi][0];
@@ -604,7 +610,7 @@ static unsigned oc_mcenc_ysatd_halfpel_mbrefine(const oc_enc_ctx *_enc,
   int                  best_site;
   int                  sitei;
   int                  err;
-  src=_enc->state.ref_frame_data[OC_FRAME_IO];
+  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame]];
   frag_buf_offs=_enc->state.frag_buf_offs;
   fragis=_enc->state.mb_maps[_mbi][0];
@@ -756,7 +762,7 @@ void oc_mcenc_refine4mv(oc_enc_ctx *_enc,int _mbi){
   ystride=_enc->state.ref_ystride[0];
   frag_buf_offs=_enc->state.frag_buf_offs;
   fragis=_enc->state.mb_maps[_mbi][0];
-  src=_enc->state.ref_frame_data[OC_FRAME_IO];
+  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_PREV]];
   offset_y[0]=offset_y[1]=offset_y[2]=-ystride;
   offset_y[3]=offset_y[5]=0;

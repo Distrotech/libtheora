@@ -1099,7 +1099,7 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   if(info.quality<0)info.quality=32;
   if(info.target_bitrate<0)info.target_bitrate=0;
   /*Initialize the shared encoder/decoder state.*/
-  ret=oc_state_init(&_enc->state,&info,4);
+  ret=oc_state_init(&_enc->state,&info,6);
   if(ret<0)return ret;
   _enc->mb_info=_ogg_calloc(_enc->state.nmbs,sizeof(*_enc->mb_info));
   _enc->frag_dc=_ogg_calloc(_enc->state.nfrags,sizeof(*_enc->frag_dc));
@@ -1588,21 +1588,7 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
     img[1].data-=cpic_y*(ptrdiff_t)img[1].stride+cpic_x;
     img[2].data-=cpic_y*(ptrdiff_t)img[2].stride+cpic_x;
   }
-  /*Step 2: Copy the input to our internal buffer.
-    This lets us add padding, so we don't have to worry about dereferencing
-     possibly invalid addresses, and allows us to use the same strides and
-     fragment offsets for both the input frame and the reference frames.*/
-  oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[OC_FRAME_IO]+0,img+0,
-   pic_x,pic_y,pic_width,pic_height);
-  oc_state_borders_fill_rows(&_enc->state,OC_FRAME_IO,0,0,frame_height);
-  oc_state_borders_fill_caps(&_enc->state,OC_FRAME_IO,0);
-  for(pli=1;pli<3;pli++){
-    oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[OC_FRAME_IO]+pli,img+pli,
-     cpic_x,cpic_y,cpic_width,cpic_height);
-    oc_state_borders_fill_rows(&_enc->state,OC_FRAME_IO,pli,0,cframe_height);
-    oc_state_borders_fill_caps(&_enc->state,OC_FRAME_IO,pli);
-  }
-  /*Step 3: Update the buffer state.*/
+  /*Step 2: Update the buffer state.*/
   if(_enc->state.ref_frame_idx[OC_FRAME_SELF]>=0){
     _enc->state.ref_frame_idx[OC_FRAME_PREV]=
      _enc->state.ref_frame_idx[OC_FRAME_SELF];
@@ -1612,6 +1598,34 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
       _enc->state.ref_frame_idx[OC_FRAME_GOLD]=
        _enc->state.ref_frame_idx[OC_FRAME_SELF];
     }
+  }
+  if(_enc->prevframe_dropped==0 && 
+     _enc->state.ref_frame_idx[OC_FRAME_IO]>=0){
+    _enc->state.ref_frame_idx[OC_FRAME_PREV_ORIG]=
+     _enc->state.ref_frame_idx[OC_FRAME_IO];
+    if(_enc->state.frame_type==OC_INTRA_FRAME){
+      /*The input new frame becomes both the previous and gold original-reference frames.*/
+      _enc->state.ref_frame_idx[OC_FRAME_GOLD_ORIG]=
+       _enc->state.ref_frame_idx[OC_FRAME_IO];
+    }
+  }  
+  /*Select a free buffer to use for the incoming frame*/
+  for(refi=3;refi==_enc->state.ref_frame_idx[OC_FRAME_GOLD_ORIG]||
+   refi==_enc->state.ref_frame_idx[OC_FRAME_PREV_ORIG];refi++);
+  _enc->state.ref_frame_idx[OC_FRAME_IO]=refi;
+  /*Step 3: Copy the input to our internal buffer.
+    This lets us add padding, so we don't have to worry about dereferencing
+     possibly invalid addresses, and allows us to use the same strides and
+     fragment offsets for both the input frame and the reference frames.*/
+  oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[_enc->state.ref_frame_idx[OC_FRAME_IO]]+0,img+0,
+   pic_x,pic_y,pic_width,pic_height);
+  oc_state_borders_fill_rows(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],0,0,frame_height);
+  oc_state_borders_fill_caps(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],0);
+  for(pli=1;pli<3;pli++){
+    oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[_enc->state.ref_frame_idx[OC_FRAME_IO]]+pli,img+pli,
+     cpic_x,cpic_y,cpic_width,cpic_height);
+    oc_state_borders_fill_rows(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],pli,0,cframe_height);
+    oc_state_borders_fill_caps(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],pli);
   }
   /*Select a free buffer to use for the reconstructed version of this frame.*/
   for(refi=0;refi==_enc->state.ref_frame_idx[OC_FRAME_GOLD]||

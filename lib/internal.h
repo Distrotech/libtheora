@@ -106,6 +106,10 @@ typedef struct oc_theora_state          oc_theora_state;
 
 /*The input or output buffer.*/
 #define OC_FRAME_IO   (3)
+/*Uncompressed prev golden frame.*/
+#define OC_FRAME_GOLD_ORIG (4)
+/*Uncompressed previous frame. */
+#define OC_FRAME_PREV_ORIG (5)
 
 /*Macroblock modes.*/
 /*Macro block is invalid: It is never coded.*/
@@ -346,11 +350,11 @@ struct oc_theora_state{
   /*The total number of coded fragments.*/
   ptrdiff_t           ntotal_coded_fragis;
   /*The index of the buffers being used for each OC_FRAME_* reference frame.*/
-  int                 ref_frame_idx[4];
-  /*The actual buffers used for the previously decoded frames.*/
-  th_ycbcr_buffer     ref_frame_bufs[4];
+  int                 ref_frame_idx[6];
+  /*The actual buffers used for the reference frames.*/
+  th_ycbcr_buffer     ref_frame_bufs[6];
   /*The storage for the reference frame buffers.*/
-  unsigned char      *ref_frame_data[4];
+  unsigned char      *ref_frame_data[6];
   /*The strides for each plane in the reference frames.*/
   int                 ref_ystride[3];
   /*The number of unique border patterns.*/
