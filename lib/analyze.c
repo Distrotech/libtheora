@@ -87,6 +87,29 @@ static void oc_mode_scheme_chooser_reset(oc_mode_scheme_chooser *_chooser){
   }
 }
 
+/*Return the cost of coding _mb_mode in the specified scheme.*/
+static int oc_mode_scheme_chooser_scheme_mb_cost(
+ const oc_mode_scheme_chooser *_chooser,int _scheme,int _mb_mode){
+  int codebook;
+  int ri;
+  codebook=_scheme+1>>3;
+  /*For any scheme except 0, we can just use the bit cost of the mode's rank
+     in that scheme.*/
+  ri=_chooser->mode_ranks[_scheme][_mb_mode];
+  if(_scheme==0){
+    int mc;
+    /*For scheme 0, incrementing the mode count could potentially change the
+       mode's rank.
+      Find the index where the mode would be moved to in the optimal list,
+       and use its bit cost instead of the one for the mode's current
+       position in the list.*/
+    /*We don't actually reorder the list; this is for computing opportunity
+       cost, not an update.*/
+    mc=_chooser->mode_counts[_mb_mode];
+    while(ri>0&&mc>=_chooser->mode_counts[_chooser->scheme0_list[ri-1]])ri--;
+  }
+  return OC_MODE_BITS[codebook][ri];
+}
 
 /*This is the real purpose of this data structure: not actually selecting a
    mode scheme, but estimating the cost of coding a given mode given all the
@@ -108,46 +131,32 @@ static int oc_mode_scheme_chooser_cost(oc_mode_scheme_chooser *_chooser,
   int best_bits;
   int mode_bits;
   int si;
-  int scheme_bits;
+  int scheme0_bits;
+  int scheme1_bits;
   scheme0=_chooser->scheme_list[0];
   scheme1=_chooser->scheme_list[1];
-  best_bits=_chooser->scheme_bits[scheme0];
-  mode_bits=OC_MODE_BITS[scheme0+1>>3][_chooser->mode_ranks[scheme0][_mb_mode]];
+  scheme0_bits=_chooser->scheme_bits[scheme0];
+  scheme1_bits=_chooser->scheme_bits[scheme1];
+  mode_bits=oc_mode_scheme_chooser_scheme_mb_cost(_chooser,scheme0,_mb_mode);
   /*Typical case: If the difference between the best scheme and the next best
      is greater than 6 bits, then adding just one mode cannot change which
      scheme we use.*/
-  if(_chooser->scheme_bits[scheme1]-best_bits>6)return mode_bits;
+  if(scheme1_bits-scheme0_bits>6)return mode_bits;
   /*Otherwise, check to see if adding this mode selects a different scheme as
      the best.*/
   si=1;
-  best_bits+=mode_bits;
+  best_bits=scheme0_bits+mode_bits;
   do{
-    /*For any scheme except 0, we can just use the bit cost of the mode's rank
-       in that scheme.*/
-    if(scheme1!=0){
-      scheme_bits=_chooser->scheme_bits[scheme1]+
-       OC_MODE_BITS[scheme1+1>>3][_chooser->mode_ranks[scheme1][_mb_mode]];
-    }
-    else{
-      int ri;
-      /*For scheme 0, incrementing the mode count could potentially change the
-         mode's rank.
-        Find the index where the mode would be moved to in the optimal list,
-         and use its bit cost instead of the one for the mode's current
-         position in the list.*/
-      /*We don't recompute scheme bits; this is computing opportunity cost, not
-         an update.*/
-      for(ri=_chooser->scheme0_ranks[_mb_mode];ri>0&&
-       _chooser->mode_counts[_mb_mode]>=
-       _chooser->mode_counts[_chooser->scheme0_list[ri-1]];ri--);
-      scheme_bits=_chooser->scheme_bits[0]+OC_MODE_BITS[0][ri];
-    }
-    if(scheme_bits<best_bits)best_bits=scheme_bits;
+    int cur_bits;
+    cur_bits=scheme1_bits+
+     oc_mode_scheme_chooser_scheme_mb_cost(_chooser,scheme1,_mb_mode);
+    if(cur_bits<best_bits)best_bits=cur_bits;
     if(++si>=8)break;
     scheme1=_chooser->scheme_list[si];
+    scheme1_bits=_chooser->scheme_bits[scheme1];
   }
-  while(_chooser->scheme_bits[scheme1]-_chooser->scheme_bits[scheme0]<=6);
-  return best_bits-_chooser->scheme_bits[scheme0];
+  while(scheme1_bits-scheme0_bits<=6);
+  return best_bits-scheme0_bits;
 }
 
 /*Incrementally update the mode counts and per-scheme bit counts and re-order

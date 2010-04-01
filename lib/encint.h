@@ -155,7 +155,7 @@ struct oc_mode_scheme_chooser{
     corresponds to the ranks above.*/
   unsigned char        scheme0_list[OC_NMODES];
   /*The number of times each mode has been chosen so far.*/
-  int                  mode_counts[OC_NMODES];
+  unsigned             mode_counts[OC_NMODES];
   /*The list of mode coding schemes, sorted in ascending order of bit cost.*/
   unsigned char        scheme_list[8];
   /*The number of bits used by each mode coding scheme.*/
