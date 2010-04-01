@@ -246,15 +246,14 @@ static unsigned oc_mcenc_ysatd_check_bcandidate_fullpel(const oc_enc_ctx *_enc,
    the work can be shared.
   The actual motion vector is stored in the appropriate place in the
    oc_mb_enc_info structure.
-  _mcenc:      The motion compensation context.
   _accum:      Drop frame/golden MV accumulators.
   _mbi:        The macro block index.
   _frame:      The frame to use for SATD calculations and refinement,
-               either OC_FRAME_PREV or OC_FRAME_GOLD.
+                either OC_FRAME_PREV or OC_FRAME_GOLD.
   _frame_full: The frame to perform the 1px search on, one of OC_FRAME_PREV,
-               OC_FRAME_GOLD, OC_FRAME_PREV_ORIG, or OC_FRAME_GOLD_ORIG.
-  */
-void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, int _frame_full){
+                OC_FRAME_GOLD, OC_FRAME_PREV_ORIG, or OC_FRAME_GOLD_ORIG.*/
+void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame,
+ int _frame_full){
   /*Note: Traditionally this search is done using a rate-distortion objective
      function of the form D+lambda*R.
     However, xiphmont tested this and found it produced a small degredation,
@@ -275,7 +274,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, i
   const ptrdiff_t     *fragis;
   const unsigned char *src;
   const unsigned char *ref;
-  const unsigned char *ref_satd;
+  const unsigned char *satd_ref;
   int                  ystride;
   oc_mb_enc_info      *embs;
   ogg_int32_t          hit_cache[31];
@@ -301,7 +300,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, i
   fragis=_enc->state.mb_maps[_mbi][0];
   src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame_full]];
-  ref_satd=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame]];
+  satd_ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[_frame]];
   ystride=_enc->state.ref_ystride[0];
   /*TODO: customize error function for speed/(quality+size) tradeoff.*/
   best_err=oc_mcenc_ysad_check_mbcandidate_fullpel(_enc,
@@ -488,7 +487,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, i
   candx=best_vec[0];
   candy=best_vec[1];
   embs[_mbi].satd[_frame]=oc_mcenc_ysatd_check_mbcandidate_fullpel(_enc,
-   frag_buf_offs,fragis,candx,candy,src,ref_satd,ystride);
+   frag_buf_offs,fragis,candx,candy,src,satd_ref,ystride);
   embs[_mbi].analysis_mv[0][_frame][0]=(signed char)(candx<<1);
   embs[_mbi].analysis_mv[0][_frame][1]=(signed char)(candy<<1);
   if(_frame==OC_FRAME_PREV){
@@ -496,7 +495,7 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame, i
       candx=best_block_vec[bi][0];
       candy=best_block_vec[bi][1];
       embs[_mbi].block_satd[bi]=oc_mcenc_ysatd_check_bcandidate_fullpel(_enc,
-       frag_buf_offs[fragis[bi]],candx,candy,src,ref_satd,ystride);
+       frag_buf_offs[fragis[bi]],candx,candy,src,satd_ref,ystride);
       embs[_mbi].block_mv[bi][0]=(signed char)(candx<<1);
       embs[_mbi].block_mv[bi][1]=(signed char)(candy<<1);
     }

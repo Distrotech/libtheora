@@ -42,7 +42,7 @@ typedef struct oc_mode_choice        oc_mode_choice;
   This is the inverse of the equivalent table OC_MODE_ALPHABETS in the
    decoder.*/
 static const unsigned char OC_MODE_RANKS[7][OC_NMODES]={
-  /*Last MV dominates.*/ 
+  /*Last MV dominates.*/
   /*L P M N I G GM 4*/
   {3,4,2,0,1,5,6,7},
   /*L P N M I G GM 4*/
@@ -769,7 +769,8 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   frags=_enc->state.frags;
   frag_offs=_enc->state.frag_buf_offs[_fragi];
   ystride=_enc->state.ref_ystride[_pli];
-  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]]+frag_offs;
+  src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]]
+   +frag_offs;
   borderi=frags[_fragi].borderi;
   qii=frags[_fragi].qii;
   if(qii&~3){

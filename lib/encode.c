@@ -1599,16 +1599,16 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
        _enc->state.ref_frame_idx[OC_FRAME_SELF];
     }
   }
-  if(_enc->prevframe_dropped==0 && 
-     _enc->state.ref_frame_idx[OC_FRAME_IO]>=0){
+  if(_enc->state.ref_frame_idx[OC_FRAME_IO]>=0&&_enc->prevframe_dropped==0){
     _enc->state.ref_frame_idx[OC_FRAME_PREV_ORIG]=
      _enc->state.ref_frame_idx[OC_FRAME_IO];
     if(_enc->state.frame_type==OC_INTRA_FRAME){
-      /*The input new frame becomes both the previous and gold original-reference frames.*/
+      /*The new input frame becomes both the previous and gold
+         original-reference frames.*/
       _enc->state.ref_frame_idx[OC_FRAME_GOLD_ORIG]=
        _enc->state.ref_frame_idx[OC_FRAME_IO];
     }
-  }  
+  }
   /*Select a free buffer to use for the incoming frame*/
   for(refi=3;refi==_enc->state.ref_frame_idx[OC_FRAME_GOLD_ORIG]||
    refi==_enc->state.ref_frame_idx[OC_FRAME_PREV_ORIG];refi++);
@@ -1617,15 +1617,15 @@ int th_encode_ycbcr_in(th_enc_ctx *_enc,th_ycbcr_buffer _img){
     This lets us add padding, so we don't have to worry about dereferencing
      possibly invalid addresses, and allows us to use the same strides and
      fragment offsets for both the input frame and the reference frames.*/
-  oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[_enc->state.ref_frame_idx[OC_FRAME_IO]]+0,img+0,
+  oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[refi]+0,img+0,
    pic_x,pic_y,pic_width,pic_height);
-  oc_state_borders_fill_rows(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],0,0,frame_height);
-  oc_state_borders_fill_caps(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],0);
+  oc_state_borders_fill_rows(&_enc->state,refi,0,0,frame_height);
+  oc_state_borders_fill_caps(&_enc->state,refi,0);
   for(pli=1;pli<3;pli++){
-    oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[_enc->state.ref_frame_idx[OC_FRAME_IO]]+pli,img+pli,
+    oc_img_plane_copy_pad(_enc->state.ref_frame_bufs[refi]+pli,img+pli,
      cpic_x,cpic_y,cpic_width,cpic_height);
-    oc_state_borders_fill_rows(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],pli,0,cframe_height);
-    oc_state_borders_fill_caps(&_enc->state,_enc->state.ref_frame_idx[OC_FRAME_IO],pli);
+    oc_state_borders_fill_rows(&_enc->state,refi,pli,0,cframe_height);
+    oc_state_borders_fill_caps(&_enc->state,refi,pli);
   }
   /*Select a free buffer to use for the reconstructed version of this frame.*/
   for(refi=0;refi==_enc->state.ref_frame_idx[OC_FRAME_GOLD]||

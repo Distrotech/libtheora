@@ -469,7 +469,7 @@ static void oc_state_frarray_clear(oc_theora_state *_state){
    unrestricted motion vectors without special casing the boundary.
   If chroma is decimated in either direction, the padding is reduced by a
    factor of 2 on the appropriate sides.
-  _nrefs: The number of reference buffers to init; must be 3, 4, or 6.*/
+  _nrefs: The number of reference buffers to init; must be in the range 3...6.*/
 static int oc_state_ref_bufs_init(oc_theora_state *_state,int _nrefs){
   th_info       *info;
   unsigned char *ref_frame_data;
@@ -581,8 +581,8 @@ static int oc_state_ref_bufs_init(oc_theora_state *_state,int _nrefs){
    _state->ref_frame_idx[OC_FRAME_PREV]=
    _state->ref_frame_idx[OC_FRAME_GOLD_ORIG]=
    _state->ref_frame_idx[OC_FRAME_PREV_ORIG]=
-   _state->ref_frame_idx[OC_FRAME_SELF]=-1;
-  _state->ref_frame_idx[OC_FRAME_IO]=_nrefs>3?3:-1;
+   _state->ref_frame_idx[OC_FRAME_SELF]=
+   _state->ref_frame_idx[OC_FRAME_IO]=-1;
   return 0;
 }
 
