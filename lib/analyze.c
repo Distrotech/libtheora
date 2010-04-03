@@ -1668,9 +1668,12 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
          activity,activity_avg,luma,luma_avg);
         luma_sum+=luma;
         /*Motion estimation:
-          We always do a basic 1MV search for all macroblocks, coded or not,
-           keyframe or not.*/
-        if(!_recode&&_enc->state.curframe_num>0)oc_mcenc_search(_enc,mbi);
+          We do a basic 1MV search for all macroblocks, coded or not,
+           keyframe or not, unless motion estimation is not being used at all*/
+        if(!_recode&&_enc->state.curframe_num>0&&
+         _enc->sp_level<OC_SP_LEVEL_NOMC&&_enc->keyframe_frequency_force>1){
+          oc_mcenc_search(_enc,mbi);
+        }
         oc_analyze_intra_mb_luma(_enc,pipe.qs+0,mbi,rd_scale);
         mb_modes[mbi]=OC_MODE_INTRA;
         oc_enc_mb_transform_quantize_intra_luma(_enc,&pipe,
