@@ -214,10 +214,21 @@ static int queue_page(ogg_page *page){
 
 static void usage(void){
   fprintf(stderr,
-          "Usage: dumpvid <file.ogv> > outfile\n"
-          "input is read from stdin if no file is passed on the command line\n"
-          "\n"
-  );
+   "Usage: dumpvid [options] [<infile.ogv>] [-o <outfile.y4m>]\n\n"
+   "If no input file is given, stdin is used.\n"
+   "Options:\n\n"
+   "  -o --output <outfile.y4m> File name for decoded output. If\n"
+   "                            this option is not given, the\n"
+   "                            decompressed data is sent to stdout.\n"
+   "  -c --crop                 Crop the output to the picture region.\n"
+   "                            By default, the entire encoded frame\n"
+   "                            is output, including the padding\n"
+   "                            require to make the image dimensions\n"
+   "                            a multiple of 16.\n"
+   "  -r --raw                  Output raw YUV with no framing instead\n"
+   "                            of YUV4MPEG2 (the default).\n"
+   "  -f --fps-only             Only report the decoding frame rate.\n");
+  exit(1);
 }
 
 int main(int argc,char *argv[]){
