@@ -51,9 +51,10 @@
 #include "getopt.h"
 #include "theora/theoradec.h"
 
-const char *optstring = "o:rf";
+const char *optstring = "o:crf";
 struct option options [] = {
   {"output",required_argument,NULL,'o'},
+  {"crop",no_argument,NULL,'c'}, /*Crop down to the picture size.*/
   {"raw",no_argument, NULL,'r'}, /*Disable YUV4MPEG2 headers:*/
   {"fps-only",no_argument, NULL, 'f'}, /* Only interested in fps of decode loop */
   {NULL,0,NULL,0}
@@ -88,6 +89,7 @@ int          videobuf_ready=0;
 ogg_int64_t  videobuf_granulepos=-1;
 double       videobuf_time=0;
 int          raw=0;
+int          crop=0;
 
 FILE* outfile = NULL;
 
@@ -153,12 +155,32 @@ static void video_write(void){
   th_ycbcr_buffer ycbcr;
   th_decode_ycbcr_out(td,ycbcr);*/
   if(outfile){
+    int x0;
+    int y0;
+    int xend;
+    int yend;
+    int hdec;
+    int vdec;
+    if(crop){
+      x0=ti.pic_x;
+      y0=ti.pic_y;
+      xend=x0+ti.pic_width;
+      yend=y0+ti.pic_height;
+    }
+    else{
+      x0=y0=0;
+      xend=ti.frame_width;
+      yend=ti.frame_height;
+    }
+    hdec=vdec=0;
     if(!raw)fprintf(outfile, "FRAME\n");
     for(pli=0;pli<3;pli++){
-      for(i=0;i<ycbcr[pli].height;i++){
-        fwrite(ycbcr[pli].data+ycbcr[pli].stride*i, 1,
-         ycbcr[pli].width, outfile);
+      for(i=y0>>vdec;i<(yend+vdec>>vdec);i++){
+        fwrite(ycbcr[pli].data+ycbcr[pli].stride*i+(x0>>hdec), 1,
+         (xend+hdec>>hdec)-(x0>>hdec), outfile);
       }
+      hdec=!(ti.pixel_fmt&1);
+      vdec=!(ti.pixel_fmt&2);
     }
   }
 }
@@ -234,6 +256,10 @@ int main(int argc,char *argv[]){
       }else{
         outfile=stdout;
       }
+      break;
+
+    case 'c':
+      crop=1;
       break;
 
     case 'r':
@@ -377,12 +403,34 @@ int main(int argc,char *argv[]){
 
   if(!raw && outfile){
     static const char *CHROMA_TYPES[4]={"420jpeg",NULL,"422jpeg","444"};
+    int width;
+    int height;
     if(ti.pixel_fmt>=4||ti.pixel_fmt==TH_PF_RSVD){
       fprintf(stderr,"Unknown pixel format: %i\n",ti.pixel_fmt);
       exit(1);
     }
+    if(crop){
+      int hdec;
+      int vdec;
+      hdec=!(ti.pixel_fmt&1);
+      vdec=!(ti.pixel_fmt&2);
+      if((ti.pic_x&hdec)||(ti.pic_width&hdec)
+       ||(ti.pic_y&vdec)||(ti.pic_height&vdec)){
+        fprintf(stderr,
+         "Error: Cropped images with odd offsets/sizes and chroma subsampling\n"
+         "cannot be output to YUV4MPEG2. Remove the --crop flag or add the\n"
+         "--raw flag.\n");
+        exit(1);
+      }
+      width=ti.pic_width;
+      height=ti.pic_height;
+    }
+    else{
+      width=ti.frame_width;
+      height=ti.frame_height;
+    }
     fprintf(outfile,"YUV4MPEG2 C%s W%d H%d F%d:%d I%c A%d:%d\n",
-     CHROMA_TYPES[ti.pixel_fmt],ti.frame_width,ti.frame_height,
+     CHROMA_TYPES[ti.pixel_fmt],width,height,
      ti.fps_numerator,ti.fps_denominator,'p',
      ti.aspect_numerator,ti.aspect_denominator);
   }
