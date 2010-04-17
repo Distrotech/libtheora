@@ -14,6 +14,10 @@ AC_CONFIG_SRCDIR([lib/fdct.c])
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE
 
+dnl we use doc_DATA in doc/Makefile.am which requires autoconf >= 2.60
+dnl to define docdir for us.
+AC_PREREQ(2.60)
+
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 dnl Library versioning
