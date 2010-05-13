@@ -165,8 +165,16 @@ static const unsigned char OC_DCT_TOKEN_MAP[TH_NDCT_TOKENS]={
   10538563 read calls are required when OC_HUFF_SLUSH is 2 (32.7%).
   10192578 read calls are required when OC_HUFF_SLUSH is 3 (31.6%).
   Since a value of 1 gets us the vast majority of the speed-up with only a
-   small amount of wasted memory, this is what we use.*/
+   small amount of wasted memory, this is what we use.
+  This value must be less than 7, or you could create a tree with more than
+   32767 entries, which would overflow the 16-bit words used to index it.*/
 #define OC_HUFF_SLUSH (1)
+/*The root of the tree is the fast path, and a larger value here is more
+   beneficial than elsewhere in the tree.
+  3 appears to give the best performance, trading off between increased use of
+   the single-read fast path and cache footprint for the tables.
+  using 3 here The VP3 tables are about 2.6x larger using 3 here than using 1.*/
+#define OC_ROOT_HUFF_SLUSH (3)
 
 
 /*Determines the size in words of a Huffman tree node that represents a
@@ -366,6 +374,7 @@ static size_t oc_huff_tree_collapse_size(ogg_int16_t *_bitree,int _binode,
   size_t size;
   int    mindepth;
   int    depth;
+  int    threshold;
   int    loccupancy;
   int    occupancy;
   int    child1;
@@ -383,8 +392,9 @@ static size_t oc_huff_tree_collapse_size(ogg_int16_t *_bitree,int _binode,
   do{
     loccupancy=occupancy;
     occupancy=oc_huff_tree_occupancy(_bitree,_binode,++depth);
+    threshold=1<<OC_MAXI(depth-(_binode>0?OC_HUFF_SLUSH:OC_ROOT_HUFF_SLUSH),0);
   }
-  while(occupancy>loccupancy&&occupancy>=1<<OC_MAXI(depth-OC_HUFF_SLUSH,0));
+  while(occupancy>loccupancy&&occupancy>=threshold);
   depth--;
   size=oc_huff_node_size(depth);
   if(depth>0){
@@ -464,14 +474,16 @@ static int oc_huff_tree_collapse(ogg_int16_t *_tree,int *_node,
   int depth;
   int loccupancy;
   int occupancy;
+  int threshold;
   int node;
   depth=mindepth=oc_huff_tree_mindepth(_bitree,_binode);
   occupancy=1<<mindepth;
   do{
     loccupancy=occupancy;
     occupancy=oc_huff_tree_occupancy(_bitree,_binode,++depth);
+    threshold=1<<OC_MAXI(depth-(_binode>0?OC_HUFF_SLUSH:OC_ROOT_HUFF_SLUSH),0);
   }
-  while(occupancy>loccupancy&&occupancy>=1<<OC_MAXI(depth-OC_HUFF_SLUSH,0));
+  while(occupancy>loccupancy&&occupancy>=threshold);
   depth--;
   node=*_node;
   if(depth<=0){
@@ -520,11 +532,14 @@ int oc_huff_trees_unpack(oc_pack_buf *_opb,
   _src: The array of trees to copy.*/
 int oc_huff_trees_copy(ogg_int16_t *_dst[TH_NHUFFMAN_TABLES],
  const ogg_int16_t *const _src[TH_NHUFFMAN_TABLES]){
+  int total;
   int i;
+  total=0;
   for(i=0;i<TH_NHUFFMAN_TABLES;i++){
     size_t       size;
     ogg_int16_t *tree;
     size=oc_huff_tree_size(_src[i],0);
+    total+=size;
     tree=(ogg_int16_t *)_ogg_malloc(size*sizeof(*tree));
     if(tree==NULL){
       while(i-->0)_ogg_free(_dst[i]);
@@ -565,15 +580,19 @@ int oc_huff_token_decode(oc_pack_buf *_opb,const ogg_int16_t *_tree){
     Branch prediction should make this esoteric case free.*/
   if(n<=0)return -n&255;
   if(n>available){
-    /*We don't bother setting eof because we won't check for it after we've
-       started decoding DCT tokens.*/
-    if(ptr>=stop)available=OC_LOTS_OF_BITS;
-    while(available<=OC_PB_WINDOW_SIZE-8){
+    for(;;){
+      /*We don't bother setting eof because we won't check for it after we've
+         started decoding DCT tokens.*/
+      if(ptr>=stop){
+        available=OC_LOTS_OF_BITS;
+        break;
+      }
+      if(available>OC_PB_WINDOW_SIZE-8)break;
       available+=8;
       window|=(oc_pb_window)*ptr++<<OC_PB_WINDOW_SIZE-available;
-      if(ptr>=stop)available=OC_LOTS_OF_BITS;
     }
-    if(n>available)window|=*ptr>>(available&7);
+    /*Note: We never request more than 24 bits, so there's no need to fill in
+       the last partial byte here.*/
   }
   bits=window>>OC_PB_WINDOW_SIZE-n;
   node=_tree[1+bits];
@@ -582,15 +601,19 @@ int oc_huff_token_decode(oc_pack_buf *_opb,const ogg_int16_t *_tree){
     available-=n;
     n=_tree[node];
     if(n>available){
-      /*We don't bother setting eof because we won't check for it after we've
-         started decoding DCT tokens.*/
-      if(ptr>=stop)available=OC_LOTS_OF_BITS;
-      while(available<=OC_PB_WINDOW_SIZE-8){
+      for(;;){
+        /*We don't bother setting eof because we won't check for it after we've
+           started decoding DCT tokens.*/
+        if(ptr>=stop){
+          available=OC_LOTS_OF_BITS;
+          break;
+        }
+        if(available>OC_PB_WINDOW_SIZE-8)break;
         available+=8;
         window|=(oc_pb_window)*ptr++<<OC_PB_WINDOW_SIZE-available;
-        if(ptr>=stop)available=OC_LOTS_OF_BITS;
       }
-      if(n>available)window|=*ptr>>(available&7);
+      /*Note: We never request more than 24 bits, so there's no need to fill in
+         the last partial byte here.*/
     }
     bits=window>>OC_PB_WINDOW_SIZE-n;
     node=_tree[node+1+bits];
