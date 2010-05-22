@@ -46,24 +46,19 @@
   It also has very large memory requirements, which impairs cache coherency.
 
   We store the tree packed in an array of 16-bit integers (words).
-  These come in two flavors.
-  The first is a "bitree", or binary tree, where each node always has exactly
-   two children, stored in consecutive words.
-  If the child is negative or zero, then it is a leaf node.
-  These are stored directly in the child pointer to save space, since they only
-   require a single word.
-  The token value is -leaf.
-  If the child is positive, then it is the index of another internal node in
-   the table.
-
-  The second flavor is a general "tree", where each node consists of a single
-   word, followed consecutively by two or more indices of its children.
+  Each node consists of a single word, followed consecutively by two or more
+   indices of its children.
   Let n be the value of this first word.
   This is the number of bits that need to be read to traverse the node, and
    must be positive.
   1<<n entries follow in the array, each an index to a child node.
-  If a leaf node would have been before reading n bits, then it is duplicated
-   the necessary number of times in this table.
+  If the child is positive, then it is the index of another internal node in
+   the table.
+  If the child is negative or zero, then it is a leaf node.
+  These are stored directly in the child pointer to save space, since they only
+   require a single word.
+  If a leaf node would have been encountered before reading n bits, then it is
+   duplicated the necessary number of times in this table.
   Leaf nodes pack both a token value and their actual depth in the tree.
   The token in the leaf node is (-leaf&255).
   The number of bits that need to be consumed to reach the leaf, starting from
@@ -81,11 +76,6 @@
   }*/
 
 
-
-/*The number of internal tokens associated with each of the spec tokens.*/
-static const unsigned char OC_DCT_TOKEN_MAP_ENTRIES[TH_NDCT_TOKENS]={
-  1,1,1,4,8,1,1,8,1,1,1,1,1,2,2,2,2,4,8,2,2,2,4,2,2,2,2,2,8,2,4,8
-};
 
 /*The map from external spec-defined tokens to internal tokens.
   This is constructed so that any extra bits read with the original token value
@@ -155,141 +145,167 @@ static const unsigned char OC_DCT_TOKEN_MAP[TH_NDCT_TOKENS]={
   40
 };
 
+/*The log base 2 of number of internal tokens associated with each of the spec
+   tokens (i.e., how many of the extra bits are folded into the token value).
+  Increasing the maximum value beyond 3 will enlarge the amount of stack
+   required for tree construction.*/
+static const unsigned char OC_DCT_TOKEN_MAP_LOG_NENTRIES[TH_NDCT_TOKENS]={
+  0,0,0,2,3,0,0,3,0,0,0,0,0,1,1,1,1,2,3,1,1,1,2,1,1,1,1,1,3,1,2,3
+};
 
-/*The log_2 of the size of a lookup table is allowed to grow to relative to
-   the number of unique nodes it contains.
-  E.g., if OC_HUFF_SLUSH is 2, then at most 75% of the space in the tree is
-   wasted (each node will have an amortized cost of at most 20 bytes when using
-   4-byte pointers).
+
+/*The size a lookup table is allowed to grow to relative to the number of
+   unique nodes it contains.
+  E.g., if OC_HUFF_SLUSH is 4, then at most 75% of the space in the tree is
+   wasted.
   Larger numbers can decode tokens with fewer read operations, while smaller
-   numbers may save more space (requiring as little as 8 bytes amortized per
-   node, though there will be more nodes).
+   numbers may save more space.
   With a sample file:
   32233473 read calls are required when no tree collapsing is done (100.0%).
-  19269269 read calls are required when OC_HUFF_SLUSH is 0 (59.8%).
-  11144969 read calls are required when OC_HUFF_SLUSH is 1 (34.6%).
-  10538563 read calls are required when OC_HUFF_SLUSH is 2 (32.7%).
-  10192578 read calls are required when OC_HUFF_SLUSH is 3 (31.6%).
+  19269269 read calls are required when OC_HUFF_SLUSH is 1 (59.8%).
+  11144969 read calls are required when OC_HUFF_SLUSH is 2 (34.6%).
+  10538563 read calls are required when OC_HUFF_SLUSH is 4 (32.7%).
+  10192578 read calls are required when OC_HUFF_SLUSH is 8 (31.6%).
   Since a value of 1 gets us the vast majority of the speed-up with only a
    small amount of wasted memory, this is what we use.
-  This value must be less than 7, or you could create a tree with more than
+  This value must be less than 128, or you could create a tree with more than
    32767 entries, which would overflow the 16-bit words used to index it.*/
-#define OC_HUFF_SLUSH (1)
-/*The root of the tree is the fast path, and a larger value here is more
+#define OC_HUFF_SLUSH (2)
+/*The root of the tree is on the fast path, and a larger value here is more
    beneficial than elsewhere in the tree.
-  3 appears to give the best performance, trading off between increased use of
-   the single-read fast path and cache footprint for the tables.
-  using 3 here The VP3 tables are about 2.6x larger using 3 here than using 1.*/
-#define OC_ROOT_HUFF_SLUSH (3)
+  7 appears to give the best performance, trading off between increased use of
+   the single-read fast path and cache footprint for the tables, though
+   obviously this will depend on your cache size.
+  Using 7 here, the VP3 tables are about twice as large compared to using 2.*/
+#define OC_ROOT_HUFF_SLUSH (7)
 
 
 
-/*Unpacks a sub-tree from the given buffer.
-  _opb:      The buffer to unpack from.
-  _bitree:   The tree to store the sub-tree in.
-  _nbinodes: The number of nodes available for the tree.
-  _binode:   The index of the tree to store it in.
-             This is updated to point to the first available slot past the
-              sub-tree on return.
-             If an error occurs, this is set larger than _nbinodes.
-  Return: The node index of the sub-tree, or leaf node value if this was a leaf
-   node and this wasn't the root of the tree.*/
-static int oc_huff_tree_unpack(oc_pack_buf *_opb,
- ogg_int16_t *_bitree,int _nbinodes,int *_binode){
-  long bits;
-  int  binode;
-  binode=*_binode;
-  if(binode>_nbinodes)return 0;
-  bits=oc_pack_read1(_opb);
-  if(oc_pack_bytes_left(_opb)<0){
-    *_binode=_nbinodes+1;
-    return 0;
-  }
-  /*Read an internal node:*/
-  if(!bits){
-    *_binode=binode+2;
-    if(binode+2>_nbinodes)return 0;
-    _bitree[binode+0]=
-     (ogg_int16_t)oc_huff_tree_unpack(_opb,_bitree,_nbinodes,_binode);
-    _bitree[binode+1]=
-     (ogg_int16_t)oc_huff_tree_unpack(_opb,_bitree,_nbinodes,_binode);
-  }
-  /*Read a leaf node:*/
-  else{
-    int ntokens;
-    int token;
-    bits=oc_pack_read(_opb,OC_NDCT_TOKEN_BITS);
-    if(oc_pack_bytes_left(_opb)<0){
-      *_binode=_nbinodes+1;
-      return 0;
+/*Unpacks a Huffman codebook.
+  _opb:    The buffer to unpack from.
+  _tokens: Stores a list of internal tokens, in the order they were found in
+            the codebook, and the lengths of their corresponding codewords.
+           This is enough to completely define the codebook, while minimizing
+            stack usage and avoiding temporary allocations (for platforms
+            where free() is a no-op).
+  Return: The number of internal tokens in the codebook, or a negative value
+   on error.*/
+int oc_huff_tree_unpack(oc_pack_buf *_opb,unsigned char _tokens[256][2]){
+  ogg_uint32_t code;
+  int          len;
+  int          ntokens;
+  int          nleaves;
+  code=0;
+  len=ntokens=nleaves=0;
+  for(;;){
+    long bits;
+    bits=oc_pack_read1(_opb);
+    /*Only process nodes so long as there's more bits in the buffer.*/
+    if(oc_pack_bytes_left(_opb)<0)return TH_EBADHEADER;
+    /*Read an internal node:*/
+    if(!bits){
+      len++;
+      /*Don't allow codewords longer than 32 bits.*/
+      if(len>32)return TH_EBADHEADER;
     }
-    /*Find out how many internal tokens we translate this external token into.
-      This must be a power of two.*/
-    ntokens=OC_DCT_TOKEN_MAP_ENTRIES[bits];
-    token=OC_DCT_TOKEN_MAP[bits];
-    if(ntokens<=1){
-      /*If we only have the one leaf, return it directly.*/
-      return -token;
-    }
+    /*Read a leaf node:*/
     else{
-      int last_row_sz;
-      int i;
-      int j;
-      /*Fill in a complete binary tree pointing to the internal nodes.*/
-      *_binode=binode+2*(ntokens-1);
-      if(binode+2*(ntokens-1)>_nbinodes)return 0;
-      last_row_sz=ntokens>>1;
-      for(i=1;i<last_row_sz;i<<=1){
-        int child;
-        child=binode+2*(2*i-1);
-        for(j=0;j<i;j++){
-          _bitree[binode+2*(i-1+j)+0]=(ogg_int16_t)child;
-          child+=2;
-          _bitree[binode+2*(i-1+j)+1]=(ogg_int16_t)child;
-          child+=2;
-        }
+      ogg_uint32_t code_bit;
+      int          neb;
+      int          nentries;
+      int          token;
+      /*Don't allow more than 32 spec-tokens per codebook.*/
+      if(++nleaves>32)return TH_EBADHEADER;
+      bits=oc_pack_read(_opb,OC_NDCT_TOKEN_BITS);
+      neb=OC_DCT_TOKEN_MAP_LOG_NENTRIES[bits];
+      token=OC_DCT_TOKEN_MAP[bits];
+      nentries=1<<neb;
+      while(nentries-->0){
+        _tokens[ntokens][0]=(unsigned char)token++;
+        _tokens[ntokens][1]=(unsigned char)(len+neb);
+        ntokens++;
       }
-      /*And now the last row pointing to the leaf nodes.*/
-      for(i=j=0;j<last_row_sz;j++){
-        _bitree[binode+2*(last_row_sz-1+j)+0]=(ogg_int16_t)-(token+i++);
-        _bitree[binode+2*(last_row_sz-1+j)+1]=(ogg_int16_t)-(token+i++);
+      code_bit=0x80000000U>>len-1;
+      while(len>0&&(code&code_bit)){
+        code^=code_bit;
+        code_bit<<=1;
+        len--;
       }
+      if(len<=0)break;
+      code|=code_bit;
     }
   }
-  return binode>0?binode:1;
+  return ntokens;
 }
 
-/*Finds the depth of shortest branch of the given sub-tree.
-  _bitree: A packed binary Huffman tree.
-  _binode: The root of the given sub-tree.
-  Return: The smallest depth of a leaf node in this sub-tree.
-          0 indicates this sub-tree is a leaf node.*/
-static int oc_huff_bitree_mindepth(const ogg_int16_t *_bitree,int _binode){
-  int child;
-  int depth0;
-  int depth1;
-  child=_bitree[_binode+0];
-  depth0=child<=0?0:oc_huff_bitree_mindepth(_bitree,child);
-  child=_bitree[_binode+1];
-  depth1=child<=0?0:oc_huff_bitree_mindepth(_bitree,child);
-  return OC_MINI(depth0,depth1)+1;
+/*Count how many tokens would be required to fill a subtree at depth _depth.
+  _tokens: A list of internal tokens, in the order they are found in the
+            codebook, and the lengths of their corresponding codewords.
+  _depth:  The depth of the desired node in the corresponding tree structure.
+  Return: The number of tokens that belong to that subtree.*/
+static int oc_huff_subtree_tokens(unsigned char _tokens[][2],int _depth){
+  ogg_uint32_t code;
+  int          ti;
+  code=0;
+  ti=0;
+  do{
+    if(_tokens[ti][1]-_depth<32)code+=0x80000000U>>_tokens[ti++][1]-_depth;
+    else{
+      /*Because of the expanded internal tokens, we can have codewords as long
+         as 35 bits.
+        A single recursion here is enough to advance past them.*/
+      code++;
+      ti+=oc_huff_subtree_tokens(_tokens+ti,_depth+31);
+    }
+  }
+  while(code<0x80000000U);
+  return ti;
 }
 
-/*Finds the number of internal nodes at a given depth, plus the number of
-   leaves at that depth or shallower.
-  _bitree: A packed binary Huffman tree.
-  _binode: The root of the given sub-tree.
-  Return: The number of unique entries that would be contained in a jump table
-           of the given depth.*/
-static int oc_huff_bitree_occupancy(const ogg_int16_t *_bitree,int _binode,
- int _depth){
-  int child1;
-  int child2;
-  if(_depth<=0)return 1;
-  child1=_bitree[_binode+0];
-  child2=_bitree[_binode+1];
-  return (child1<=0?1:oc_huff_bitree_occupancy(_bitree,child1,_depth-1))+
-   (child2<=0?1:oc_huff_bitree_occupancy(_bitree,child2,_depth-1));
+/*Compute the number of bits to use for a collapsed tree node at the given
+   depth.
+  _tokens:  A list of internal tokens, in the order they are found in the
+             codebook, and the lengths of their corresponding codewords.
+  _ntokens: The number of tokens corresponding to this tree node.
+  _depth:   The depth of this tree node.
+  Return: The number of bits to use for a collapsed tree node rooted here.
+          This is always at least one, even if this was a leaf node.*/
+static int oc_huff_tree_collapse_depth(unsigned char _tokens[][2],
+ int _ntokens,int _depth){
+  int got_leaves;
+  int loccupancy;
+  int occupancy;
+  int slush;
+  int nbits;
+  int best_nbits;
+  slush=_depth>0?OC_HUFF_SLUSH:OC_ROOT_HUFF_SLUSH;
+  /*It's legal to have a tree with just a single node, which requires no bits
+     to decode and always returns the same token.
+    However, no encoder actually does this (yet).
+    To avoid a special case in oc_huff_token_decode(), we force the number of
+     lookahead bits to be at least one.
+    This will produce a tree that looks ahead one bit and then advances the
+     stream zero bits.*/
+  nbits=1;
+  occupancy=2;
+  got_leaves=1;
+  do{
+    int ti;
+    if(got_leaves)best_nbits=nbits;
+    nbits++;
+    got_leaves=0;
+    loccupancy=occupancy;
+    for(occupancy=ti=0;ti<_ntokens;occupancy++){
+      if(_tokens[ti][1]<_depth+nbits)ti++;
+      else if(_tokens[ti][1]==_depth+nbits){
+        got_leaves=1;
+        ti++;
+      }
+      else ti+=oc_huff_subtree_tokens(_tokens+ti,_depth+nbits);
+    }
+  }
+  while(occupancy>loccupancy&&occupancy*slush>=1<<nbits);
+  return best_nbits;
 }
 
 /*Determines the size in words of a Huffman tree node that represents a
@@ -299,6 +315,104 @@ static int oc_huff_bitree_occupancy(const ogg_int16_t *_bitree,int _binode,
   Return: The number of words required to store the node.*/
 static size_t oc_huff_node_size(int _nbits){
   return 1+(1<<_nbits);
+}
+
+/*Produces a collapsed-tree representation of the given token list.
+  _tree: The storage for the collapsed Huffman tree.
+         This may be NULL to compute the required storage size instead of
+          constructing the tree.
+  _tokens:  A list of internal tokens, in the order they are found in the
+             codebook, and the lengths of their corresponding codewords.
+  _ntokens: The number of tokens corresponding to this tree node.
+  Return: The number of words required to store the tree.*/
+static size_t oc_huff_tree_collapse(ogg_int16_t *_tree,
+ unsigned char _tokens[][2],int _ntokens){
+  ogg_int16_t   node[34];
+  unsigned char depth[34];
+  unsigned char last[34];
+  size_t        ntree;
+  int           ti;
+  int           l;
+  depth[0]=0;
+  last[0]=(unsigned char)(_ntokens-1);
+  ntree=0;
+  ti=0;
+  l=0;
+  do{
+    int nbits;
+    nbits=oc_huff_tree_collapse_depth(_tokens+ti,last[l]+1-ti,depth[l]);
+    node[l]=(ogg_int16_t)ntree;
+    ntree+=oc_huff_node_size(nbits);
+    if(_tree!=NULL)_tree[node[l]++]=(ogg_int16_t)nbits;
+    do{
+      while(ti<=last[l]&&_tokens[ti][1]<=depth[l]+nbits){
+        if(_tree!=NULL){
+          ogg_int16_t leaf;
+          int         nentries;
+          nentries=1<<depth[l]+nbits-_tokens[ti][1];
+          leaf=(ogg_int16_t)-(_tokens[ti][1]-depth[l]<<8|_tokens[ti][0]);
+          while(nentries-->0)_tree[node[l]++]=leaf;
+        }
+        ti++;
+      }
+      if(ti<=last[l]){
+        /*We need to recurse*/
+        depth[l+1]=(unsigned char)(depth[l]+nbits);
+        if(_tree!=NULL)_tree[node[l]++]=(ogg_int16_t)ntree;
+        l++;
+        last[l]=
+         (unsigned char)(ti+oc_huff_subtree_tokens(_tokens+ti,depth[l])-1);
+        break;
+      }
+      /*Pop back up a level of recursion.*/
+      else if(l-->0)nbits=depth[l+1]-depth[l];
+    }
+    while(l>=0);
+  }
+  while(l>=0);
+  return ntree;
+}
+
+/*Unpacks a set of Huffman trees, and reduces them to a collapsed
+   representation.
+  _opb:   The buffer to unpack the trees from.
+  _nodes: The table to fill with the Huffman trees.
+  Return: 0 on success, or a negative value on error.*/
+int oc_huff_trees_unpack(oc_pack_buf *_opb,
+ ogg_int16_t *_nodes[TH_NHUFFMAN_TABLES]){
+  int ret;
+  int i;
+  ret=0;
+  for(i=0;i<TH_NHUFFMAN_TABLES;i++){
+    unsigned char  tokens[256][2];
+    int            ntokens;
+    ogg_int16_t   *tree;
+    size_t         size;
+    /*Unpack the full tree into a temporary buffer.*/
+    ntokens=oc_huff_tree_unpack(_opb,tokens);
+    if(ntokens<0){
+      ret=ntokens;
+      break;
+    }
+    /*Figure out how big the collapsed tree will be and allocate space for it.*/
+    size=oc_huff_tree_collapse(NULL,tokens,ntokens);
+    if(size>32767){
+      /*This should never happen; if it does it means you set OC_HUFF_SLUSH or
+         OC_ROOT_HUFF_SLUSH too large.*/
+      ret=TH_EIMPL;
+      break;
+    }
+    tree=(ogg_int16_t *)_ogg_malloc(size*sizeof(*tree));
+    if(tree==NULL){
+      ret=TH_EFAULT;
+      break;
+    }
+    /*Construct the collapsed the tree.*/
+    oc_huff_tree_collapse(tree,tokens,ntokens);
+    _nodes[i]=tree;
+  }
+  if(ret<0)while(i-->0)_ogg_free(_nodes[i]);
+  return ret;
 }
 
 /*Determines the size in words of a Huffman subtree.
@@ -327,191 +441,6 @@ static size_t oc_huff_tree_size(const ogg_int16_t *_tree,int _node){
   return size;
 }
 
-/*Makes a copy of the given Huffman sub-tree.
-  _dst: The destination tree.
-  _src: The destination tree.
-  _node: The index Huffman sub-tree to copy.
-  Return: The index of the first available slot after the sub-tree copy.*/
-static int oc_huff_tree_copy(ogg_int16_t *_dst,
- const ogg_int16_t *_src,int _node){
-  int nchildren;
-  int ret;
-  int i;
-  int n;
-  n=_src[_node];
-  _dst[_node++]=(ogg_int16_t)n;
-  nchildren=1<<n;
-  ret=_node+nchildren;
-  for(i=0;i<nchildren;i++){
-    int child;
-    child=_src[_node+i];
-    _dst[_node+i]=(ogg_int16_t)child;
-    if(child>0){
-      /*Note: The assignment to ret here assumes that storage for children is
-         in order, and consecutive (e.g., child==ret before the call).*/
-      ret=oc_huff_tree_copy(_dst,_src,child);
-    }
-  }
-  return ret;
-}
-
-/*Computes the number of words of storage that will be required by
-   oc_huff_tree_collapse() for the given sub-tree.
-  _bitree: The binary tree to collapse.
-  _binode: The index of the root of the sub-tree to fill it with.
-           _bitree[_binode] must ==1.
-  _depth:  The depth of the nodes that our parent in the collapsed sub-tree
-            will fill its table with.
-           Pass 0 for the root of the tree.
-  Return: The number of words required to store the collapsed tree.*/
-static size_t oc_huff_bitree_collapse_size(ogg_int16_t *_bitree,int _binode,
- int _depth){
-  size_t size;
-  int    child1;
-  int    child2;
-  if(_depth>0)size=0;
-  else{
-    int mindepth;
-    int slush;
-    int loccupancy;
-    int occupancy;
-    _depth=mindepth=oc_huff_bitree_mindepth(_bitree,_binode);
-    occupancy=1<<mindepth;
-    slush=_binode>0?OC_HUFF_SLUSH:OC_ROOT_HUFF_SLUSH;
-    do{
-      loccupancy=occupancy;
-      occupancy=oc_huff_bitree_occupancy(_bitree,_binode,++_depth);
-    }
-    while(occupancy>loccupancy&&occupancy>=1<<OC_MAXI(_depth-slush,0));
-    _depth--;
-    size=oc_huff_node_size(_depth);
-  }
-  child1=_bitree[_binode+0];
-  child2=_bitree[_binode+1];
-  if(child1>0)size+=oc_huff_bitree_collapse_size(_bitree,child1,_depth-1);
-  if(child2>0)size+=oc_huff_bitree_collapse_size(_bitree,child2,_depth-1);
-  return size;
-}
-
-static int oc_huff_tree_collapse(ogg_int16_t *_tree,int *_node,
- const ogg_int16_t *_bitree,int _binode);
-
-/*Fills the given nodes table with all the children in the sub-tree at the
-   given depth.
-  The nodes in the sub-tree with a depth less than that stored in the table
-   are freed.
-  The sub-tree must be binary and complete up until the given depth.
-  _tree:   The storage for the collapsed Huffman tree.
-  _node:   The index of the next available storage in the tree.
-  _offs:   The index of the nodes to fill.
-  _bitree: The binary tree to collapse.
-  _binode: The index of the root of the sub-tree to fill it with.
-           _bitree[_binode] must be <=1 .
-  _level:  The current level in the table.
-           0 indicates that the current node should be stored, regardless of
-            whether it is a leaf node or an internal node.
-  _depth:  The depth of the nodes to fill the table with, relative to their
-            parent.*/
-static void oc_huff_node_fill(ogg_int16_t *_tree,int *_node,int _offs,
- const ogg_int16_t *_bitree,int _binode,int _level,int _depth){
-  if(_level<=0)_tree[_offs]=oc_huff_tree_collapse(_tree,_node,_bitree,_binode);
-  else{
-    int child1;
-    int child2;
-    int leaf;
-    int i;
-    _level--;
-    child1=_bitree[_binode+0];
-    if(child1<=0){
-      leaf=-(_depth-_level<<8|-child1);
-      for(i=0;i<1<<_level;i++)_tree[_offs+i]=(ogg_int16_t)leaf;
-    }
-    else oc_huff_node_fill(_tree,_node,_offs,_bitree,child1,_level,_depth);
-    _offs+=1<<_level;
-    child2=_bitree[_binode+1];
-    if(child2<=0){
-      leaf=-(_depth-_level<<8|-child2);
-      for(i=0;i<1<<_level;i++)_tree[_offs+i]=(ogg_int16_t)leaf;
-    }
-    else oc_huff_node_fill(_tree,_node,_offs,_bitree,child2,_level,_depth);
-  }
-}
-
-/*Finds the largest complete sub-tree rooted at the current node and collapses
-   it into a single node.
-  This procedure is then applied recursively to all the children of that node.
-  _tree:   The storage for the collapsed Huffman tree.
-  _node:   The index of the next available storage in the tree.
-  _offs:   The index of the nodes to fill.
-  _bitree: The binary tree to collapse.
-  _binode: The index of the root of the sub-tree to fill it with.
-           _bitree[_binode] must be <=1 .
-  Return: The new root of the collapsed sub-tree.*/
-static int oc_huff_tree_collapse(ogg_int16_t *_tree,int *_node,
- const ogg_int16_t *_bitree,int _binode){
-  int mindepth;
-  int depth;
-  int loccupancy;
-  int occupancy;
-  int slush;
-  int node;
-  depth=mindepth=oc_huff_bitree_mindepth(_bitree,_binode);
-  occupancy=1<<mindepth;
-  slush=_binode>0?OC_HUFF_SLUSH:OC_ROOT_HUFF_SLUSH;
-  do{
-    loccupancy=occupancy;
-    occupancy=oc_huff_bitree_occupancy(_bitree,_binode,++depth);
-  }
-  while(occupancy>loccupancy&&occupancy>=1<<OC_MAXI(depth-slush,0));
-  depth--;
-  node=*_node;
-  _tree[node]=depth;
-  *_node=node+1+(1<<depth);
-  oc_huff_node_fill(_tree,_node,node+1,_bitree,_binode,depth,depth);
-  return node;
-}
-
-/*Unpacks a set of Huffman trees, and reduces them to a collapsed
-   representation.
-  _opb:   The buffer to unpack the trees from.
-  _nodes: The table to fill with the Huffman trees.
-  Return: 0 on success, or a negative value on error.*/
-int oc_huff_trees_unpack(oc_pack_buf *_opb,
- ogg_int16_t *_nodes[TH_NHUFFMAN_TABLES]){
-  int i;
-  for(i=0;i<TH_NHUFFMAN_TABLES;i++){
-    ogg_int16_t   nodes[255*2];
-    ogg_int16_t  *tree;
-    size_t        size;
-    int           node;
-    int           root;
-    /*Unpack the full tree into a temporary buffer.*/
-    node=0;
-    root=oc_huff_tree_unpack(_opb,nodes,sizeof(nodes)/sizeof(*nodes),&node);
-    if(node>sizeof(nodes)/sizeof(*nodes))return TH_EBADHEADER;
-    /*Figure out how big the collapsed tree will be.*/
-    size=root<=0?3:oc_huff_bitree_collapse_size(nodes,0,0);
-    tree=(ogg_int16_t *)_ogg_malloc(size*sizeof(*tree));
-    if(tree==NULL)return TH_EFAULT;
-    /*It's legal to have a tree with just a single node, which requires no bits
-       to decode and always returns the same token.
-      However, no encoder actually does this (yet).
-      To avoid a special case in oc_huff_token_decode(), we construct a tree
-       that looks ahead one bit, and then advances the stream 0 bits.*/
-    if(root<=0){
-      tree[0]=1;
-      tree[1]=tree[2]=-(0<<8|-root);
-    }
-    /*Otherwise, collapse the tree.*/
-    else{
-      node=0;
-      oc_huff_tree_collapse(tree,&node,nodes,0);
-    }
-    _nodes[i]=tree;
-  }
-  return 0;
-}
-
 /*Makes a copy of the given set of Huffman trees.
   _dst: The array to store the copy in.
   _src: The array of trees to copy.*/
@@ -521,17 +450,15 @@ int oc_huff_trees_copy(ogg_int16_t *_dst[TH_NHUFFMAN_TABLES],
   int i;
   total=0;
   for(i=0;i<TH_NHUFFMAN_TABLES;i++){
-    size_t       size;
-    ogg_int16_t *tree;
+    size_t size;
     size=oc_huff_tree_size(_src[i],0);
     total+=size;
-    tree=(ogg_int16_t *)_ogg_malloc(size*sizeof(*tree));
-    if(tree==NULL){
+    _dst[i]=(ogg_int16_t *)_ogg_malloc(size*sizeof(*_dst[i]));
+    if(_dst[i]==NULL){
       while(i-->0)_ogg_free(_dst[i]);
       return TH_EFAULT;
     }
-    oc_huff_tree_copy(tree,_src[i],0);
-    _dst[i]=tree;
+    memcpy(_dst[i],_src[i],size*sizeof(*_dst[i]));
   }
   return 0;
 }
