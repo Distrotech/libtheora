@@ -30,7 +30,9 @@
   OC_M2STR(_offs-8+%H[_name])
 #  endif
 # endif
-/*If your gcc version does't support %H, then you get to suffer the warnings.*/
+/*If your gcc version does't support %H, then you get to suffer the warnings.
+  Note that Apple's gas breaks on things like _offs+(%esp): it throws away the
+   whole offset, instead of substituting in 0 for the missing operand to +.*/
 # if !defined(OC_MEM_OFFS)
 #  define OC_MEM_OFFS(_offs,_name) \
   OC_M2STR(_offs+%[_name])
@@ -43,6 +45,8 @@
 #define OC_ARRAY_OPERAND(_type,_ptr,_size) \
   (*({struct{_type array_value__[_size];} *array_addr__=(void *)_ptr; \
    array_addr__;}))
+
+extern const short __attribute__((aligned(16))) OC_IDCT_CONSTS[64];
 
 void oc_state_vtable_init_x86(oc_theora_state *_state);
 
