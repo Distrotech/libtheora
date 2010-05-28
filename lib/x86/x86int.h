@@ -24,8 +24,17 @@
 
 /*Memory operands do not always include an offset.
   To avoid warnings, we force an offset with %H (which adds 8).*/
-#define OC_MEM_OFFS(_offs,_name) \
+# if defined(__GNUC_PREREQ)
+#  if __GNUC_PREREQ(4,0)
+#   define OC_MEM_OFFS(_offs,_name) \
   OC_M2STR(_offs-8+%H[_name])
+#  endif
+# endif
+/*If your gcc version does't support %H, then you get to suffer the warnings.*/
+# if !defined(OC_MEM_OFFS)
+#  define OC_MEM_OFFS(_offs,_name) \
+  OC_M2STR(_offs+%[_name])
+# endif
 
 /*Declare an array operand with an exact size.
   This tells gcc we're going to clobber this memory region, without having to
