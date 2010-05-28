@@ -50,9 +50,6 @@ static const ogg_uint16_t __attribute__((aligned(8),used))
       8,    8,    8,    8
 };
 
-/*Converts the expression in the argument to a string.*/
-#define OC_M2STR(_s) #_s
-
 /*38 cycles*/
 #define OC_IDCT_BEGIN \
   "#OC_IDCT_BEGIN\n\t" \
@@ -310,7 +307,7 @@ static const ogg_uint16_t __attribute__((aligned(8),used))
 #define OC_C(_i)      OC_MID(OC_COSINE_OFFSET,_i-1)
 #define OC_8          OC_MID(OC_EIGHT_OFFSET,0)
 
-static void oc_idct8x8_slow(ogg_int16_t _y[64]){
+static void oc_idct8x8_slow_mmx(ogg_int16_t _y[64]){
   /*This routine accepts an 8x8 matrix, but in partially transposed form.
     Every 4x4 block is transposed.*/
   __asm__ __volatile__(
@@ -503,7 +500,7 @@ static void oc_idct8x8_slow(ogg_int16_t _y[64]){
  "movq %%mm0,"OC_I(0)"\n\t" \
  "#end OC_COLUMN_IDCT_10\n\t" \
 
-static void oc_idct8x8_10(ogg_int16_t _y[64]){
+static void oc_idct8x8_10_mmx(ogg_int16_t _y[64]){
   __asm__ __volatile__(
 #define OC_I(_k) OC_M2STR((_k*16))"(%[y])"
 #define OC_J(_k) OC_M2STR(((_k-4)*16)+8)"(%[y])"
@@ -557,8 +554,8 @@ void oc_idct8x8_mmx(ogg_int16_t _y[64],int _last_zzi){
      gets.
     Needless to say we inherited this approach from VP3.*/
   /*Then perform the iDCT.*/
-  if(_last_zzi<10)oc_idct8x8_10(_y);
-  else oc_idct8x8_slow(_y);
+  if(_last_zzi<10)oc_idct8x8_10_mmx(_y);
+  else oc_idct8x8_slow_mmx(_y);
 }
 
 #endif

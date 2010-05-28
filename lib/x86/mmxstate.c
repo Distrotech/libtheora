@@ -71,7 +71,7 @@ void oc_state_frag_recon_mmx(const oc_theora_state *_state,ptrdiff_t _fragi,
   else{
     /*Dequantize the DC coefficient.*/
     _dct_coeffs[0]=(ogg_int16_t)(_dct_coeffs[0]*(int)_dc_quant);
-    oc_idct8x8_mmx(_dct_coeffs,_last_zzi);
+    oc_idct8x8(_state,_dct_coeffs,_last_zzi);
   }
   /*Fill in the target buffer.*/
   frag_buf_off=_state->frag_buf_offs[_fragi];
@@ -170,13 +170,82 @@ void oc_state_loop_filter_frag_rows_mmx(const oc_theora_state *_state,
       if(frags[fragi].coded){
         unsigned char *ref;
         ref=ref_frame_data+frag_buf_offs[fragi];
-        if(fragi>fragi0)OC_LOOP_FILTER_H_MMX(ref,ystride,ll);
-        if(fragi0>fragi_top)OC_LOOP_FILTER_V_MMX(ref,ystride,ll);
+        if(fragi>fragi0){
+          OC_LOOP_FILTER_H(OC_LOOP_FILTER8_MMX,ref,ystride,ll);
+        }
+        if(fragi0>fragi_top){
+          OC_LOOP_FILTER_V(OC_LOOP_FILTER8_MMX,ref,ystride,ll);
+        }
         if(fragi+1<fragi_end&&!frags[fragi+1].coded){
-          OC_LOOP_FILTER_H_MMX(ref+8,ystride,ll);
+          OC_LOOP_FILTER_H(OC_LOOP_FILTER8_MMX,ref+8,ystride,ll);
         }
         if(fragi+nhfrags<fragi_bot&&!frags[fragi+nhfrags].coded){
-          OC_LOOP_FILTER_V_MMX(ref+(ystride<<3),ystride,ll);
+          OC_LOOP_FILTER_V(OC_LOOP_FILTER8_MMX,ref+(ystride<<3),ystride,ll);
+        }
+      }
+      fragi++;
+    }
+    fragi0+=nhfrags;
+  }
+}
+
+/*Apply the loop filter to a given set of fragment rows in the given plane.
+  The filter may be run on the bottom edge, affecting pixels in the next row of
+   fragments, so this row also needs to be available.
+  _bv:        The bounding values array.
+  _refi:      The index of the frame buffer to filter.
+  _pli:       The color plane to filter.
+  _fragy0:    The Y coordinate of the first fragment row to filter.
+  _fragy_end: The Y coordinate of the fragment row to stop filtering at.*/
+void oc_state_loop_filter_frag_rows_mmxext(const oc_theora_state *_state,
+ int _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end){
+  OC_ALIGN8(unsigned char   ll[8]);
+  const oc_fragment_plane *fplane;
+  const oc_fragment       *frags;
+  const ptrdiff_t         *frag_buf_offs;
+  unsigned char           *ref_frame_data;
+  ptrdiff_t                fragi_top;
+  ptrdiff_t                fragi_bot;
+  ptrdiff_t                fragi0;
+  ptrdiff_t                fragi0_end;
+  int                      ystride;
+  int                      nhfrags;
+  memset(ll,~(_state->loop_filter_limits[_state->qis[0]]<<1),sizeof(ll));
+  fplane=_state->fplanes+_pli;
+  nhfrags=fplane->nhfrags;
+  fragi_top=fplane->froffset;
+  fragi_bot=fragi_top+fplane->nfrags;
+  fragi0=fragi_top+_fragy0*(ptrdiff_t)nhfrags;
+  fragi0_end=fragi0+(_fragy_end-_fragy0)*(ptrdiff_t)nhfrags;
+  ystride=_state->ref_ystride[_pli];
+  frags=_state->frags;
+  frag_buf_offs=_state->frag_buf_offs;
+  ref_frame_data=_state->ref_frame_data[_refi];
+  /*The following loops are constructed somewhat non-intuitively on purpose.
+    The main idea is: if a block boundary has at least one coded fragment on
+     it, the filter is applied to it.
+    However, the order that the filters are applied in matters, and VP3 chose
+     the somewhat strange ordering used below.*/
+  while(fragi0<fragi0_end){
+    ptrdiff_t fragi;
+    ptrdiff_t fragi_end;
+    fragi=fragi0;
+    fragi_end=fragi+nhfrags;
+    while(fragi<fragi_end){
+      if(frags[fragi].coded){
+        unsigned char *ref;
+        ref=ref_frame_data+frag_buf_offs[fragi];
+        if(fragi>fragi0){
+          OC_LOOP_FILTER_H(OC_LOOP_FILTER8_MMXEXT,ref,ystride,ll);
+        }
+        if(fragi0>fragi_top){
+          OC_LOOP_FILTER_V(OC_LOOP_FILTER8_MMXEXT,ref,ystride,ll);
+        }
+        if(fragi+1<fragi_end&&!frags[fragi+1].coded){
+          OC_LOOP_FILTER_H(OC_LOOP_FILTER8_MMXEXT,ref+8,ystride,ll);
+        }
+        if(fragi+nhfrags<fragi_bot&&!frags[fragi+nhfrags].coded){
+          OC_LOOP_FILTER_V(OC_LOOP_FILTER8_MMXEXT,ref+(ystride<<3),ystride,ll);
         }
       }
       fragi++;
