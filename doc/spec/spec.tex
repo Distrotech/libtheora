@@ -4094,14 +4094,15 @@ In INTER\_MV\_FOUR mode, all four blocks in the luma plane are assigned their
 For INTER\_MV and INTER\_GOLDEN\_MV modes, a single motion vector is decoded
  and applied to each block.
 For INTER\_MV\_FOUR macro blocks, a motion vector is decoded for each coded
- luma block.
+ luma block, in raster order, not coded order.
 Uncoded luma blocks receive the default $(0,0)$ vector for the purposes of
  computing the chroma motion vectors.
 
 None of the remaining macro block coding modes require decoding motion vectors
  from the stream.
-INTRA mode does not use a motion-compensated predictor, and so requires no
- motion vector, and INTER\_NOMV and INTER\_GOLDEN\_NOMV modes use the default
+INTRA mode does not use a motion-compensated predictor, and thus does not
+ require a motion vector.
+Both the INTER\_NOMV and the INTER\_GOLDEN\_NOMV modes use the default
  vector $(0,0)$ for each block.
 This also includes all macro blocks with no coded luma blocks, as they are
  coded in INTER\_NOMV mode by definition.
@@ -4112,10 +4113,12 @@ The modes INTER\_MV\_LAST and INTER\_MV\_LAST2 use the motion vector from the
 Thus no explicit motion vector needs to be decoded for these modes.
 Macro blocks coded in INTRA mode or one of the GOLDEN modes are not considered
  in this process.
+For macro blocks coded in INTER\_MV\_FOUR mode, this process uses the vector
+ from the last coded luma block in the macro block, again in raster order, not
+ coded order.
+This is usually the upper-right block.
 If an insufficient number of macro blocks have been coded in one of the INTER
  modes, then the $(0,0)$ vector is used instead.
-For macro blocks coded in INTER\_MV\_FOUR mode, the vector from the upper-right
- luma block is used, even if the upper-right block is not coded.
 
 The motion vectors are decoded from the stream as follows:
 
