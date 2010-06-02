@@ -1074,8 +1074,8 @@ static int oc_enc_set_quant_params(oc_enc_ctx *_enc,
    _enc->enquant_tables,_qinfo);
   memcpy(_enc->state.loop_filter_limits,_qinfo->loop_filter_limits,
    sizeof(_enc->state.loop_filter_limits));
-  oc_enquant_qavg_init(_enc->log_qavg,_enc->state.dequant_tables,
-   _enc->state.info.pixel_fmt);
+  oc_enquant_qavg_init(_enc->log_qavg,_enc->log_plq,_enc->chroma_rd_scale,
+   _enc->state.dequant_tables,_enc->state.info.pixel_fmt);
   return 0;
 }
 
@@ -1175,11 +1175,12 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
 static void oc_enc_clear(oc_enc_ctx *_enc){
   int pli;
   oc_rc_state_clear(&_enc->rc);
-#if defined(OC_COLLECT_METRICS)
-  oc_enc_mode_metrics_dump(_enc);
-#endif
   oggpackB_writeclear(&_enc->opb);
 #if defined(OC_COLLECT_METRICS)
+  /*Save the collected metrics from this run.
+    Use tools/process_modedec_stats to actually generate modedec.h from the
+     resulting file.*/
+  oc_mode_metrics_dump();
   _ogg_free(_enc->frag_ssd);
   _ogg_free(_enc->frag_satd);
 #endif
@@ -1443,6 +1444,12 @@ int th_encode_ctl(th_enc_ctx *_enc,int _req,void *_buf,size_t _buf_sz){
       }
       return oc_enc_rc_2pass_in(_enc,_buf,_buf_sz);
     }break;
+#if defined(OC_COLLECT_METRICS)
+    case TH_ENCCTL_SET_METRICS_FILE:{
+      OC_MODE_METRICS_FILENAME=(const char *)_buf;
+      return 0;
+    }
+#endif
     default:return TH_EIMPL;
   }
 }

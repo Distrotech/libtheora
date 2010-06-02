@@ -236,38 +236,58 @@ static const ogg_uint16_t OC_PCD[4][3]={
 };
 
 
-/*Compute an "average" quantizer for each qi level.
-  We do one for INTER and one for INTRA, since their behavior is very
-   different, but average across chroma channels.
+/*Compute "average" quantizers for each qi level to use for rate control.
+  We do one for each color channel, as well as an average across color
+   channels, separately for INTER and INTRA, since their behavior is very
+   different.
   The basic approach is to compute a harmonic average of the squared quantizer,
    weighted by the expected squared magnitude of the DCT coefficients.
   Under the (not quite true) assumption that DCT coefficients are
    Laplacian-distributed, this preserves the product Q*lambda, where
    lambda=sqrt(2/sigma**2) is the Laplacian distribution parameter (not to be
    confused with the lambda used in R-D optimization throughout most of the
-   rest of the code).
-  The value Q*lambda completely determines the entropy of the coefficients.*/
+   rest of the code), when the distributions from multiple coefficients are
+   pooled.
+  The value Q*lambda completely determines the entropy of coefficients drawn
+   from a Laplacian distribution, and thus the expected bitrate.*/
 void oc_enquant_qavg_init(ogg_int64_t _log_qavg[2][64],
+ ogg_int16_t _log_plq[64][3][2],ogg_uint16_t _chroma_rd_scale[2][64][2],
  ogg_uint16_t *_dequant[64][3][2],int _pixel_fmt){
   int qi;
   int pli;
   int qti;
   int ci;
   for(qti=0;qti<2;qti++)for(qi=0;qi<64;qi++){
-    ogg_int64_t q2;
+    ogg_int64_t  q2;
+    ogg_uint32_t qp[3];
+    ogg_uint32_t cqp;
+    ogg_uint32_t d;
     q2=0;
     for(pli=0;pli<3;pli++){
-      ogg_uint32_t qp;
-      qp=0;
+      qp[pli]=0;
       for(ci=0;ci<64;ci++){
         unsigned rq;
         unsigned qd;
         qd=_dequant[qi][pli][qti][OC_IZIG_ZAG[ci]];
         rq=(OC_RPSD[qti][ci]+(qd>>1))/qd;
-        qp+=rq*(ogg_uint32_t)rq;
+        qp[pli]+=rq*(ogg_uint32_t)rq;
       }
-      q2+=OC_PCD[_pixel_fmt][pli]*(ogg_int64_t)qp;
+      q2+=OC_PCD[_pixel_fmt][pli]*(ogg_int64_t)qp[pli];
+      /*plq=1.0/sqrt(qp)*/
+      _log_plq[qi][pli][qti]=
+       (ogg_int16_t)(OC_Q10(32)-oc_blog32_q10(qp[pli])>>1);
     }
+    d=OC_PCD[_pixel_fmt][1]+OC_PCD[_pixel_fmt][2];
+    cqp=(ogg_uint32_t)((OC_PCD[_pixel_fmt][1]*(ogg_int64_t)qp[1]+
+     OC_PCD[_pixel_fmt][2]*(ogg_int64_t)qp[2]+(d>>1))/d);
+    /*chroma_rd_scale=clamp(0.25,cqp/qp[0],4)*/
+    d=OC_MAXI(qp[0]+(1<<OC_RD_SCALE_BITS-1)>>OC_RD_SCALE_BITS,1);
+    d=OC_CLAMPI(1<<OC_RD_SCALE_BITS-2,(cqp+(d>>1))/d,4<<OC_RD_SCALE_BITS);
+    _chroma_rd_scale[qti][qi][0]=(ogg_int16_t)d;
+    /*chroma_rd_iscale=clamp(0.25,qp[0]/cqp,4)*/
+    d=OC_MAXI(OC_RD_ISCALE(cqp,1),1);
+    d=OC_CLAMPI(1<<OC_RD_ISCALE_BITS-2,(qp[0]+(d>>1))/d,4<<OC_RD_ISCALE_BITS);
+    _chroma_rd_scale[qti][qi][1]=(ogg_int16_t)d;
     /*qavg=1.0/sqrt(q2).*/
     _log_qavg[qti][qi]=OC_Q57(48)-oc_blog64(q2)>>1;
   }

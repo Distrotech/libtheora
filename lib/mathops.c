@@ -3,8 +3,6 @@
 
 /*The fastest fallback strategy for platforms with fast multiplication appears
    to be based on de Bruijn sequences~\cite{LP98}.
-  Tests confirmed this to be true even on an ARM11, where it is actually faster
-   than using the native clz instruction.
   Define OC_ILOG_NODEBRUIJN to use a simpler fallback on platforms where
    multiplication or table lookups are too expensive.
 
@@ -16,7 +14,7 @@
     note="\url{http://supertech.csail.mit.edu/papers/debruijn.pdf}"
   }*/
 #if !defined(OC_ILOG_NODEBRUIJN)&& \
- !defined(OC_CLZ32)||!defined(OC_CLZ64)&&LONG_MAX<9223372036854775807LL
+ !defined(OC_CLZ32)&&!defined(OC_CLZ64)&&LONG_MAX<9223372036854775807LL
 static const unsigned char OC_DEBRUIJN_IDX32[32]={
    0, 1,28, 2,29,14,24, 3,30,22,20,15,25,17, 4, 8,
   31,27,13,23,21,19,16, 7,26,12,18, 6,11, 5,10, 9
@@ -25,7 +23,7 @@ static const unsigned char OC_DEBRUIJN_IDX32[32]={
 
 int oc_ilog32(ogg_uint32_t _v){
 #if defined(OC_CLZ32)
-  return (OC_CLZ32_OFFS-OC_CLZ32(_v))&-!!_v;
+  return OC_CLZ32_OFFS-OC_CLZ32(_v)&-!!_v;
 #else
 /*On a Pentium M, this branchless version tested as the fastest version without
    multiplications on 1,000,000,000 random 32-bit integers, edging out a
@@ -51,12 +49,12 @@ int oc_ilog32(ogg_uint32_t _v){
 /*This de Bruijn sequence version is faster if you have a fast multiplier.*/
 # else
   int ret;
-  ret=_v>0;
   _v|=_v>>1;
   _v|=_v>>2;
   _v|=_v>>4;
   _v|=_v>>8;
   _v|=_v>>16;
+  ret=_v&1;
   _v=(_v>>1)+1;
   ret+=OC_DEBRUIJN_IDX32[_v*0x77CB531U>>27&0x1F];
   return ret;
@@ -66,16 +64,21 @@ int oc_ilog32(ogg_uint32_t _v){
 
 int oc_ilog64(ogg_int64_t _v){
 #if defined(OC_CLZ64)
-  return (OC_CLZ64_OFFS-OC_CLZ64(_v))&-!!_v;
+  return OC_CLZ64_OFFS-OC_CLZ64(_v)&-!!_v;
 #else
-# if defined(OC_ILOG_NODEBRUIJN)
+/*If we don't have a fast 64-bit word implementation, split it into two 32-bit
+   halves.*/
+# if defined(OC_ILOG_NODEBRUIJN)|| \
+ defined(OC_CLZ32)||LONG_MAX<9223372036854775807LL
   ogg_uint32_t v;
   int          ret;
   int          m;
-  ret=_v>0;
   m=(_v>0xFFFFFFFFU)<<5;
   v=(ogg_uint32_t)(_v>>m);
-  ret|=m;
+#  if defined(OC_CLZ32)
+  ret=m+OC_CLZ32_OFFS-OC_CLZ32(v)&-!!v;
+#  elif defined(OC_ILOG_NODEBRUIJN)
+  ret=v>0|m;
   m=(v>0xFFFFU)<<4;
   v>>=m;
   ret|=m;
@@ -90,26 +93,19 @@ int oc_ilog64(ogg_int64_t _v){
   ret|=m;
   ret+=v>1;
   return ret;
-# else
-/*If we don't have a 64-bit word, split it into two 32-bit halves.*/
-#  if LONG_MAX<9223372036854775807LL
-  ogg_uint32_t v;
-  int          ret;
-  int          m;
-  ret=_v>0;
-  m=(_v>0xFFFFFFFFU)<<5;
-  v=(ogg_uint32_t)(_v>>m);
-  ret|=m;
+#  else
   v|=v>>1;
   v|=v>>2;
   v|=v>>4;
   v|=v>>8;
   v|=v>>16;
+  ret=v&1|m;
   v=(v>>1)+1;
   ret+=OC_DEBRUIJN_IDX32[v*0x77CB531U>>27&0x1F];
+#  endif
   return ret;
-/*Otherwise do it in one 64-bit operation.*/
-#  else
+/*Otherwise do it in one 64-bit multiply.*/
+# else
   static const unsigned char OC_DEBRUIJN_IDX64[64]={
      0, 1, 2, 7, 3,13, 8,19, 4,25,14,28, 9,34,20,40,
      5,17,26,38,15,46,29,48,10,31,35,54,21,50,41,57,
@@ -117,17 +113,16 @@ int oc_ilog64(ogg_int64_t _v){
     62,11,23,32,36,44,52,55,61,22,43,51,60,42,59,58
   };
   int ret;
-  ret=_v>0;
   _v|=_v>>1;
   _v|=_v>>2;
   _v|=_v>>4;
   _v|=_v>>8;
   _v|=_v>>16;
   _v|=_v>>32;
+  ret=(int)_v&1;
   _v=(_v>>1)+1;
   ret+=OC_DEBRUIJN_IDX64[_v*0x218A392CD3D5DBF>>58&0x3F];
   return ret;
-#  endif
 # endif
 #endif
 }

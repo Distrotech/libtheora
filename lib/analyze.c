@@ -18,6 +18,9 @@
 #include <string.h>
 #include "encint.h"
 #include "modedec.h"
+#if defined(OC_COLLECT_METRICS)
+# include "collect.c"
+#endif
 
 
 
@@ -717,19 +720,6 @@ static void oc_enc_pipeline_finish_mcu_plane(oc_enc_ctx *_enc,
 
 
 
-/*Masking is applied by scaling the D used in R-D optimization (via rd_scale)
-   or the lambda parameter (via rd_iscale).
-  These are only equivalent within a single block; when more than one block is
-   being considered, the former is the interpretation used.*/
-
-#define OC_RD_SCALE_BITS (12-OC_BIT_SCALE)
-#define OC_RD_ISCALE_BITS (11)
-
-#define OC_RD_SCALE(_ssd,_rd_scale) \
- ((_ssd)*(_rd_scale)+((1<<OC_RD_SCALE_BITS)>>1)>>OC_RD_SCALE_BITS)
-#define OC_RD_ISCALE(_lambda,_rd_iscale) \
- ((_lambda)*(_rd_iscale)+((1<<OC_RD_ISCALE_BITS)>>1)>>OC_RD_ISCALE_BITS)
-
 /*Cost information about the coded blocks in a MB.*/
 struct oc_rd_metric{
   int uncoded_ac_ssd;
@@ -1131,8 +1121,8 @@ static void oc_enc_sb_transform_quantize_inter_chroma(oc_enc_ctx *_enc,
   The bit counts and SSD measurements are obtained by examining actual encoded
    frames, with appropriate lambda values and optimal Huffman codes selected.
   EOB bits are assigned to the fragment that started the EOB run (as opposed to
-   dividing them among all the blocks in the run; though the latter approach
-   seems more theoretically correct, Monty's testing showed a small improvement
+   dividing them among all the blocks in the run; the latter approach seems
+   more theoretically correct, but Monty's testing showed a small improvement
    with the former, though that may have been merely statistical noise).
 
   @ARTICLE{Kim03,
@@ -1153,10 +1143,56 @@ static void oc_enc_sb_transform_quantize_inter_chroma(oc_enc_ctx *_enc,
  +(((_ssd)&(1<<OC_BIT_SCALE)-1)+((_rate)&(1<<OC_BIT_SCALE)-1)*(_lambda) \
  +((1<<OC_BIT_SCALE)>>1)>>OC_BIT_SCALE)
 
+static void oc_enc_mode_rd_init(oc_enc_ctx *_enc){
+  int qii;
+#if defined(OC_COLLECT_METRICS)
+  oc_enc_mode_metrics_load(_enc);
+#endif
+  for(qii=0;qii<_enc->state.nqis;qii++){
+    int qi;
+    int pli;
+    qi=_enc->state.qis[qii];
+    for(pli=0;pli<3;pli++){
+      int qti;
+      for(qti=0;qti<2;qti++){
+        int log_plq;
+        int modeline;
+        int bin;
+        int dx;
+        int dq;
+        log_plq=_enc->log_plq[qi][pli][qti];
+        /*Find the pair of rows in the mode table that bracket this quantizer.
+          If it falls outside the range the table covers, then we just use a
+           pair on the edge for linear extrapolation.*/
+        for(modeline=0;modeline<OC_LOGQ_BINS-1&&
+         OC_MODE_LOGQ[modeline+1][pli][qti]>log_plq;modeline++);
+        /*Interpolate a row for this quantizer.*/
+        dx=OC_MODE_LOGQ[modeline][pli][qti]-log_plq;
+        dq=OC_MODE_LOGQ[modeline][pli][qti]-OC_MODE_LOGQ[modeline+1][pli][qti];
+        if(dq==0)dq=1;
+        for(bin=0;bin<OC_SAD_BINS;bin++){
+          int y0;
+          int z0;
+          int dy;
+          int dz;
+          y0=OC_MODE_RD[modeline][pli][qti][bin].rate;
+          z0=OC_MODE_RD[modeline][pli][qti][bin].rmse;
+          dy=OC_MODE_RD[modeline+1][pli][qti][bin].rate-y0;
+          dz=OC_MODE_RD[modeline+1][pli][qti][bin].rmse-z0;
+          _enc->mode_rd[qii][pli][qti][bin].rate=
+           (ogg_int16_t)OC_CLAMPI(-32768,y0+(dy*dx+(dq>>1))/dq,32767);
+          _enc->mode_rd[qii][pli][qti][bin].rmse=
+           (ogg_int16_t)OC_CLAMPI(-32768,z0+(dz*dx+(dq>>1))/dq,32767);
+        }
+      }
+    }
+  }
+}
+
 /*Estimate the R-D cost of the DCT coefficients given the SATD of a block after
    prediction.*/
-static unsigned oc_dct_cost2(unsigned *_ssd,
- int _qi,int _pli,int _qti,int _satd){
+static unsigned oc_dct_cost2(oc_enc_ctx *_enc,unsigned *_ssd,
+ int _qii,int _pli,int _qti,int _satd){
   unsigned rmse;
   int      bin;
   int      dx;
@@ -1169,10 +1205,10 @@ static unsigned oc_dct_cost2(unsigned *_ssd,
   _satd<<=_pli+1&2;
   bin=OC_MINI(_satd>>OC_SAD_SHIFT,OC_SAD_BINS-2);
   dx=_satd-(bin<<OC_SAD_SHIFT);
-  y0=OC_MODE_RD[_qi][_pli][_qti][bin].rate;
-  z0=OC_MODE_RD[_qi][_pli][_qti][bin].rmse;
-  dy=OC_MODE_RD[_qi][_pli][_qti][bin+1].rate-y0;
-  dz=OC_MODE_RD[_qi][_pli][_qti][bin+1].rmse-z0;
+  y0=_enc->mode_rd[_qii][_pli][_qti][bin].rate;
+  z0=_enc->mode_rd[_qii][_pli][_qti][bin].rmse;
+  dy=_enc->mode_rd[_qii][_pli][_qti][bin+1].rate-y0;
+  dz=_enc->mode_rd[_qii][_pli][_qti][bin+1].rmse-z0;
   rmse=OC_MAXI(z0+(dz*dx>>OC_SAD_SHIFT),0);
   *_ssd=rmse*rmse>>2*OC_RMSE_SCALE-OC_BIT_SCALE;
   return OC_MAXI(y0+(dy*dx>>OC_SAD_SHIFT),0);
@@ -1292,11 +1328,12 @@ static unsigned oc_mb_activity(oc_enc_ctx *_enc,unsigned _mbi,
   Since we generally use MSE for D, rd_scale must use the square of their
    values to generate an equivalent effect.*/
 static unsigned oc_mb_masking(unsigned _rd_scale[5],unsigned _rd_iscale[5],
- const unsigned _activity[4],unsigned _activity_avg,
- unsigned _luma,unsigned _luma_avg){
+ const ogg_uint16_t _chroma_rd_scale[2],const unsigned _activity[4],
+ unsigned _activity_avg,unsigned _luma,unsigned _luma_avg){
   unsigned activity_sum;
   unsigned la;
   unsigned lb;
+  unsigned d;
   int      bi;
   int      bi_min;
   int      bi_min2;
@@ -1337,7 +1374,6 @@ static unsigned oc_mb_masking(unsigned _rd_scale[5],unsigned _rd_iscale[5],
   for(bi=0;bi<4;bi++){
     unsigned a;
     unsigned b;
-    unsigned d;
     activity_sum+=_activity[bi];
     /*Apply activity masking.*/
     a=_activity[bi]+4*_activity_avg;
@@ -1362,11 +1398,13 @@ static unsigned oc_mb_masking(unsigned _rd_scale[5],unsigned _rd_iscale[5],
     }
     else if(_rd_iscale[bi]<_rd_iscale[bi_min2])bi_min2=bi;
   }
-  /*If the minimum iscale is less than 1.0, use the second smallest instead.*/
+  /*If the minimum iscale is less than 1.0, use the second smallest instead,
+     and force the value to at least 1.0 (inflating chroma is a waste).*/
   if(_rd_iscale[bi_min]<(1<<OC_RD_ISCALE_BITS))bi_min=bi_min2;
-  /*And force the value to at least 1.0 (inflating chroma is a waste).*/
-  _rd_scale[4]=OC_MINI(_rd_scale[bi_min],1<<OC_RD_SCALE_BITS);
-  _rd_iscale[4]=OC_MAXI(_rd_iscale[bi_min],1<<OC_RD_ISCALE_BITS);
+  d=OC_MINI(_rd_scale[bi_min],1<<OC_RD_SCALE_BITS);
+  _rd_scale[4]=OC_RD_SCALE(d,_chroma_rd_scale[0]);
+  d=OC_MAXI(_rd_iscale[bi_min],1<<OC_RD_ISCALE_BITS);
+  _rd_iscale[4]=OC_RD_ISCALE(d,_chroma_rd_scale[1]);
   return activity_sum;
 }
 
@@ -1406,7 +1444,7 @@ static unsigned oc_analyze_intra_mb_luma(oc_enc_ctx *_enc,
   lambda=_enc->lambda;
   for(qii=0;qii<nqis;qii++){
     oc_qii_state_advance(qs[0]+qii,_qs,qii);
-    rate[0][qii]=oc_dct_cost2(ssd[0]+qii,_enc->state.qis[qii],0,0,satd)
+    rate[0][qii]=oc_dct_cost2(_enc,ssd[0]+qii,qii,0,0,satd)
      +(qs[0][qii].bits-_qs->bits<<OC_BIT_SCALE);
     ssd[0][qii]=OC_RD_SCALE(ssd[0][qii],_rd_scale[0]);
     cost[0][qii]=OC_MODE_RD_COST(ssd[0][qii],rate[0][qii],lambda);
@@ -1422,7 +1460,7 @@ static unsigned oc_analyze_intra_mb_luma(oc_enc_ctx *_enc,
       int          best_qij;
       int          qij;
       oc_qii_state_advance(qt+0,qs[bi-1]+0,qii);
-      cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],0,0,satd);
+      cur_rate=oc_dct_cost2(_enc,&cur_ssd,qii,0,0,satd);
       cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale[bi]);
       best_ssd=ssd[bi-1][0]+cur_ssd;
       best_rate=rate[bi-1][0]+cur_rate
@@ -1505,7 +1543,7 @@ static unsigned oc_analyze_intra_chroma_block(oc_enc_ctx *_enc,
     unsigned cur_rate;
     unsigned cur_ssd;
     oc_qii_state_advance(qt+qii,_qs,qii);
-    cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],_pli,0,satd)
+    cur_rate=oc_dct_cost2(_enc,&cur_ssd,qii,_pli,0,satd)
      +(qt[qii].bits-_qs->bits<<OC_BIT_SCALE);
     cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale);
     cost[qii]=OC_MODE_RD_COST(cur_ssd,cur_rate,lambda);
@@ -1600,6 +1638,7 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
   ogg_int64_t             luma_sum;
   unsigned                activity_avg;
   unsigned                luma_avg;
+  const ogg_uint16_t     *chroma_rd_scale;
   ogg_uint16_t           *mcu_rd_scale;
   ogg_uint16_t           *mcu_rd_iscale;
   const unsigned char    *map_idxs;
@@ -1617,9 +1656,11 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
   _enc->state.frame_type=OC_INTRA_FRAME;
   oc_enc_tokenize_start(_enc);
   oc_enc_pipeline_init(_enc,&pipe);
+  oc_enc_mode_rd_init(_enc);
   activity_sum=luma_sum=0;
   activity_avg=_enc->activity_avg;
   luma_avg=OC_CLAMPI(90<<8,_enc->luma_avg,160<<8);
+  chroma_rd_scale=_enc->chroma_rd_scale[OC_INTRA_FRAME][_enc->state.qis[0]];
   mcu_rd_scale=_enc->mcu_rd_scale;
   mcu_rd_iscale=_enc->mcu_rd_iscale;
   /*Choose MVs and MB modes and quantize and code luma.
@@ -1660,11 +1701,11 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
         /*Activity masking.*/
         luma=oc_mb_activity(_enc,mbi,activity);
         activity_sum+=oc_mb_masking(rd_scale,rd_iscale,
-         activity,activity_avg,luma,luma_avg);
+         chroma_rd_scale,activity,activity_avg,luma,luma_avg);
         luma_sum+=luma;
         /*Motion estimation:
           We do a basic 1MV search for all macroblocks, coded or not,
-           keyframe or not, unless motion estimation is not being used at all*/
+           keyframe or not, unless we aren't using motion estimation at all.*/
         if(!_recode&&_enc->state.curframe_num>0&&
          _enc->sp_level<OC_SP_LEVEL_NOMC&&_enc->keyframe_frequency_force>1){
           oc_mcenc_search(_enc,mbi);
@@ -1784,7 +1825,7 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     oc_fr_code_block(ft+0);
     oc_qii_state_advance(qt+0,&qs,0);
     cur_overhead=ft[0].bits-fr.bits;
-    best_rate=oc_dct_cost2(&best_ssd,_enc->state.qis[0],0,_qti,satd)
+    best_rate=oc_dct_cost2(_enc,&best_ssd,0,0,_qti,satd)
      +(cur_overhead+qt[0].bits-qs.bits<<OC_BIT_SCALE);
     best_ssd=OC_RD_SCALE(best_ssd,_rd_scale[bi]);
     best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate,lambda);
@@ -1792,7 +1833,7 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
     best_qii=0;
     for(qii=1;qii<nqis;qii++){
       oc_qii_state_advance(qt+qii,&qs,qii);
-      cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],0,_qti,satd)
+      cur_rate=oc_dct_cost2(_enc,&cur_ssd,qii,0,_qti,satd)
        +(cur_overhead+qt[qii].bits-qs.bits<<OC_BIT_SCALE);
       cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale[bi]);
       cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate,lambda);
@@ -1867,13 +1908,13 @@ static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
     for(;bi<nblocks;bi++){
       unsigned best_cost;
       satd=_frag_satd[bi];
-      best_rate=oc_dct_cost2(&best_ssd,_enc->state.qis[0],pli,_qti,satd)
+      best_rate=oc_dct_cost2(_enc,&best_ssd,0,pli,_qti,satd)
        +OC_CHROMA_QII_RATE;
       best_ssd=OC_RD_SCALE(best_ssd,_rd_scale);
       best_cost=OC_MODE_RD_COST(ssd+best_ssd,rate+best_rate,lambda);
       best_qii=0;
       for(qii=1;qii<nqis;qii++){
-        cur_rate=oc_dct_cost2(&cur_ssd,_enc->state.qis[qii],0,_qti,satd)
+        cur_rate=oc_dct_cost2(_enc,&cur_ssd,qii,0,_qti,satd)
          +OC_CHROMA_QII_RATE;
         cur_ssd=OC_RD_SCALE(cur_ssd,_rd_scale);
         cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate+cur_rate,lambda);
@@ -2285,6 +2326,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   ogg_int64_t             luma_sum;
   unsigned                activity_avg;
   unsigned                luma_avg;
+  const ogg_uint16_t     *chroma_rd_scale;
   ogg_uint16_t           *mcu_rd_scale;
   ogg_uint16_t           *mcu_rd_iscale;
   const unsigned char    *map_idxs;
@@ -2313,12 +2355,14 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   oc_mode_scheme_chooser_reset(&_enc->chooser);
   oc_enc_tokenize_start(_enc);
   oc_enc_pipeline_init(_enc,&pipe);
+  oc_enc_mode_rd_init(_enc);
   if(_allow_keyframe)oc_qii_state_init(&intra_luma_qs);
   _enc->mv_bits[0]=_enc->mv_bits[1]=0;
   interbits=intrabits=0;
   activity_sum=luma_sum=0;
   activity_avg=_enc->activity_avg;
   luma_avg=OC_CLAMPI(90<<8,_enc->luma_avg,160<<8);
+  chroma_rd_scale=_enc->chroma_rd_scale[OC_INTER_FRAME][_enc->state.qis[0]];
   mcu_rd_scale=_enc->mcu_rd_scale;
   mcu_rd_iscale=_enc->mcu_rd_iscale;
   last_mv[0]=last_mv[1]=prior_mv[0]=prior_mv[1]=0;
@@ -2375,7 +2419,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
         luma=oc_mb_activity(_enc,mbi,activity);
         luma_sum+=luma;
         activity_sum+=oc_mb_masking(rd_scale,rd_iscale,
-         activity,activity_avg,luma,luma_avg);
+         chroma_rd_scale,activity,activity_avg,luma,luma_avg);
         /*Motion estimation:
           We always do a basic 1MV search for all macroblocks, coded or not,
            keyframe or not.*/
@@ -2681,482 +2725,3 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   }
   return 0;
 }
-
-#if defined(OC_COLLECT_METRICS)
-# include <stdio.h>
-# include <math.h>
-
-/*TODO: It may be helpful (for block-level quantizers especially) to separate
-   out the contributions from AC and DC into separate tables.*/
-
-# define OC_ZWEIGHT   (0.25)
-
-static void oc_mode_metrics_add(oc_mode_metrics *_metrics,
- double _w,int _satd,int _rate,double _rmse){
-  double rate;
-  /*Accumulate statistics without the scaling; this lets us change the scale
-     factor yet still use old data.*/
-  rate=ldexp(_rate,-OC_BIT_SCALE);
-  if(_metrics->fragw>0){
-    double dsatd;
-    double drate;
-    double drmse;
-    double w;
-    dsatd=_satd-_metrics->satd/_metrics->fragw;
-    drate=rate-_metrics->rate/_metrics->fragw;
-    drmse=_rmse-_metrics->rmse/_metrics->fragw;
-    w=_metrics->fragw*_w/(_metrics->fragw+_w);
-    _metrics->satd2+=dsatd*dsatd*w;
-    _metrics->satdrate+=dsatd*drate*w;
-    _metrics->rate2+=drate*drate*w;
-    _metrics->satdrmse+=dsatd*drmse*w;
-    _metrics->rmse2+=drmse*drmse*w;
-  }
-  _metrics->fragw+=_w;
-  _metrics->satd+=_satd*_w;
-  _metrics->rate+=rate*_w;
-  _metrics->rmse+=_rmse*_w;
-}
-
-static void oc_mode_metrics_merge(oc_mode_metrics *_dst,
- const oc_mode_metrics *_src,int _n){
-  int i;
-  /*Find a non-empty set of metrics.*/
-  for(i=0;i<_n&&_src[i].fragw<=0;i++);
-  if(i>=_n){
-    memset(_dst,0,sizeof(*_dst));
-    return;
-  }
-  memcpy(_dst,_src+i,sizeof(*_dst));
-  /*And iterate over the remaining non-empty sets of metrics.*/
-  for(i++;i<_n;i++)if(_src[i].fragw>0){
-    double wa;
-    double wb;
-    double dsatd;
-    double drate;
-    double drmse;
-    double w;
-    wa=_dst->fragw;
-    wb=_src[i].fragw;
-    dsatd=_src[i].satd/wb-_dst->satd/wa;
-    drate=_src[i].rate/wb-_dst->rate/wa;
-    drmse=_src[i].rmse/wb-_dst->rmse/wa;
-    w=wa*wb/(wa+wb);
-    _dst->fragw+=_src[i].fragw;
-    _dst->satd+=_src[i].satd;
-    _dst->rate+=_src[i].rate;
-    _dst->rmse+=_src[i].rmse;
-    _dst->satd2+=_src[i].satd2+dsatd*dsatd*w;
-    _dst->satdrate+=_src[i].satdrate+dsatd*drate*w;
-    _dst->rate2+=_src[i].rate2+drate*drate*w;
-    _dst->satdrmse+=_src[i].satdrmse+dsatd*drmse*w;
-    _dst->rmse2+=_src[i].rmse2+drmse*drmse*w;
-  }
-}
-
-/*Compile collected SATD/rate/RMSE metrics into a form that's immediately
-   useful for mode decision.*/
-static void oc_enc_mode_metrics_update(oc_enc_ctx *_enc,int _qi){
-  int pli;
-  int qti;
-  oc_restore_fpu(&_enc->state);
-  /*Convert raw collected data into cleaned up sample points.*/
-  for(pli=0;pli<3;pli++){
-    for(qti=0;qti<2;qti++){
-      double fragw;
-      int    bin0;
-      int    bin1;
-      int    bin;
-      fragw=0;
-      bin0=bin1=0;
-      for(bin=0;bin<OC_SAD_BINS;bin++){
-        oc_mode_metrics metrics;
-        OC_MODE_RD[_qi][pli][qti][bin].rate=0;
-        OC_MODE_RD[_qi][pli][qti][bin].rmse=0;
-        /*Find some points on either side of the current bin.*/
-        while((bin1<bin+1||fragw<OC_ZWEIGHT)&&bin1<OC_SAD_BINS-1){
-          fragw+=OC_MODE_METRICS[_qi][pli][qti][bin1++].fragw;
-        }
-        while(bin0+1<bin&&bin0+1<bin1&&
-         fragw-OC_MODE_METRICS[_qi][pli][qti][bin0].fragw>=OC_ZWEIGHT){
-          fragw-=OC_MODE_METRICS[_qi][pli][qti][bin0++].fragw;
-        }
-        /*Merge statistics and fit lines.*/
-        oc_mode_metrics_merge(&metrics,
-         OC_MODE_METRICS[_qi][pli][qti]+bin0,bin1-bin0);
-        if(metrics.fragw>0&&metrics.satd2>0){
-          double a;
-          double b;
-          double msatd;
-          double mrate;
-          double mrmse;
-          double rate;
-          double rmse;
-          msatd=metrics.satd/metrics.fragw;
-          mrate=metrics.rate/metrics.fragw;
-          mrmse=metrics.rmse/metrics.fragw;
-          /*Compute the points on these lines corresponding to the actual bin
-             value.*/
-          b=metrics.satdrate/metrics.satd2;
-          a=mrate-b*msatd;
-          rate=ldexp(a+b*(bin<<OC_SAD_SHIFT),OC_BIT_SCALE);
-          OC_MODE_RD[_qi][pli][qti][bin].rate=
-           (ogg_int16_t)OC_CLAMPI(-32768,(int)(rate+0.5),32767);
-          b=metrics.satdrmse/metrics.satd2;
-          a=mrmse-b*msatd;
-          rmse=ldexp(a+b*(bin<<OC_SAD_SHIFT),OC_RMSE_SCALE);
-          OC_MODE_RD[_qi][pli][qti][bin].rmse=
-           (ogg_int16_t)OC_CLAMPI(-32768,(int)(rmse+0.5),32767);
-        }
-      }
-    }
-  }
-}
-
-
-
-/*The following token skipping code used to also be used in the decoder (and
-   even at one point other places in the encoder).
-  However, it was obsoleted by other optimizations, and is now only used here.
-  It has been moved here to avoid generating the code when it's not needed.*/
-
-/*Determines the number of blocks or coefficients to be skipped for a given
-   token value.
-  _token:      The token value to skip.
-  _extra_bits: The extra bits attached to this token.
-  Return: A positive value indicates that number of coefficients are to be
-           skipped in the current block.
-          Otherwise, the negative of the return value indicates that number of
-           blocks are to be ended.*/
-typedef ptrdiff_t (*oc_token_skip_func)(int _token,int _extra_bits);
-
-/*Handles the simple end of block tokens.*/
-static ptrdiff_t oc_token_skip_eob(int _token,int _extra_bits){
-  int nblocks_adjust;
-  nblocks_adjust=OC_UNIBBLE_TABLE32(0,1,2,3,7,15,0,0,_token)+1;
-  return -_extra_bits-nblocks_adjust;
-}
-
-/*The last EOB token has a special case, where an EOB run of size zero ends all
-   the remaining blocks in the frame.*/
-static ptrdiff_t oc_token_skip_eob6(int _token,int _extra_bits){
-  /*Note: We want to return -PTRDIFF_MAX, but that requires C99, which is not
-     yet available everywhere; this should be equivalent.*/
-  if(!_extra_bits)return -(~(size_t)0>>1);
-  return -_extra_bits;
-}
-
-/*Handles the pure zero run tokens.*/
-static ptrdiff_t oc_token_skip_zrl(int _token,int _extra_bits){
-  return _extra_bits+1;
-}
-
-/*Handles a normal coefficient value token.*/
-static ptrdiff_t oc_token_skip_val(void){
-  return 1;
-}
-
-/*Handles a category 1A zero run/coefficient value combo token.*/
-static ptrdiff_t oc_token_skip_run_cat1a(int _token){
-  return _token-OC_DCT_RUN_CAT1A+2;
-}
-
-/*Handles category 1b, 1c, 2a, and 2b zero run/coefficient value combo tokens.*/
-static ptrdiff_t oc_token_skip_run(int _token,int _extra_bits){
-  int run_cati;
-  int ncoeffs_mask;
-  int ncoeffs_adjust;
-  run_cati=_token-OC_DCT_RUN_CAT1B;
-  ncoeffs_mask=OC_BYTE_TABLE32(3,7,0,1,run_cati);
-  ncoeffs_adjust=OC_BYTE_TABLE32(7,11,2,3,run_cati);
-  return (_extra_bits&ncoeffs_mask)+ncoeffs_adjust;
-}
-
-/*A jump table for computing the number of coefficients or blocks to skip for
-   a given token value.
-  This reduces all the conditional branches, etc., needed to parse these token
-   values down to one indirect jump.*/
-static const oc_token_skip_func OC_TOKEN_SKIP_TABLE[TH_NDCT_TOKENS]={
-  oc_token_skip_eob,
-  oc_token_skip_eob,
-  oc_token_skip_eob,
-  oc_token_skip_eob,
-  oc_token_skip_eob,
-  oc_token_skip_eob,
-  oc_token_skip_eob6,
-  oc_token_skip_zrl,
-  oc_token_skip_zrl,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_val,
-  (oc_token_skip_func)oc_token_skip_run_cat1a,
-  (oc_token_skip_func)oc_token_skip_run_cat1a,
-  (oc_token_skip_func)oc_token_skip_run_cat1a,
-  (oc_token_skip_func)oc_token_skip_run_cat1a,
-  (oc_token_skip_func)oc_token_skip_run_cat1a,
-  oc_token_skip_run,
-  oc_token_skip_run,
-  oc_token_skip_run,
-  oc_token_skip_run
-};
-
-/*Determines the number of blocks or coefficients to be skipped for a given
-   token value.
-  _token:      The token value to skip.
-  _extra_bits: The extra bits attached to this token.
-  Return: A positive value indicates that number of coefficients are to be
-           skipped in the current block.
-          Otherwise, the negative of the return value indicates that number of
-           blocks are to be ended.
-          0 will never be returned, so that at least one coefficient in one
-           block will always be decoded for every token.*/
-static ptrdiff_t oc_dct_token_skip(int _token,int _extra_bits){
-  return (*OC_TOKEN_SKIP_TABLE[_token])(_token,_extra_bits);
-}
-
-
-
-void oc_enc_mode_metrics_collect(oc_enc_ctx *_enc){
-  static const unsigned char OC_ZZI_HUFF_OFFSET[64]={
-     0,16,16,16,16,16,32,32,
-    32,32,32,32,32,32,32,48,
-    48,48,48,48,48,48,48,48,
-    48,48,48,48,64,64,64,64,
-    64,64,64,64,64,64,64,64,
-    64,64,64,64,64,64,64,64,
-    64,64,64,64,64,64,64,64
-  };
-  const oc_fragment *frags;
-  const unsigned    *frag_satd;
-  const unsigned    *frag_ssd;
-  const ptrdiff_t   *coded_fragis;
-  ptrdiff_t          ncoded_fragis;
-  ptrdiff_t          fragii;
-  double             fragw;
-  int                qti;
-  int                qii;
-  int                qi;
-  int                pli;
-  int                zzi;
-  int                token;
-  int                eb;
-  oc_restore_fpu(&_enc->state);
-  /*Load any existing mode metrics if we haven't already.*/
-  if(!oc_has_mode_metrics){
-    FILE *fmetrics;
-    memset(OC_MODE_METRICS,0,sizeof(OC_MODE_METRICS));
-    fmetrics=fopen("modedec.stats","rb");
-    if(fmetrics!=NULL){
-      fread(OC_MODE_METRICS,sizeof(OC_MODE_METRICS),1,fmetrics);
-      fclose(fmetrics);
-    }
-    for(qi=0;qi<64;qi++)oc_enc_mode_metrics_update(_enc,qi);
-    oc_has_mode_metrics=1;
-  }
-  qti=_enc->state.frame_type;
-  frags=_enc->state.frags;
-  frag_satd=_enc->frag_satd;
-  frag_ssd=_enc->frag_ssd;
-  coded_fragis=_enc->state.coded_fragis;
-  ncoded_fragis=fragii=0;
-  /*Weight the fragments by the inverse frame size; this prevents HD content
-     from dominating the statistics.*/
-  fragw=1.0/_enc->state.nfrags;
-  for(pli=0;pli<3;pli++){
-    ptrdiff_t ti[64];
-    int       eob_token[64];
-    int       eob_run[64];
-    /*Set up token indices and eob run counts.
-      We don't bother trying to figure out the real cost of the runs that span
-       coefficients; instead we use the costs that were available when R-D
-       token optimization was done.*/
-    for(zzi=0;zzi<64;zzi++){
-      ti[zzi]=_enc->dct_token_offs[pli][zzi];
-      if(ti[zzi]>0){
-        token=_enc->dct_tokens[pli][zzi][0];
-        eb=_enc->extra_bits[pli][zzi][0];
-        eob_token[zzi]=token;
-        eob_run[zzi]=-oc_dct_token_skip(token,eb);
-      }
-      else{
-        eob_token[zzi]=OC_NDCT_EOB_TOKEN_MAX;
-        eob_run[zzi]=0;
-      }
-    }
-    /*Scan the list of coded fragments for this plane.*/
-    ncoded_fragis+=_enc->state.ncoded_fragis[pli];
-    for(;fragii<ncoded_fragis;fragii++){
-      ptrdiff_t    fragi;
-      ogg_uint32_t frag_bits;
-      int          huffi;
-      int          skip;
-      int          mb_mode;
-      unsigned     satd;
-      int          bin;
-      fragi=coded_fragis[fragii];
-      frag_bits=0;
-      for(zzi=0;zzi<64;){
-        if(eob_run[zzi]>0){
-          /*We've reached the end of the block.*/
-          eob_run[zzi]--;
-          break;
-        }
-        huffi=_enc->huff_idxs[qti][zzi>0][pli+1>>1]
-         +OC_ZZI_HUFF_OFFSET[zzi];
-        if(eob_token[zzi]<OC_NDCT_EOB_TOKEN_MAX){
-          /*This token caused an EOB run to be flushed.
-            Therefore it gets the bits associated with it.*/
-          frag_bits+=_enc->huff_codes[huffi][eob_token[zzi]].nbits
-           +OC_DCT_TOKEN_EXTRA_BITS[eob_token[zzi]];
-          eob_token[zzi]=OC_NDCT_EOB_TOKEN_MAX;
-        }
-        token=_enc->dct_tokens[pli][zzi][ti[zzi]];
-        eb=_enc->extra_bits[pli][zzi][ti[zzi]];
-        ti[zzi]++;
-        skip=oc_dct_token_skip(token,eb);
-        if(skip<0){
-          eob_token[zzi]=token;
-          eob_run[zzi]=-skip;
-        }
-        else{
-          /*A regular DCT value token; accumulate the bits for it.*/
-          frag_bits+=_enc->huff_codes[huffi][token].nbits
-           +OC_DCT_TOKEN_EXTRA_BITS[token];
-          zzi+=skip;
-        }
-      }
-      mb_mode=frags[fragi].mb_mode;
-      qi=_enc->state.qis[frags[fragi].qii];
-      satd=frag_satd[fragi]<<(pli+1&2);
-      bin=OC_MINI(satd>>OC_SAD_SHIFT,OC_SAD_BINS-1);
-      oc_mode_metrics_add(OC_MODE_METRICS[qi][pli][mb_mode!=OC_MODE_INTRA]+bin,
-       fragw,satd,frag_bits<<OC_BIT_SCALE,sqrt(frag_ssd[fragi]));
-    }
-  }
-  /*Update global SATD/rate/RMSE estimation matrix.*/
-  for(qii=0;qii<_enc->state.nqis;qii++){
-    oc_enc_mode_metrics_update(_enc,_enc->state.qis[qii]);
-  }
-}
-
-void oc_enc_mode_metrics_dump(oc_enc_ctx *_enc){
-  FILE *fmetrics;
-  int   qi;
-  /*Generate sample points for complete list of QI values.*/
-  for(qi=0;qi<64;qi++)oc_enc_mode_metrics_update(_enc,qi);
-  fmetrics=fopen("modedec.stats","wb");
-  if(fmetrics!=NULL){
-    fwrite(OC_MODE_METRICS,sizeof(OC_MODE_METRICS),1,fmetrics);
-    fclose(fmetrics);
-  }
-  fprintf(stdout,
-   "/*File generated by libtheora with OC_COLLECT_METRICS"
-   " defined at compile time.*/\n"
-   "#if !defined(_modedec_H)\n"
-   "# define _modedec_H (1)\n"
-   "\n"
-   "\n"
-   "\n"
-   "# if defined(OC_COLLECT_METRICS)\n"
-   "typedef struct oc_mode_metrics oc_mode_metrics;\n"
-   "# endif\n"
-   "typedef struct oc_mode_rd      oc_mode_rd;\n"
-   "\n"
-   "\n"
-   "\n"
-   "/*The number of extra bits of precision at which to store rate"
-   " metrics.*/\n"
-   "# define OC_BIT_SCALE  (%i)\n"
-   "/*The number of extra bits of precision at which to store RMSE metrics.\n"
-   "  This must be at least half OC_BIT_SCALE (rounded up).*/\n"
-   "# define OC_RMSE_SCALE (%i)\n"
-   "/*The number of bins to partition statistics into.*/\n"
-   "# define OC_SAD_BINS   (%i)\n"
-   "/*The number of bits of precision to drop"
-   " from SAD scores to assign them to a\n"
-   "   bin.*/\n"
-   "# define OC_SAD_SHIFT  (%i)\n"
-   "\n"
-   "\n"
-   "\n"
-   "# if defined(OC_COLLECT_METRICS)\n"
-   "struct oc_mode_metrics{\n"
-   "  double fragw;\n"
-   "  double satd;\n"
-   "  double rate;\n"
-   "  double rmse;\n"
-   "  double satd2;\n"
-   "  double satdrate;\n"
-   "  double rate2;\n"
-   "  double satdrmse;\n"
-   "  double rmse2;\n"
-   "};\n"
-   "\n"
-   "\n"
-   "int             oc_has_mode_metrics;\n"
-   "oc_mode_metrics OC_MODE_METRICS[64][3][2][OC_SAD_BINS];\n"
-   "# endif\n"
-   "\n"
-   "\n"
-   "\n"
-   "struct oc_mode_rd{\n"
-   "  ogg_int16_t rate;\n"
-   "  ogg_int16_t rmse;\n"
-   "};\n"
-   "\n"
-   "\n"
-   "# if !defined(OC_COLLECT_METRICS)\n"
-   "static const\n"
-   "# endif\n"
-   "oc_mode_rd OC_MODE_RD[64][3][2][OC_SAD_BINS]={\n",
-   OC_BIT_SCALE,OC_RMSE_SCALE,OC_SAD_BINS,OC_SAD_SHIFT);
-  for(qi=0;qi<64;qi++){
-    int pli;
-    fprintf(stdout,"  {\n");
-    for(pli=0;pli<3;pli++){
-      int qti;
-      fprintf(stdout,"    {\n");
-      for(qti=0;qti<2;qti++){
-        int bin;
-        static const char *pl_names[3]={"Y'","Cb","Cr"};
-        static const char *qti_names[2]={"INTRA","INTER"};
-        fprintf(stdout,"      /*%s  qi=%i  %s*/\n",
-         pl_names[pli],qi,qti_names[qti]);
-        fprintf(stdout,"      {\n");
-        fprintf(stdout,"        ");
-        for(bin=0;bin<OC_SAD_BINS;bin++){
-          if(bin&&!(bin&0x3))fprintf(stdout,"\n        ");
-          fprintf(stdout,"{%5i,%5i}",
-           OC_MODE_RD[qi][pli][qti][bin].rate,
-           OC_MODE_RD[qi][pli][qti][bin].rmse);
-          if(bin+1<OC_SAD_BINS)fprintf(stdout,",");
-        }
-        fprintf(stdout,"\n      }");
-        if(qti<1)fprintf(stdout,",");
-        fprintf(stdout,"\n");
-      }
-      fprintf(stdout,"    }");
-      if(pli<2)fprintf(stdout,",");
-      fprintf(stdout,"\n");
-    }
-    fprintf(stdout,"  }");
-    if(qi<63)fprintf(stdout,",");
-    fprintf(stdout,"\n");
-  }
-  fprintf(stdout,
-   "};\n"
-   "\n"
-   "#endif\n");
-}
-#endif

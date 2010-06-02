@@ -31,6 +31,7 @@ typedef oc_mv                         oc_mv2[2];
 typedef struct oc_enc_opt_vtable      oc_enc_opt_vtable;
 typedef struct oc_mb_enc_info         oc_mb_enc_info;
 typedef struct oc_mode_scheme_chooser oc_mode_scheme_chooser;
+typedef struct oc_mode_rd             oc_mode_rd;
 typedef struct oc_iir_filter          oc_iir_filter;
 typedef struct oc_frame_metrics       oc_frame_metrics;
 typedef struct oc_rc_state            oc_rc_state;
@@ -54,6 +55,34 @@ typedef struct oc_token_checkpoint    oc_token_checkpoint;
 #define OC_SP_LEVEL_NOMC       (2)
 /*Maximum valid speed level.*/
 #define OC_SP_LEVEL_MAX        (2)
+
+
+/*The number of extra bits of precision at which to store rate metrics.*/
+# define OC_BIT_SCALE  (6)
+/*The number of extra bits of precision at which to store RMSE metrics.
+  This must be at least half OC_BIT_SCALE (rounded up).*/
+# define OC_RMSE_SCALE (5)
+/*The number of quantizer bins to partition statistics into.*/
+# define OC_LOGQ_BINS  (8)
+/*The number of SATD bins to partition statistics into.*/
+# define OC_SAD_BINS   (24)
+/*The number of bits of precision to drop from SAD scores to assign them to a
+   bin.*/
+# define OC_SAD_SHIFT  (9)
+
+
+/*Masking is applied by scaling the D used in R-D optimization (via rd_scale)
+   or the lambda parameter (via rd_iscale).
+  These are only equivalent within a single block; when more than one block is
+   being considered, the former is the interpretation used.*/
+
+#define OC_RD_SCALE_BITS (12-OC_BIT_SCALE)
+#define OC_RD_ISCALE_BITS (11)
+
+#define OC_RD_SCALE(_ssd,_rd_scale) \
+ ((_ssd)*(_rd_scale)+((1<<OC_RD_SCALE_BITS)>>1)>>OC_RD_SCALE_BITS)
+#define OC_RD_ISCALE(_lambda,_rd_iscale) \
+ ((_lambda)*(_rd_iscale)+((1<<OC_RD_ISCALE_BITS)>>1)>>OC_RD_ISCALE_BITS)
 
 
 /*The bits used for each of the MB mode codebooks.*/
@@ -164,6 +193,22 @@ struct oc_mode_scheme_chooser{
 
 
 void oc_mode_scheme_chooser_init(oc_mode_scheme_chooser *_chooser);
+
+
+
+/*Statistics used to estimate R-D cost of a block in a given coding mode.
+  See modedec.h for more details.*/
+struct oc_mode_rd{
+  /*The expected bits used by the DCT tokens, shifted by OC_BIT_SCALE.*/
+  ogg_int16_t rate;
+  /*The expected square root of the sum of squared errors, shifted by
+     OC_RMSE_SCALE.*/
+  ogg_int16_t rmse;
+};
+
+# if defined(OC_COLLECT_METRICS)
+#  include "collect.h"
+# endif
 
 
 
@@ -369,13 +414,25 @@ struct th_enc_ctx{
   th_quant_info            qinfo;
   oc_iquant               *enquant_tables[64][3][2];
   oc_iquant_table          enquant_table_data[64][3][2];
-  /*An "average" quantizer for each quantizer type (INTRA or INTER) and qi
-     value.
+  /*An "average" quantizer for each frame type (INTRA or INTER) and qi value.
     This is used to paramterize the rate control decisions.
     They are kept in the log domain to simplify later processing.
     These are DCT domain quantizers, and so are scaled by an additional factor
      of 4 from the pixel domain.*/
   ogg_int64_t              log_qavg[2][64];
+  /*The "average" quantizer futher partitioned by color plane.
+    This is used to parameterize mode decision.
+    These are DCT domain quantizers, and so are scaled by an additional factor
+     of 4 from the pixel domain.*/
+  ogg_int16_t              log_plq[64][3][2];
+  /*The R-D scale factors to apply to chroma blocks for a given frame type
+     (INTRA or INTER) and qi value.
+    The first is the "D" modifier (rd_scale), while the second is the "lambda"
+     modifier (rd_iscale).*/
+  ogg_uint16_t             chroma_rd_scale[2][64][2];
+  /*The interpolated mode decision R-D lookup tables for the current
+     quantizers, color plane, and quantization type.*/
+  oc_mode_rd               mode_rd[3][3][2][OC_SAD_BINS];
   /*The buffer state used to drive rate control.*/
   oc_rc_state              rc;
   /*Table for encoder acceleration functions.*/
@@ -385,10 +442,6 @@ struct th_enc_ctx{
 
 void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode);
 int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode);
-#if defined(OC_COLLECT_METRICS)
-void oc_enc_mode_metrics_collect(oc_enc_ctx *_enc);
-void oc_enc_mode_metrics_dump(oc_enc_ctx *_enc);
-#endif
 
 
 

@@ -31,6 +31,7 @@
 #if !defined(_FILE_OFFSET_BITS)
 #define _FILE_OFFSET_BITS 64
 #endif
+/*#define OC_COLLECT_METRICS*/
 
 #include <stdio.h>
 #if !defined(_WIN32)
@@ -61,7 +62,15 @@ static double rint(double x)
 }
 #endif
 
-const char *optstring = "b:e:o:a:A:v:V:s:S:f:F:ck:d:z:\1\2\3\4";
+#if defined(OC_COLLECT_METRICS)
+# define TH_ENCCTL_SET_METRICS_FILE (0x8000)
+#endif
+
+const char *optstring = "b:e:o:a:A:v:V:s:S:f:F:ck:d:z:\1\2\3\4"
+#if defined(OC_COLLECT_METRICS)
+ "m:"
+#endif
+ ;
 struct option options [] = {
   {"begin-time",required_argument,NULL,'b'},
   {"end-time",required_argument,NULL,'e'},
@@ -82,6 +91,9 @@ struct option options [] = {
   {"two-pass",no_argument,NULL,'\2'},
   {"first-pass",required_argument,NULL,'\3'},
   {"second-pass",required_argument,NULL,'\4'},
+#if defined(OC_COLLECT_METRICS)
+  {"metrics-file",required_argument,NULL,'m'},
+#endif
   {NULL,0,NULL,0}
 };
 
@@ -210,6 +222,12 @@ static void usage(void){
           "                                  two-pass encoding.\n"
           "   -b --begin-time <h:m:s.d>      Begin encoding at offset into input\n"
           "   -e --end-time <h:m:s.d>        End encoding at offset into input\n"
+#if defined(OC_COLLECT_METRICS)
+          "   -m --metrics-filename          File in which to accumulate mode decision\n"
+          "                                  metrics. Statistics from the current\n"
+          "                                  encode will be merged with those already\n"
+          "                                  in the file if it exists.\n"
+#endif
           "encoder_example accepts only uncompressed RIFF WAV format audio and\n"
           "YUV4MPEG2 uncompressed video.\n\n");
   exit(1);
@@ -1420,6 +1438,16 @@ int main(int argc,char *argv[]){
         exit(1);
       }
       break;
+#if defined(OC_COLLECT_METRICS)
+    case 'm':
+      if(th_encode_ctl(NULL,TH_ENCCTL_SET_METRICS_FILE,
+       optarg,strlen(optarg)+1)){
+        fprintf(stderr,"Unable to set metrics collection file name.\n");
+        fprintf(stderr,"libtheora not compiled with OC_COLLECT_METRICS?\n");
+        exit(1);
+      }
+      break;
+#endif
 
     default:
       usage();
