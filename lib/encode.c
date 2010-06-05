@@ -870,7 +870,7 @@ static void oc_enc_residual_tokens_pack(oc_enc_ctx *_enc){
    also supports dropping frames by inserting 0 byte packets).
   However, almost every _Theora_ player used to get this wrong (and many still
    do), and it wasn't until we started shipping a post-VP3 encoder that
-   actually non-VP3 features that this began to be discovered and fixed,
+   actually used non-VP3 features that this began to be discovered and fixed,
    despite being in the standard since 2004.
   The pack buffer must be reset before calling this function.*/
 static void oc_enc_drop_frame_pack(oc_enc_ctx *_enc){

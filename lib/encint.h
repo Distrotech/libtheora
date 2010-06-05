@@ -76,12 +76,28 @@ typedef struct oc_token_checkpoint    oc_token_checkpoint;
   These are only equivalent within a single block; when more than one block is
    being considered, the former is the interpretation used.*/
 
-#define OC_RD_SCALE_BITS (12-OC_BIT_SCALE)
-#define OC_RD_ISCALE_BITS (11)
+/*This must be at least 4 for OC_RD_SKIP_SCALE() to work below.*/
+# define OC_RD_SCALE_BITS (12-OC_BIT_SCALE)
+# define OC_RD_ISCALE_BITS (11)
 
-#define OC_RD_SCALE(_ssd,_rd_scale) \
- ((_ssd)*(_rd_scale)+((1<<OC_RD_SCALE_BITS)>>1)>>OC_RD_SCALE_BITS)
-#define OC_RD_ISCALE(_lambda,_rd_iscale) \
+/*This macro is applied to _ssd values with just 4 bits of headroom
+   ((15-OC_RMSE_SCALE)*2+OC_BIT_SCALE+2); since we want to allow rd_scales as
+   large as 16, and need additional fractional bits, our only recourse that
+   doesn't lose precision on blocks with very small SSDs is to use a wider
+   multiply.*/
+# if LONG_MAX>2147483647
+#  define OC_RD_SCALE(_ssd,_rd_scale) \
+ ((unsigned)((unsigned long)(_ssd)*(_rd_scale) \
+ +((1<<OC_RD_SCALE_BITS)>>1)>>OC_RD_SCALE_BITS))
+# else
+#  define OC_RD_SCALE(_ssd,_rd_scale) \
+ (((_ssd)>>OC_RD_SCALE_BITS)*(_rd_scale) \
+ +(((_ssd)&(1<<OC_RD_SCALE_BITS)-1)*(_rd_scale) \
+ +((1<<OC_RD_SCALE_BITS)>>1)>>OC_RD_SCALE_BITS))
+# endif
+# define OC_RD_SKIP_SCALE(_ssd,_rd_scale) \
+ ((_ssd)*(_rd_scale)+((1<<OC_RD_SCALE_BITS-4)>>1)>>OC_RD_SCALE_BITS-4)
+# define OC_RD_ISCALE(_lambda,_rd_iscale) \
  ((_lambda)*(_rd_iscale)+((1<<OC_RD_ISCALE_BITS)>>1)>>OC_RD_ISCALE_BITS)
 
 

@@ -1844,7 +1844,7 @@ static void oc_analyze_mb_mode_luma(oc_enc_ctx *_enc,
         best_qii=qii;
       }
     }
-    if(_skip_ssd[bi]<UINT_MAX&&nskipped<3){
+    if(_skip_ssd[bi]<(UINT_MAX>>OC_BIT_SCALE)&&nskipped<3){
       *(ft+1)=*&fr;
       oc_fr_skip_block(ft+1);
       cur_overhead=ft[1].bits-fr.bits<<OC_BIT_SCALE;
@@ -1925,7 +1925,7 @@ static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
           best_qii=qii;
         }
       }
-      if(_skip_ssd[bi]<UINT_MAX){
+      if(_skip_ssd[bi]<(UINT_MAX>>OC_BIT_SCALE)){
         cur_ssd=_skip_ssd[bi]<<OC_BIT_SCALE;
         cur_cost=OC_MODE_RD_COST(ssd+cur_ssd,rate,lambda);
         if(cur_cost<=best_cost){
@@ -1955,11 +1955,10 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   const ptrdiff_t        *sb_map;
   const oc_mb_map_plane  *mb_map;
   const unsigned char    *map_idxs;
+  oc_mv                  *mvs;
   int                     map_nidxs;
   ogg_int64_t             mask;
   unsigned                uncoded_ssd;
-  int                     uncoded_dc;
-  unsigned                dc_dequant;
   int                     mapii;
   int                     mapi;
   int                     pli;
@@ -1974,13 +1973,13 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   frags=_enc->state.frags;
   frag_buf_offs=_enc->state.frag_buf_offs;
   sb_map=_enc->state.sb_maps[_mbi>>2][_mbi&3];
-  dc_dequant=_pipe->dequant[0][0][1][0];
+  mvs=_enc->mb_info[_mbi].block_mv;
   for(bi=0;bi<4;bi++){
     fragi=sb_map[bi];
     frag_offs=frag_buf_offs[fragi];
     oc_enc_frag_sub(_enc,buffer,src+frag_offs,ref+frag_offs,ystride);
     borderi=frags[fragi].borderi;
-    uncoded_ssd=uncoded_dc=0;
+    uncoded_ssd=0;
     if(borderi<0){
       for(pi=0;pi<64;pi++){
         uncoded_ssd+=buffer[pi]*buffer[pi];
@@ -1993,14 +1992,13 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
         uncoded_ssd+=buffer[pi]*buffer[pi];
       }
     }
-    /*Scale to match DCT domain.*/
-    uncoded_ssd<<=4;
-    uncoded_ssd=OC_RD_SCALE(uncoded_ssd,_rd_scale[bi]);
-    /*Motion is a special case; if there is more than a full-pixel motion 
-      against the prior frame, penalize skipping. TODO: The factor of 
-      two here is a kludge, but it tested out better than a hard limit*/
-    if(_enc->mb_info[_mbi].block_mv[bi][0]!=0||
-      _enc->mb_info[_mbi].block_mv[bi][1]!=0)uncoded_ssd*=2;
+    /*Scale to match DCT domain and RD.*/
+    uncoded_ssd=OC_RD_SKIP_SCALE(uncoded_ssd,_rd_scale[bi]);
+    /*Motion is a special case; if there is more than a full-pixel motion
+       against the prior frame, penalize skipping.
+      TODO: The factor of two here is a kludge, but it tested out better than a
+       hard limit.*/
+    if(mvs[bi][0]!=0||mvs[bi][1]!=0)uncoded_ssd*=2;
     _pipe->skip_ssd[0][fragi-_pipe->froffset[0]]=_ssd[bi]=uncoded_ssd;
   }
   mb_map=(const oc_mb_map_plane *)_enc->state.mb_maps[_mbi];
@@ -2008,9 +2006,9 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   map_idxs=OC_MB_MAP_IDXS[_enc->state.info.pixel_fmt];
   map_nidxs=(map_nidxs-4>>1)+4;
   mapii=4;
+  mvs=_enc->mb_info[_mbi].unref_mv;
   for(pli=1;pli<3;pli++){
     ystride=_enc->state.ref_ystride[pli];
-    dc_dequant=_pipe->dequant[pli][0][1][0];
     for(;mapii<map_nidxs;mapii++){
       mapi=map_idxs[mapii];
       bi=mapi&3;
@@ -2018,7 +2016,7 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
       frag_offs=frag_buf_offs[fragi];
       oc_enc_frag_sub(_enc,buffer,src+frag_offs,ref+frag_offs,ystride);
       borderi=frags[fragi].borderi;
-      uncoded_ssd=uncoded_dc=0;
+      uncoded_ssd=0;
       if(borderi<0){
         for(pi=0;pi<64;pi++){
           uncoded_ssd+=buffer[pi]*buffer[pi];
@@ -2030,14 +2028,13 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
           uncoded_ssd+=buffer[pi]*buffer[pi];
         }
       }
-      /*Scale to match DCT domain.*/
-      uncoded_ssd<<=4;
-      uncoded_ssd=OC_RD_SCALE(uncoded_ssd,_rd_scale[4]);
-      /*Motion is a special case; if there is more than a full-pixel motion 
-        against the prior frame, penalize skipping. TODO: The factor of 
-        two here is a kludge, but it tested out better than a hard limit*/
-      if(_enc->mb_info[_mbi].unref_mv[OC_FRAME_PREV][0]!=0||
-        _enc->mb_info[_mbi].unref_mv[OC_FRAME_PREV][1]!=0)uncoded_ssd*=2;
+      /*Scale to match DCT domain and RD.*/
+      uncoded_ssd=OC_RD_SKIP_SCALE(uncoded_ssd,_rd_scale[4]);
+      /*Motion is a special case; if there is more than a full-pixel motion
+         against the prior frame, penalize skipping.
+        TODO: The factor of two here is a kludge, but it tested out better than
+         a hard limit*/
+      if(mvs[OC_FRAME_PREV][0]!=0||mvs[OC_FRAME_PREV][1]!=0)uncoded_ssd*=2;
       _pipe->skip_ssd[pli][fragi-_pipe->froffset[pli]]=_ssd[mapii]=uncoded_ssd;
     }
     map_nidxs=(map_nidxs-4<<1)+4;
