@@ -6295,6 +6295,14 @@ A compliant decoder MUST use the exact implementation of the inverse DCT
 Some operations may be re-ordered, but the result must be precisely equivalent.
 This is a design decision that limits some avenues of decoder optimization, but
  prevents any drift in the prediction loop.
+The full inverse DCT described in this section is only used when there is at
+ least one non-zero AC coefficient.
+Otherwise, a special DC-only case is used, which is described below in
+ step~\ref{step:dc-only-idct} of Section~\ref{sub:recon}.
+The DC-only special case is not exactly equivalent to applying the full inverse
+ transform, because it avoids the intermediate multiplications and truncation,
+ and it MUST be used in place of the full transform to ensure bit-exact decode.
+
 Theora uses a 16-bit integerized approximation of of the 8-point 1D inverse DCT
  based on the Chen factorization \cite{CSF77}.
 It requires 16 multiplications and 26 additions and subtractions.
@@ -7025,6 +7033,7 @@ Otherwise, use the values \locvar{REFP}, \locvar{RPW}, \locvar{RPH},
  Section~\ref{sub:predhalfpel}.
 \end{enumerate}
 \item
+\label{step:dc-only-idct}
 If $\bitvar{NCOEFFS}[\locvar{\bi}]$ is less than 2:
 \begin{enumerate}
 \item
