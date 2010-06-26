@@ -49,7 +49,7 @@ static int oc_decode_eob_token(int _token,int _eb){
   return (0x20820C41U>>_token*5&0x1F)+_eb;
 }
 
-/*TODO: This is now only used during DCT tokenization, and never for runs; it
+/*TODO: This is now only used during DC tokenization, and never for runs; it
    should be simplified.*/
 static int oc_make_dct_token_full(int _zzi,int _zzj,int _val,int *_eb){
   int neg;

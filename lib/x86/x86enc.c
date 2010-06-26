@@ -44,9 +44,15 @@ void oc_enc_vtable_init_x86(oc_enc_ctx *_enc){
 # if defined(OC_X86_64_ASM)
     _enc->opt_vtable.fdct8x8=oc_enc_fdct8x8_x86_64sse2;
 # endif
+    _enc->opt_vtable.frag_ssd=oc_enc_frag_ssd_sse2;
+    _enc->opt_vtable.frag_border_ssd=oc_enc_frag_border_ssd_sse2;
     _enc->opt_vtable.frag_satd=oc_enc_frag_satd_sse2;
     _enc->opt_vtable.frag_satd2=oc_enc_frag_satd2_sse2;
     _enc->opt_vtable.frag_intra_satd=oc_enc_frag_intra_satd_sse2;
+    _enc->opt_data.enquant_table_size=128*sizeof(ogg_uint16_t);
+    _enc->opt_data.enquant_table_alignment=16;
+    _enc->opt_vtable.enquant_table_init=oc_enc_enquant_table_init_x86;
+    _enc->opt_vtable.quantize=oc_enc_quantize_sse2;
   }
 }
 #endif

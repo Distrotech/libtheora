@@ -119,7 +119,7 @@ void oc_quant_params_pack(oggpack_buffer *_opb,const th_quant_info *_qinfo){
   }
 }
 
-static void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d){
+void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d){
   ogg_uint32_t t;
   int          l;
   _d<<=1;
@@ -129,48 +129,63 @@ static void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d){
   _this->l=l;
 }
 
-/*See comments at oc_dequant_tables_init() for how the quantization tables'
-   storage should be initialized.*/
-void oc_enquant_tables_init(ogg_uint16_t *_dequant[64][3][2],
- oc_iquant *_enquant[64][3][2],const th_quant_info *_qinfo){
-  int qi;
-  int pli;
-  int qti;
-  /*Initialize the dequantization tables first.*/
-  oc_dequant_tables_init(_dequant,NULL,_qinfo);
-  /*Derive the quantization tables directly from the dequantization tables.*/
-  for(qi=0;qi<64;qi++)for(qti=0;qti<2;qti++)for(pli=0;pli<3;pli++){
-    int zzi;
-    int plj;
-    int qtj;
-    int dupe;
-    dupe=0;
-    for(qtj=0;qtj<=qti;qtj++){
-      for(plj=0;plj<(qtj<qti?3:pli);plj++){
-        if(_dequant[qi][pli][qti]==_dequant[qi][plj][qtj]){
-          dupe=1;
-          break;
-        }
-      }
-      if(dupe)break;
+void oc_enc_enquant_table_init_c(void *_enquant,
+ const ogg_uint16_t _dequant[64]){
+  oc_iquant *enquant;
+  int        zzi;
+  enquant=(oc_iquant *)_enquant;
+  for(zzi=0;zzi<64;zzi++)oc_iquant_init(enquant+zzi,_dequant[zzi]);
+}
+
+int oc_enc_quantize(const oc_enc_ctx *_enc,
+ ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+ ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+ const void *_dc_enquant,const void *_ac_enquant){
+  return (*_enc->opt_vtable.quantize)(_qdct,_dct,
+   _dc_dequant,_ac_dequant,_dc_enquant,_ac_enquant);
+}
+
+int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+ ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+ const void *_dc_enquant,const void *_ac_enquant){
+  const oc_iquant *enquant;
+  int              nonzero;
+  int              zzi;
+  int              v;
+  int              val;
+  int              d;
+  int              s;
+  /*Quantize the DC coefficient:*/
+  enquant=(const oc_iquant *)_dc_enquant;
+  v=_dct[0];
+  val=v<<1;
+  s=OC_SIGNMASK(val);
+  val+=_dc_dequant+s^s;
+  val=((enquant[0].m*(ogg_int32_t)val>>16)+val>>enquant[0].l)-s;
+  _qdct[0]=(ogg_int16_t)OC_CLAMPI(-580,val,580);
+  nonzero=0;
+  /*Quantize the AC coefficients:*/
+  enquant=(const oc_iquant *)_ac_enquant;
+  for(zzi=1;zzi<64;zzi++){
+    v=_dct[OC_FZIG_ZAG[zzi]];
+    d=_ac_dequant[zzi];
+    val=v<<1;
+    v=abs(val);
+    if(v>=d){
+      s=OC_SIGNMASK(val);
+      /*The bias added here rounds ties away from zero, since token
+         optimization can only decrease the magnitude of the quantized
+         value.*/
+      val+=d+s^s;
+      /*Note the arithmetic right shift is not guaranteed by ANSI C.
+        Hopefully no one still uses ones-complement architectures.*/
+      val=((enquant[zzi].m*(ogg_int32_t)val>>16)+val>>enquant[zzi].l)-s;
+      _qdct[zzi]=(ogg_int16_t)OC_CLAMPI(-580,val,580);
+      nonzero=zzi;
     }
-    if(dupe){
-      _enquant[qi][pli][qti]=_enquant[qi][plj][qtj];
-      continue;
-    }
-    /*In the original VP3.2 code, the rounding offset and the size of the
-       dead zone around 0 were controlled by a "sharpness" parameter.
-      We now R-D optimize the tokens for each block after quantization,
-       so the rounding offset should always be 1/2, and an explicit dead
-       zone is unnecessary.
-      Hence, all of that VP3.2 code is gone from here, and the remaining
-       floating point code has been implemented as equivalent integer
-       code with exact precision.*/
-    for(zzi=0;zzi<64;zzi++){
-      oc_iquant_init(_enquant[qi][pli][qti]+zzi,
-       _dequant[qi][pli][qti][zzi]);
-    }
+    else _qdct[zzi]=0;
   }
+  return nonzero;
 }
 
 
@@ -226,7 +241,7 @@ static const ogg_uint16_t OC_RPSD[2][64]={
    relative to the total, scaled by 2**16, for each pixel format.
   These values were measured after motion-compensated prediction, before
    quantization, over a large set of test video encoded at all possible rates.
-  TODO: These values are only from INTER frames; it should be re-measured for
+  TODO: These values are only from INTER frames; they should be re-measured for
    INTRA frames.*/
 static const ogg_uint16_t OC_PCD[4][3]={
   {59926, 3038, 2572},

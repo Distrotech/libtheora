@@ -29,6 +29,7 @@
 typedef oc_mv                         oc_mv2[2];
 
 typedef struct oc_enc_opt_vtable      oc_enc_opt_vtable;
+typedef struct oc_enc_opt_data        oc_enc_opt_data;
 typedef struct oc_mb_enc_info         oc_mb_enc_info;
 typedef struct oc_mode_scheme_chooser oc_mode_scheme_chooser;
 typedef struct oc_mode_rd             oc_mode_rd;
@@ -120,6 +121,10 @@ extern const unsigned char OC_BLOCK_RUN_CODE_NBITS[30];
 
 /*Encoder specific functions with accelerated variants.*/
 struct oc_enc_opt_vtable{
+  void     (*frag_sub)(ogg_int16_t _diff[64],const unsigned char *_src,
+   const unsigned char *_ref,int _ystride);
+  void     (*frag_sub_128)(ogg_int16_t _diff[64],
+   const unsigned char *_src,int _ystride);
   unsigned (*frag_sad)(const unsigned char *_src,
    const unsigned char *_ref,int _ystride);
   unsigned (*frag_sad_thresh)(const unsigned char *_src,
@@ -133,17 +138,34 @@ struct oc_enc_opt_vtable{
    const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
   unsigned (*frag_intra_satd)(unsigned *_dc,const unsigned char *_src,
    int _ystride);
-  void     (*frag_sub)(ogg_int16_t _diff[64],const unsigned char *_src,
+  unsigned (*frag_ssd)(const unsigned char *_src,
    const unsigned char *_ref,int _ystride);
-  void     (*frag_sub_128)(ogg_int16_t _diff[64],
-   const unsigned char *_src,int _ystride);
+  unsigned (*frag_border_ssd)(const unsigned char *_src,
+   const unsigned char *_ref,int _ystride,ogg_int64_t _mask);
   void     (*frag_copy2)(unsigned char *_dst,
    const unsigned char *_src1,const unsigned char *_src2,int _ystride);
+  void     (*enquant_table_init)(void *_enquant,
+   const ogg_uint16_t _dequant[64]);
+  int      (*quantize)(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+   ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+   const void *_dc_enquant,const void *_ac_enquant);
   void     (*frag_recon_intra)(unsigned char *_dst,int _ystride,
    const ogg_int16_t _residue[64]);
   void     (*frag_recon_inter)(unsigned char *_dst,
    const unsigned char *_src,int _ystride,const ogg_int16_t _residue[64]);
   void     (*fdct8x8)(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
+};
+
+
+/*Encoder specific data that varies according to which variants of the above
+   functions are used.*/
+struct oc_enc_opt_data{
+  /*The size of a single quantizer table.
+    This must be a multiple of enquant_table_alignment.*/
+  size_t               enquant_table_size;
+  /*The alignment required for the quantizer tables.
+    This must be a positive power of two.*/
+  int                  enquant_table_alignment;
 };
 
 
@@ -429,7 +451,7 @@ struct th_enc_ctx{
   /*The quantization parameters in use.*/
   th_quant_info            qinfo;
   oc_iquant               *enquant_tables[64][3][2];
-  oc_iquant_table          enquant_table_data[64][3][2];
+  unsigned char           *enquant_table_data;
   /*An "average" quantizer for each frame type (INTRA or INTER) and qi value.
     This is used to paramterize the rate control decisions.
     They are kept in the log domain to simplify later processing.
@@ -453,6 +475,8 @@ struct th_enc_ctx{
   oc_rc_state              rc;
   /*Table for encoder acceleration functions.*/
   oc_enc_opt_vtable        opt_vtable;
+  /*Table for encoder data used by accelerated functions.*/
+  oc_enc_opt_data          opt_data;
 };
 
 
@@ -529,8 +553,19 @@ unsigned oc_enc_frag_satd2(const oc_enc_ctx *_enc,unsigned *_dc,
  const unsigned char *_ref2,int _ystride);
 unsigned oc_enc_frag_intra_satd(const oc_enc_ctx *_enc,unsigned *_dc,
  const unsigned char *_src,int _ystride);
+unsigned oc_enc_frag_ssd(const oc_enc_ctx *_enc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_border_ssd(const oc_enc_ctx *_enc,
+ const unsigned char *_src,const unsigned char *_ref,int _ystride,
+ ogg_int64_t _mask);
 void oc_enc_frag_copy2(const oc_enc_ctx *_enc,unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride);
+void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
+ const ogg_uint16_t _dequant[64]);
+int oc_enc_quantize(const oc_enc_ctx *_enc,
+ ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+ ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+ const void *_dc_enquant,const void *_ac_enquant);
 void oc_enc_frag_recon_intra(const oc_enc_ctx *_enc,
  unsigned char *_dst,int _ystride,const ogg_int16_t _residue[64]);
 void oc_enc_frag_recon_inter(const oc_enc_ctx *_enc,unsigned char *_dst,
@@ -545,8 +580,6 @@ void oc_enc_frag_sub_c(ogg_int16_t _diff[64],
  const unsigned char *_src,const unsigned char *_ref,int _ystride);
 void oc_enc_frag_sub_128_c(ogg_int16_t _diff[64],
  const unsigned char *_src,int _ystride);
-void oc_enc_frag_copy2_c(unsigned char *_dst,
- const unsigned char *_src1,const unsigned char *_src2,int _ystride);
 unsigned oc_enc_frag_sad_c(const unsigned char *_src,
  const unsigned char *_ref,int _ystride);
 unsigned oc_enc_frag_sad_thresh_c(const unsigned char *_src,
@@ -560,6 +593,17 @@ unsigned oc_enc_frag_satd2_c(unsigned *_dc,const unsigned char *_src,
  const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
 unsigned oc_enc_frag_intra_satd_c(unsigned *_dc,const unsigned char *_src,
  int _ystride);
+unsigned oc_enc_frag_ssd_c(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_border_ssd_c(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride,ogg_int64_t _mask);
+void oc_enc_frag_copy2_c(unsigned char *_dst,
+ const unsigned char *_src1,const unsigned char *_src2,int _ystride);
+void oc_enc_enquant_table_init_c(void *_enquant,
+ const ogg_uint16_t _dequant[64]);
+int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+ ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+ const void *_dc_enquant,const void *_ac_enquant);
 void oc_enc_fdct8x8_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
 
 #endif

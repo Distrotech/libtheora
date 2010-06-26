@@ -491,17 +491,20 @@ int oc_huff_token_decode(oc_pack_buf *_opb,const ogg_int16_t *_tree){
   for(;;){
     n=_tree[node];
     if(n>available){
-      for(;;){
+      int shift;
+      shift=OC_PB_WINDOW_SIZE-8-available;
+      do{
         /*We don't bother setting eof because we won't check for it after we've
            started decoding DCT tokens.*/
         if(ptr>=stop){
           available=OC_LOTS_OF_BITS;
           break;
         }
-        if(available>OC_PB_WINDOW_SIZE-8)break;
         available+=8;
-        window|=(oc_pb_window)*ptr++<<OC_PB_WINDOW_SIZE-available;
+        window|=(oc_pb_window)*ptr++<<shift;
+        shift-=8;
       }
+      while(shift>=0);
       /*Note: We never request more than 24 bits, so there's no need to fill in
          the last partial byte here.*/
     }

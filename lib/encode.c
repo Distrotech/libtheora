@@ -936,15 +936,21 @@ static void oc_enc_frame_pack(oc_enc_ctx *_enc){
 void oc_enc_vtable_init_c(oc_enc_ctx *_enc){
   /*The implementations prefixed with oc_enc_ are encoder-specific.
     The rest we re-use from the decoder.*/
+  _enc->opt_vtable.frag_sub=oc_enc_frag_sub_c;
+  _enc->opt_vtable.frag_sub_128=oc_enc_frag_sub_128_c;
   _enc->opt_vtable.frag_sad=oc_enc_frag_sad_c;
   _enc->opt_vtable.frag_sad_thresh=oc_enc_frag_sad_thresh_c;
   _enc->opt_vtable.frag_sad2_thresh=oc_enc_frag_sad2_thresh_c;
   _enc->opt_vtable.frag_satd=oc_enc_frag_satd_c;
   _enc->opt_vtable.frag_satd2=oc_enc_frag_satd2_c;
   _enc->opt_vtable.frag_intra_satd=oc_enc_frag_intra_satd_c;
-  _enc->opt_vtable.frag_sub=oc_enc_frag_sub_c;
-  _enc->opt_vtable.frag_sub_128=oc_enc_frag_sub_128_c;
+  _enc->opt_vtable.frag_ssd=oc_enc_frag_ssd_c;
+  _enc->opt_vtable.frag_border_ssd=oc_enc_frag_border_ssd_c;
   _enc->opt_vtable.frag_copy2=oc_enc_frag_copy2_c;
+  _enc->opt_data.enquant_table_size=64*sizeof(oc_iquant);
+  _enc->opt_data.enquant_table_alignment=16;
+  _enc->opt_vtable.enquant_table_init=oc_enc_enquant_table_init_c;
+  _enc->opt_vtable.quantize=oc_enc_quantize_c;
   _enc->opt_vtable.frag_recon_intra=oc_frag_recon_intra_c;
   _enc->opt_vtable.frag_recon_inter=oc_frag_recon_inter_c;
   _enc->opt_vtable.fdct8x8=oc_enc_fdct8x8_c;
@@ -1048,6 +1054,64 @@ static int oc_enc_set_huffman_codes(oc_enc_ctx *_enc,
   return 0;
 }
 
+void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
+ const ogg_uint16_t _dequant[64]){
+  (*_enc->opt_vtable.enquant_table_init)(_enquant,_dequant);
+}
+
+static void oc_enc_enquant_tables_init(oc_enc_ctx *_enc,
+ const th_quant_info *_qinfo){
+  unsigned char *etd;
+  size_t         ets;
+  int            align;
+  int            qi;
+  int            pli;
+  int            qti;
+  etd=_enc->enquant_table_data;
+  ets=_enc->opt_data.enquant_table_size;
+  align=-(etd-(unsigned char *)0)&_enc->opt_data.enquant_table_alignment-1;
+  etd+=align;
+  for(qi=0;qi<64;qi++)for(pli=0;pli<3;pli++)for(qti=0;qti<2;qti++){
+    _enc->state.dequant_tables[qi][pli][qti]=
+     _enc->state.dequant_table_data[qi][pli][qti];
+    _enc->enquant_tables[qi][pli][qti]=etd+((qi*3+pli)*2+qti)*ets;
+  }
+  /*Initialize the dequantization tables first.*/
+  oc_dequant_tables_init(_enc->state.dequant_tables,NULL,_qinfo);
+  /*Derive the quantization tables directly from the dequantization tables.*/
+  for(qi=0;qi<64;qi++)for(qti=0;qti<2;qti++)for(pli=0;pli<3;pli++){
+    int plj;
+    int qtj;
+    int dupe;
+    dupe=0;
+    for(qtj=0;qtj<=qti;qtj++){
+      for(plj=0;plj<(qtj<qti?3:pli);plj++){
+        if(_enc->state.dequant_tables[qi][pli][qti]==
+         _enc->state.dequant_tables[qi][plj][qtj]){
+          dupe=1;
+          break;
+        }
+      }
+      if(dupe)break;
+    }
+    if(dupe){
+      _enc->enquant_tables[qi][pli][qti]=_enc->enquant_tables[qi][plj][qtj];
+    }
+    /*In the original VP3.2 code, the rounding offset and the size of the
+       dead zone around 0 were controlled by a "sharpness" parameter.
+      We now R-D optimize the tokens for each block after quantization,
+       so the rounding offset should always be 1/2, and an explicit dead
+       zone is unnecessary.
+      Hence, all of that VP3.2 code is gone from here, and the remaining
+       floating point code has been implemented as equivalent integer
+       code with exact precision.*/
+    else{
+      oc_enc_enquant_table_init(_enc,_enc->enquant_tables[qi][pli][qti],
+       _enc->state.dequant_tables[qi][pli][qti]);
+    }
+  }
+}
+
 /*Sets the quantization parameters to use.
   This may only be called before the setup header is written.
   If it is called multiple times, only the last call has any effect.
@@ -1057,21 +1121,12 @@ static int oc_enc_set_huffman_codes(oc_enc_ctx *_enc,
            will be used.*/
 static int oc_enc_set_quant_params(oc_enc_ctx *_enc,
  const th_quant_info *_qinfo){
-  int qi;
-  int pli;
-  int qti;
   if(_enc==NULL)return TH_EFAULT;
   if(_enc->packet_state>OC_PACKET_SETUP_HDR)return TH_EINVAL;
   if(_qinfo==NULL)_qinfo=&TH_DEF_QUANT_INFO;
   /*TODO: Analyze for packing purposes instead of just doing a shallow copy.*/
   memcpy(&_enc->qinfo,_qinfo,sizeof(_enc->qinfo));
-  for(qi=0;qi<64;qi++)for(pli=0;pli<3;pli++)for(qti=0;qti<2;qti++){
-    _enc->state.dequant_tables[qi][pli][qti]=
-     _enc->state.dequant_table_data[qi][pli][qti];
-    _enc->enquant_tables[qi][pli][qti]=_enc->enquant_table_data[qi][pli][qti];
-  }
-  oc_enquant_tables_init(_enc->state.dequant_tables,
-   _enc->enquant_tables,_qinfo);
+  oc_enc_enquant_tables_init(_enc,_qinfo);
   memcpy(_enc->state.loop_filter_limits,_qinfo->loop_filter_limits,
    sizeof(_enc->state.loop_filter_limits));
   oc_enquant_qavg_init(_enc->log_qavg,_enc->log_plq,_enc->chroma_rd_scale,
@@ -1134,6 +1189,9 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
 #else
   oc_enc_vtable_init_c(_enc);
 #endif
+  _enc->enquant_table_data=(unsigned char *)_ogg_malloc(
+   64*3*2*_enc->opt_data.enquant_table_size
+   +_enc->opt_data.enquant_table_alignment-1);
   _enc->keyframe_frequency_force=1<<_enc->state.info.keyframe_granule_shift;
   _enc->state.qis[0]=_enc->state.info.quality;
   _enc->state.nqis=1;
@@ -1176,6 +1234,7 @@ static void oc_enc_clear(oc_enc_ctx *_enc){
   int pli;
   oc_rc_state_clear(&_enc->rc);
   oggpackB_writeclear(&_enc->opb);
+  _ogg_free(_enc->enquant_table_data);
 #if defined(OC_COLLECT_METRICS)
   /*Save the collected metrics from this run.
     Use tools/process_modedec_stats to actually generate modedec.h from the

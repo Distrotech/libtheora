@@ -738,8 +738,6 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   OC_ALIGN16(ogg_int16_t  data[64]);
   oc_qii_state            qs;
   ogg_uint16_t            dc_dequant;
-  const ogg_uint16_t     *dequant;
-  const oc_iquant        *enquant;
   ptrdiff_t               frag_offs;
   int                     ystride;
   const unsigned char    *src;
@@ -757,12 +755,6 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   int                     borderi;
   int                     qti;
   int                     qii;
-  int                     pi;
-  int                     zzi;
-  int                     v;
-  int                     val;
-  int                     d;
-  int                     s;
   int                     dc;
   frags=_enc->state.frags;
   frag_offs=_enc->state.frag_buf_offs[_fragi];
@@ -834,43 +826,18 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
 #endif
   /*Transform:*/
   oc_enc_fdct8x8(_enc,dct,data);
-  /*Quantize the DC coefficient:*/
+  /*Quantize:*/
   qti=mb_mode!=OC_MODE_INTRA;
-  enquant=_pipe->enquant[_pli][0][qti];
   dc_dequant=_pipe->dequant[_pli][0][qti][0];
-  v=dct[0];
-  val=v<<1;
-  s=OC_SIGNMASK(val);
-  val+=dc_dequant+s^s;
-  val=((enquant[0].m*(ogg_int32_t)val>>16)+val>>enquant[0].l)-s;
-  dc=OC_CLAMPI(-580,val,580);
-  nonzero=0;
-  /*Quantize the AC coefficients:*/
-  dequant=_pipe->dequant[_pli][qii][qti];
-  enquant=_pipe->enquant[_pli][qii][qti];
-  for(zzi=1;zzi<64;zzi++){
-    v=dct[OC_FZIG_ZAG[zzi]];
-    d=dequant[zzi];
-    val=v<<1;
-    v=abs(val);
-    if(v>=d){
-      s=OC_SIGNMASK(val);
-      /*The bias added here rounds ties away from zero, since token
-         optimization can only decrease the magnitude of the quantized
-         value.*/
-      val+=d+s^s;
-      /*Note the arithmetic right shift is not guaranteed by ANSI C.
-        Hopefully no one still uses ones-complement architectures.*/
-      val=((enquant[zzi].m*(ogg_int32_t)val>>16)+val>>enquant[zzi].l)-s;
-      data[zzi]=OC_CLAMPI(-580,val,580);
-      nonzero=zzi;
-    }
-    else data[zzi]=0;
-  }
+  nonzero=oc_enc_quantize(_enc,data,dct,
+   dc_dequant,_pipe->dequant[_pli][qii][qti],
+   _pipe->enquant[_pli][0][qti],_pipe->enquant[_pli][qii][qti]);
+  dc=data[0];
   /*Tokenize.*/
   checkpoint=*_stack;
-  ac_bits=oc_enc_tokenize_ac(_enc,_pli,_fragi,data,dequant,dct,nonzero+1,
-   _stack,OC_RD_ISCALE(_enc->lambda,_rd_iscale),qti?0:3);
+  ac_bits=oc_enc_tokenize_ac(_enc,_pli,_fragi,data,
+   _pipe->dequant[_pli][qii][qti],dct,nonzero+1,_stack,
+   OC_RD_ISCALE(_enc->lambda,_rd_iscale),qti?0:3);
   /*Reconstruct.
     TODO: nonzero may need to be adjusted after tokenization.*/
   if(nonzero==0){
@@ -906,19 +873,12 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
 #endif
   {
     /*In retrospect, should we have skipped this block?*/
-    oc_enc_frag_sub(_enc,data,src,dst,ystride);
-    coded_ssd=0;
     if(borderi<0){
-      for(pi=0;pi<64;pi++){
-        coded_ssd+=data[pi]*data[pi];
-      }
+      coded_ssd=oc_enc_frag_ssd(_enc,src,dst,ystride);
     }
     else{
-      ogg_int64_t mask;
-      mask=_enc->state.borders[borderi].mask;
-      for(pi=0;pi<64;pi++,mask>>=1)if(mask&1){
-        coded_ssd+=data[pi]*data[pi];
-      }
+      coded_ssd=oc_enc_frag_border_ssd(_enc,src,dst,ystride,
+       _enc->state.borders[borderi].mask);
     }
     /*Scale to match DCT domain.*/
     coded_ssd<<=4;
@@ -1946,27 +1906,24 @@ static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
 
 static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
  unsigned _mbi,const unsigned _rd_scale[4],unsigned _ssd[12]){
-  OC_ALIGN16(ogg_int16_t  buffer[64]);
-  const unsigned char    *src;
-  const unsigned char    *ref;
-  int                     ystride;
-  const oc_fragment      *frags;
-  const ptrdiff_t        *frag_buf_offs;
-  const ptrdiff_t        *sb_map;
-  const oc_mb_map_plane  *mb_map;
-  const unsigned char    *map_idxs;
-  oc_mv                  *mvs;
-  int                     map_nidxs;
-  ogg_int64_t             mask;
-  unsigned                uncoded_ssd;
-  int                     mapii;
-  int                     mapi;
-  int                     pli;
-  int                     bi;
-  ptrdiff_t               fragi;
-  ptrdiff_t               frag_offs;
-  int                     borderi;
-  int                     pi;
+  const unsigned char   *src;
+  const unsigned char   *ref;
+  int                    ystride;
+  const oc_fragment     *frags;
+  const ptrdiff_t       *frag_buf_offs;
+  const ptrdiff_t       *sb_map;
+  const oc_mb_map_plane *mb_map;
+  const unsigned char   *map_idxs;
+  oc_mv                 *mvs;
+  int                    map_nidxs;
+  unsigned               uncoded_ssd;
+  int                    mapii;
+  int                    mapi;
+  int                    pli;
+  int                    bi;
+  ptrdiff_t              fragi;
+  ptrdiff_t              frag_offs;
+  int                    borderi;
   src=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_IO]];
   ref=_enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_PREV]];
   ystride=_enc->state.ref_ystride[0];
@@ -1976,21 +1933,14 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   mvs=_enc->mb_info[_mbi].block_mv;
   for(bi=0;bi<4;bi++){
     fragi=sb_map[bi];
-    frag_offs=frag_buf_offs[fragi];
-    oc_enc_frag_sub(_enc,buffer,src+frag_offs,ref+frag_offs,ystride);
     borderi=frags[fragi].borderi;
-    uncoded_ssd=0;
+    frag_offs=frag_buf_offs[fragi];
     if(borderi<0){
-      for(pi=0;pi<64;pi++){
-        uncoded_ssd+=buffer[pi]*buffer[pi];
-      }
+      uncoded_ssd=oc_enc_frag_ssd(_enc,src+frag_offs,ref+frag_offs,ystride);
     }
     else{
-      ogg_int64_t mask;
-      mask=_enc->state.borders[borderi].mask;
-      for(pi=0;pi<64;pi++,mask>>=1)if(mask&1){
-        uncoded_ssd+=buffer[pi]*buffer[pi];
-      }
+      uncoded_ssd=oc_enc_frag_border_ssd(_enc,
+       src+frag_offs,ref+frag_offs,ystride,_enc->state.borders[borderi].mask);
     }
     /*Scale to match DCT domain and RD.*/
     uncoded_ssd=OC_RD_SKIP_SCALE(uncoded_ssd,_rd_scale[bi]);
@@ -2013,20 +1963,14 @@ static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
       mapi=map_idxs[mapii];
       bi=mapi&3;
       fragi=mb_map[pli][bi];
-      frag_offs=frag_buf_offs[fragi];
-      oc_enc_frag_sub(_enc,buffer,src+frag_offs,ref+frag_offs,ystride);
       borderi=frags[fragi].borderi;
-      uncoded_ssd=0;
+      frag_offs=frag_buf_offs[fragi];
       if(borderi<0){
-        for(pi=0;pi<64;pi++){
-          uncoded_ssd+=buffer[pi]*buffer[pi];
-        }
+        uncoded_ssd=oc_enc_frag_ssd(_enc,src+frag_offs,ref+frag_offs,ystride);
       }
       else{
-        mask=_enc->state.borders[borderi].mask;
-        for(pi=0;pi<64;pi++,mask>>=1)if(mask&1){
-          uncoded_ssd+=buffer[pi]*buffer[pi];
-        }
+        uncoded_ssd=oc_enc_frag_border_ssd(_enc,
+         src+frag_offs,ref+frag_offs,ystride,_enc->state.borders[borderi].mask);
       }
       /*Scale to match DCT domain and RD.*/
       uncoded_ssd=OC_RD_SKIP_SCALE(uncoded_ssd,_rd_scale[4]);

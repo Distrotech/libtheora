@@ -43,8 +43,21 @@
    clobber all of "memory" and lets us access local buffers directly using the
    stack pointer, without allocating a separate register to point to them.*/
 #define OC_ARRAY_OPERAND(_type,_ptr,_size) \
-  (*({struct{_type array_value__[_size];} *array_addr__=(void *)_ptr; \
-   array_addr__;}))
+  (*({ \
+    struct{_type array_value__[_size];} *array_addr__=(void *)_ptr; \
+    array_addr__; \
+  }))
+
+/*Declare an array operand with an exact size.
+  This tells gcc we're going to clobber this memory region, without having to
+   clobber all of "memory" and lets us access local buffers directly using the
+   stack pointer, without allocating a separate register to point to them.*/
+#define OC_CONST_ARRAY_OPERAND(_type,_ptr,_size) \
+  (*({ \
+    const struct{_type array_value__[_size];} *array_addr__= \
+     (const void *)_ptr; \
+    array_addr__; \
+  }))
 
 extern const short __attribute__((aligned(16))) OC_IDCT_CONSTS[64];
 

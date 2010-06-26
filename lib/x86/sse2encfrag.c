@@ -20,6 +20,156 @@
 
 #if defined(OC_X86_ASM)
 
+/*Load a 4x8 array of pixels values from %[src] and %[ref] and compute their
+   16-bit differences.
+  On output, these are stored in _m0, xmm1, xmm2, and xmm3.
+  xmm4 and xmm5 are clobbered.*/
+#define OC_LOAD_SUB_4x8(_m0) \
+ "#OC_LOAD_SUB_4x8\n\t" \
+ /*Load the first three rows.*/ \
+ "movq (%[src]),"_m0"\n\t" \
+ "movq (%[ref]),%%xmm4\n\t" \
+ "movq (%[src],%[ystride]),%%xmm1\n\t" \
+ "movq (%[ref],%[ystride]),%%xmm3\n\t" \
+ "movq (%[src],%[ystride],2),%%xmm2\n\t" \
+ "movq (%[ref],%[ystride],2),%%xmm5\n\t" \
+ /*Unpack and subtract.*/ \
+ "punpcklbw %%xmm4,"_m0"\n\t" \
+ "punpcklbw %%xmm4,%%xmm4\n\t" \
+ "punpcklbw %%xmm3,%%xmm1\n\t" \
+ "punpcklbw %%xmm3,%%xmm3\n\t" \
+ "psubw %%xmm4,"_m0"\n\t" \
+ "psubw %%xmm3,%%xmm1\n\t" \
+ /*Load the last row.*/ \
+ "movq (%[src],%[ystride3]),%%xmm3\n\t" \
+ "movq (%[ref],%[ystride3]),%%xmm4\n\t" \
+ /*Unpack, subtract, and advance the pointers.*/ \
+ "punpcklbw %%xmm5,%%xmm2\n\t" \
+ "punpcklbw %%xmm5,%%xmm5\n\t" \
+ "lea (%[src],%[ystride],4),%[src]\n\t" \
+ "psubw %%xmm5,%%xmm2\n\t" \
+ "punpcklbw %%xmm4,%%xmm3\n\t" \
+ "punpcklbw %%xmm4,%%xmm4\n\t" \
+ "lea (%[ref],%[ystride],4),%[ref]\n\t" \
+ "psubw %%xmm4,%%xmm3\n\t" \
+
+/*Square and accumulate four rows of differences in _m0, xmm1, xmm2, and xmm3.
+  On output, xmm0 contains the sum of two of the rows, and the other two are
+   added to xmm7.*/
+#define OC_SSD_4x8(_m0) \
+ "pmaddwd "_m0","_m0"\n\t" \
+ "pmaddwd %%xmm1,%%xmm1\n\t" \
+ "pmaddwd %%xmm2,%%xmm2\n\t" \
+ "pmaddwd %%xmm3,%%xmm3\n\t" \
+ "paddd %%xmm1,"_m0"\n\t" \
+ "paddd %%xmm3,%%xmm2\n\t" \
+ "paddd %%xmm2,%%xmm7\n\t" \
+
+unsigned oc_enc_frag_ssd_sse2(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride){
+  unsigned ret;
+  __asm__ __volatile__(
+    OC_LOAD_SUB_4x8("%%xmm7")
+    OC_SSD_4x8("%%xmm7")
+    OC_LOAD_SUB_4x8("%%xmm0")
+    OC_SSD_4x8("%%xmm0")
+    "paddd %%xmm0,%%xmm7\n\t"
+    "movdqa %%xmm7,%%xmm6\n\t"
+    "punpckhqdq %%xmm7,%%xmm7\n\t"
+    "paddd %%xmm6,%%xmm7\n\t"
+    "pshufd $1,%%xmm7,%%xmm6\n\t"
+    "paddd %%xmm6,%%xmm7\n\t"
+    "movd %%xmm7,%[ret]\n\t"
+    :[ret]"=a"(ret)
+    :[src]"r"(_src),[ref]"r"(_ref),[ystride]"r"((ptrdiff_t)_ystride),
+     [ystride3]"r"((ptrdiff_t)_ystride*3)
+  );
+  return ret;
+}
+
+static const unsigned char __attribute__((aligned(16))) OC_MASK_CONSTS[8]={
+  0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80
+};
+
+/*Load a 2x8 array of pixels values from %[src] and %[ref] and compute their
+   horizontal sums as well as their 16-bit differences subject to a mask.
+  %%xmm5 must contain OC_MASK_CONSTS[0...7] and %%xmm6 must contain 0.*/
+#define OC_LOAD_SUB_MASK_2x8 \
+ "#OC_LOAD_SUB_MASK_2x8\n\t" \
+ /*Start the loads and expand the next 8 bits of the mask.*/ \
+ "shl $8,%[m]\n\t" \
+ "movq (%[src]),%%xmm0\n\t" \
+ "mov %h[m],%b[m]\n\t" \
+ "movq (%[ref]),%%xmm2\n\t" \
+ "movd %[m],%%xmm4\n\t" \
+ "shr $8,%[m]\n\t" \
+ "pshuflw $0x00,%%xmm4,%%xmm4\n\t" \
+ "mov %h[m],%b[m]\n\t" \
+ "pand %%xmm6,%%xmm4\n\t" \
+ "pcmpeqb %%xmm6,%%xmm4\n\t" \
+ /*Perform the masking.*/ \
+ "pand %%xmm4,%%xmm0\n\t" \
+ "pand %%xmm4,%%xmm2\n\t" \
+ /*Finish the loads while unpacking the first set of rows, and expand the next
+    8 bits of the mask.*/ \
+ "movd %[m],%%xmm4\n\t" \
+ "movq (%[src],%[ystride]),%%xmm1\n\t" \
+ "pshuflw $0x00,%%xmm4,%%xmm4\n\t" \
+ "movq (%[ref],%[ystride]),%%xmm3\n\t" \
+ "pand %%xmm6,%%xmm4\n\t" \
+ "punpcklbw %%xmm2,%%xmm0\n\t" \
+ "pcmpeqb %%xmm6,%%xmm4\n\t" \
+ "punpcklbw %%xmm2,%%xmm2\n\t" \
+ /*Mask and unpack the second set of rows.*/ \
+ "pand %%xmm4,%%xmm1\n\t" \
+ "pand %%xmm4,%%xmm3\n\t" \
+ "punpcklbw %%xmm3,%%xmm1\n\t" \
+ "punpcklbw %%xmm3,%%xmm3\n\t" \
+ "psubw %%xmm2,%%xmm0\n\t" \
+ "psubw %%xmm3,%%xmm1\n\t" \
+
+unsigned oc_enc_frag_border_ssd_sse2(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride,ogg_int64_t _mask){
+  ptrdiff_t ystride;
+  unsigned  ret;
+  int       i;
+  ystride=_ystride;
+  __asm__ __volatile__(
+    "pxor %%xmm7,%%xmm7\n\t"
+    "movq %[c],%%xmm6\n\t"
+    :
+    :[c]"m"(OC_CONST_ARRAY_OPERAND(unsigned char,OC_MASK_CONSTS,8))
+  );
+  for(i=0;i<4;i++){
+    unsigned m;
+    m=_mask&0xFFFF;
+    _mask>>=16;
+    if(m){
+      __asm__ __volatile__(
+        OC_LOAD_SUB_MASK_2x8
+        "pmaddwd %%xmm0,%%xmm0\n\t"
+        "pmaddwd %%xmm1,%%xmm1\n\t"
+        "paddd %%xmm0,%%xmm7\n\t"
+        "paddd %%xmm1,%%xmm7\n\t"
+        :[src]"+r"(_src),[ref]"+r"(_ref),[ystride]"+r"(ystride),[m]"+Q"(m)
+      );
+    }
+    _src+=2*ystride;
+    _ref+=2*ystride;
+  }
+  __asm__ __volatile__(
+    "movdqa %%xmm7,%%xmm6\n\t"
+    "punpckhqdq %%xmm7,%%xmm7\n\t"
+    "paddd %%xmm6,%%xmm7\n\t"
+    "pshufd $1,%%xmm7,%%xmm6\n\t"
+    "paddd %%xmm6,%%xmm7\n\t"
+    "movd %%xmm7,%[ret]\n\t"
+    :[ret]"=a"(ret)
+  );
+  return ret;
+}
+
+
 /*Load an 8x8 array of pixel values from %[src] and %[ref] and compute their
    16-bit difference in %%xmm0...%%xmm7.*/
 #define OC_LOAD_SUB_8x8 \

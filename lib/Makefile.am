@@ -11,6 +11,7 @@ EXTRA_DIST = \
 	x86/sse2trans.h \
 	x86/x86enc.c \
 	x86/x86enc.h \
+	x86/x86enquant.c \
 	x86/mmxfrag.c \
 	x86/mmxfrag.h \
 	x86/mmxidct.c \
@@ -33,8 +34,9 @@ else
 encoder_uniq_x86_sources = \
 	x86/mmxencfrag.c \
 	x86/mmxfdct.c \
-	x86/x86enc.c \
-	x86/sse2encfrag.c
+	x86/sse2encfrag.c \
+	x86/x86enquant.c \
+	x86/x86enc.c
 
 encoder_uniq_x86_64_sources = \
 	x86/sse2fdct.c

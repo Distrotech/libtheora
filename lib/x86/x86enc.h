@@ -22,6 +22,14 @@
 
 void oc_enc_vtable_init_x86(oc_enc_ctx *_enc);
 
+void oc_enc_frag_sub_mmx(ogg_int16_t _diff[64],
+ const unsigned char *_x,const unsigned char *_y,int _stride);
+void oc_enc_frag_sub_128_mmx(ogg_int16_t _diff[64],
+ const unsigned char *_x,int _stride);
+unsigned oc_enc_frag_ssd_sse2(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_border_ssd_sse2(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride,ogg_int64_t _mask);
 unsigned oc_enc_frag_sad_mmxext(const unsigned char *_src,
  const unsigned char *_ref,int _ystride);
 unsigned oc_enc_frag_sad_thresh_mmxext(const unsigned char *_src,
@@ -31,25 +39,27 @@ unsigned oc_enc_frag_sad2_thresh_mmxext(const unsigned char *_src,
  unsigned _thresh);
 unsigned oc_enc_frag_satd_mmxext(unsigned *_dc,const unsigned char *_src,
  const unsigned char *_ref,int _ystride);
+unsigned oc_enc_frag_satd_sse2(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride);
 unsigned oc_enc_frag_satd2_mmxext(unsigned *_dc,const unsigned char *_src,
  const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
+unsigned oc_enc_frag_satd2_sse2(unsigned *_dc,const unsigned char *_src,
+ const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
+unsigned oc_enc_frag_intra_satd_sse2(unsigned *_dc,
+ const unsigned char *_src,int _ystride);
 unsigned oc_enc_frag_intra_satd_mmxext(unsigned *_dc,
  const unsigned char *_src,int _ystride);
-void oc_enc_frag_sub_mmx(ogg_int16_t _diff[64],
- const unsigned char *_x,const unsigned char *_y,int _stride);
-void oc_enc_frag_sub_128_mmx(ogg_int16_t _diff[64],
- const unsigned char *_x,int _stride);
+void oc_enc_enquant_table_init_x86(void *_enquant,
+ const ogg_uint16_t _dequant[64]);
+int oc_enc_quantize_sse2(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
+ ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
+ const void *_dc_enquant,const void *_ac_enquant);
 void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
  const unsigned char *_src1,const unsigned char *_src2,int _src_ystride);
 void oc_enc_frag_copy2_mmxext(unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride);
 void oc_enc_fdct8x8_mmx(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
-unsigned oc_enc_frag_satd_sse2(unsigned *_dc,const unsigned char *_src,
- const unsigned char *_ref,int _ystride);
-unsigned oc_enc_frag_satd2_sse2(unsigned *_dc,const unsigned char *_src,
- const unsigned char *_ref1,const unsigned char *_ref2,int _ystride);
-unsigned oc_enc_frag_intra_satd_sse2(unsigned *_dc,
- const unsigned char *_src,int _ystride);
+
 # if defined(OC_X86_64_ASM)
 void oc_enc_fdct8x8_x86_64sse2(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
 # endif

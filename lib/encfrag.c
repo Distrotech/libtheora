@@ -359,6 +359,47 @@ unsigned oc_enc_frag_intra_satd_c(unsigned *_dc,
   return oc_hadamard_sad(_dc,buf);
 }
 
+unsigned oc_enc_frag_ssd(const oc_enc_ctx *_enc,const unsigned char *_src,
+ const unsigned char *_ref,int _ystride){
+  return (*_enc->opt_vtable.frag_ssd)(_src,_ref,_ystride);
+}
+
+unsigned oc_enc_frag_ssd_c(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride){
+  unsigned ret;
+  int      y;
+  int      x;
+  ret=0;
+  for(y=0;y<8;y++){
+    for(x=0;x<8;x++)ret+=(_src[x]-_ref[x])*(_src[x]-_ref[x]);
+    _src+=_ystride;
+    _ref+=_ystride;
+  }
+  return ret;
+}
+
+unsigned oc_enc_frag_border_ssd(const oc_enc_ctx *_enc,
+ const unsigned char *_src,const unsigned char *_ref,int _ystride,
+ ogg_int64_t _mask){
+  return (*_enc->opt_vtable.frag_border_ssd)(_src,_ref,_ystride,_mask);
+}
+
+unsigned oc_enc_frag_border_ssd_c(const unsigned char *_src,
+ const unsigned char *_ref,int _ystride,ogg_int64_t _mask){
+  unsigned ret;
+  int      y;
+  int      x;
+  ret=0;
+  for(y=0;y<8;y++){
+    for(x=0;x<8;x++,_mask>>=1){
+      if(_mask&1)ret+=(_src[x]-_ref[x])*(_src[x]-_ref[x]);
+    }
+    _src+=_ystride;
+    _ref+=_ystride;
+  }
+  return ret;
+}
+
 void oc_enc_frag_copy2(const oc_enc_ctx *_enc,unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride){
   (*_enc->opt_vtable.frag_copy2)(_dst,_src1,_src2,_ystride);
