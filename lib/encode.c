@@ -950,6 +950,7 @@ void oc_enc_vtable_init_c(oc_enc_ctx *_enc){
   _enc->opt_data.enquant_table_size=64*sizeof(oc_iquant);
   _enc->opt_data.enquant_table_alignment=16;
   _enc->opt_vtable.enquant_table_init=oc_enc_enquant_table_init_c;
+  _enc->opt_vtable.enquant_table_fixup=oc_enc_enquant_table_fixup_c;
   _enc->opt_vtable.quantize=oc_enc_quantize_c;
   _enc->opt_vtable.frag_recon_intra=oc_frag_recon_intra_c;
   _enc->opt_vtable.frag_recon_inter=oc_frag_recon_inter_c;
@@ -1054,61 +1055,41 @@ static int oc_enc_set_huffman_codes(oc_enc_ctx *_enc,
   return 0;
 }
 
-void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
- const ogg_uint16_t _dequant[64]){
-  (*_enc->opt_vtable.enquant_table_init)(_enquant,_dequant);
-}
-
 static void oc_enc_enquant_tables_init(oc_enc_ctx *_enc,
  const th_quant_info *_qinfo){
   unsigned char *etd;
   size_t         ets;
   int            align;
+  int            qii;
   int            qi;
   int            pli;
   int            qti;
+  for(qi=0;qi<64;qi++)for(pli=0;pli<3;pli++)for(qti=0;qti<2;qti++){
+    _enc->state.dequant_tables[qi][pli][qti]=
+     _enc->state.dequant_table_data[qi][pli][qti];
+  }
+  /*Initialize the dequantization tables.*/
+  oc_dequant_tables_init(_enc->state.dequant_tables,NULL,_qinfo);
+  /*And save off the DC values.*/
+  for(qi=0;qi<64;qi++)for(pli=0;pli<3;pli++)for(qti=0;qti<2;qti++){
+    _enc->dequant_dc[qi][pli][qti]=_enc->state.dequant_tables[qi][pli][qti][0];
+  }
+  /*Set up storage for the quantization tables.*/
   etd=_enc->enquant_table_data;
   ets=_enc->opt_data.enquant_table_size;
   align=-(etd-(unsigned char *)0)&_enc->opt_data.enquant_table_alignment-1;
   etd+=align;
+  /*Set up the main tables.*/
   for(qi=0;qi<64;qi++)for(pli=0;pli<3;pli++)for(qti=0;qti<2;qti++){
-    _enc->state.dequant_tables[qi][pli][qti]=
-     _enc->state.dequant_table_data[qi][pli][qti];
-    _enc->enquant_tables[qi][pli][qti]=etd+((qi*3+pli)*2+qti)*ets;
+    _enc->enquant_tables[qi][pli][qti]=etd;
+    oc_enc_enquant_table_init(_enc,etd,
+     _enc->state.dequant_tables[qi][pli][qti]);
+    etd+=ets;
   }
-  /*Initialize the dequantization tables first.*/
-  oc_dequant_tables_init(_enc->state.dequant_tables,NULL,_qinfo);
-  /*Derive the quantization tables directly from the dequantization tables.*/
-  for(qi=0;qi<64;qi++)for(qti=0;qti<2;qti++)for(pli=0;pli<3;pli++){
-    int plj;
-    int qtj;
-    int dupe;
-    dupe=0;
-    for(qtj=0;qtj<=qti;qtj++){
-      for(plj=0;plj<(qtj<qti?3:pli);plj++){
-        if(_enc->state.dequant_tables[qi][pli][qti]==
-         _enc->state.dequant_tables[qi][plj][qtj]){
-          dupe=1;
-          break;
-        }
-      }
-      if(dupe)break;
-    }
-    if(dupe){
-      _enc->enquant_tables[qi][pli][qti]=_enc->enquant_tables[qi][plj][qtj];
-    }
-    /*In the original VP3.2 code, the rounding offset and the size of the
-       dead zone around 0 were controlled by a "sharpness" parameter.
-      We now R-D optimize the tokens for each block after quantization,
-       so the rounding offset should always be 1/2, and an explicit dead
-       zone is unnecessary.
-      Hence, all of that VP3.2 code is gone from here, and the remaining
-       floating point code has been implemented as equivalent integer
-       code with exact precision.*/
-    else{
-      oc_enc_enquant_table_init(_enc,_enc->enquant_tables[qi][pli][qti],
-       _enc->state.dequant_tables[qi][pli][qti]);
-    }
+  /*Set up storage for the local copies we modify for each frame.*/
+  for(pli=0;pli<3;pli++)for(qii=0;qii<3;qii++)for(qti=0;qti<2;qti++){
+    _enc->enquant[pli][qii][qti]=etd;
+    etd+=ets;
   }
 }
 
@@ -1190,7 +1171,7 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   oc_enc_vtable_init_c(_enc);
 #endif
   _enc->enquant_table_data=(unsigned char *)_ogg_malloc(
-   64*3*2*_enc->opt_data.enquant_table_size
+   (64+3)*3*2*_enc->opt_data.enquant_table_size
    +_enc->opt_data.enquant_table_alignment-1);
   _enc->keyframe_frequency_force=1<<_enc->state.info.keyframe_granule_shift;
   _enc->state.qis[0]=_enc->state.info.quality;

@@ -146,9 +146,9 @@ struct oc_enc_opt_vtable{
    const unsigned char *_src1,const unsigned char *_src2,int _ystride);
   void     (*enquant_table_init)(void *_enquant,
    const ogg_uint16_t _dequant[64]);
+  void     (*enquant_table_fixup)(void *_enquant[3][3][2],int _nqis);
   int      (*quantize)(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
-   ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
-   const void *_dc_enquant,const void *_ac_enquant);
+   const ogg_uint16_t _dequant[64],const void *_enquant);
   void     (*frag_recon_intra)(unsigned char *_dst,int _ystride,
    const ogg_int16_t _residue[64]);
   void     (*frag_recon_inter)(unsigned char *_dst,
@@ -450,7 +450,15 @@ struct th_enc_ctx{
   th_huff_code             huff_codes[TH_NHUFFMAN_TABLES][TH_NDCT_TOKENS];
   /*The quantization parameters in use.*/
   th_quant_info            qinfo;
-  oc_iquant               *enquant_tables[64][3][2];
+  /*The original DC coefficients saved off from the dequatization tables.*/
+  ogg_uint16_t             dequant_dc[64][3][2];
+  /*Condensed dequantization tables.*/
+  const ogg_uint16_t      *dequant[3][3][2];
+  /*Condensed quantization tables.*/
+  void                    *enquant[3][3][2];
+  /*The full set of quantization tables.*/
+  void                    *enquant_tables[64][3][2];
+  /*Storage for the quantization tables.*/
   unsigned char           *enquant_table_data;
   /*An "average" quantizer for each frame type (INTRA or INTER) and qi value.
     This is used to paramterize the rate control decisions.
@@ -560,12 +568,13 @@ unsigned oc_enc_frag_border_ssd(const oc_enc_ctx *_enc,
  ogg_int64_t _mask);
 void oc_enc_frag_copy2(const oc_enc_ctx *_enc,unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride);
-void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
- const ogg_uint16_t _dequant[64]);
+void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,
+ void *_enquant,const ogg_uint16_t _dequant[64]);
+void oc_enc_enquant_table_fixup(const oc_enc_ctx *_enc,
+ void *_enquant[3][3][2],int _nqis);
 int oc_enc_quantize(const oc_enc_ctx *_enc,
  ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant);
+ const ogg_uint16_t _dequant[64],const void *_enquant);
 void oc_enc_frag_recon_intra(const oc_enc_ctx *_enc,
  unsigned char *_dst,int _ystride,const ogg_int16_t _residue[64]);
 void oc_enc_frag_recon_inter(const oc_enc_ctx *_enc,unsigned char *_dst,
@@ -601,9 +610,9 @@ void oc_enc_frag_copy2_c(unsigned char *_dst,
  const unsigned char *_src1,const unsigned char *_src2,int _ystride);
 void oc_enc_enquant_table_init_c(void *_enquant,
  const ogg_uint16_t _dequant[64]);
+void oc_enc_enquant_table_fixup_c(void *_enquant[3][3][2],int _nqis);
 int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant);
+ const ogg_uint16_t _dequant[64],const void *_enquant);
 void oc_enc_fdct8x8_c(ogg_int16_t _y[64],const ogg_int16_t _x[64]);
 
 #endif

@@ -51,9 +51,9 @@ unsigned oc_enc_frag_intra_satd_mmxext(unsigned *_dc,
  const unsigned char *_src,int _ystride);
 void oc_enc_enquant_table_init_x86(void *_enquant,
  const ogg_uint16_t _dequant[64]);
+void oc_enc_enquant_table_fixup_x86(void *_enquant[3][3][2],int _nqis);
 int oc_enc_quantize_sse2(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant);
+ const ogg_uint16_t _dequant[64],const void *_enquant);
 void oc_int_frag_copy2_mmxext(unsigned char *_dst,int _dst_ystride,
  const unsigned char *_src1,const unsigned char *_src2,int _src_ystride);
 void oc_enc_frag_copy2_mmxext(unsigned char *_dst,

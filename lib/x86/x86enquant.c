@@ -21,13 +21,6 @@
 
 
 
-/*The maximum quantized coefficient value.*/
-static const ogg_uint16_t __attribute__((aligned(16))) OC_COEFF_MAX_SSE2[8]={
-  580,580,580,580,580,580,580,580
-};
-
-
-
 /*The default enquant table is not quite suitable for SIMD purposes.
   First, the m and l parameters need to be separated so that an entire row full
    of m's or l's can be loaded at a time.
@@ -46,16 +39,28 @@ void oc_enc_enquant_table_init_x86(void *_enquant,
     oc_iquant_init(&q,_dequant[zzi]);
     m[zzi]=q.m;
     /*q.l must be at least 2 for this to work; fortunately, once all the scale
-       factors are baked in, the minimum quantizer is much larger.*/
+       factors are baked in, the minimum quantizer is much larger than that.*/
     l[zzi]=1<<16-q.l;
+  }
+}
+
+void oc_enc_enquant_table_fixup_x86(void *_enquant[3][3][2],int _nqis){
+  int pli;
+  int qii;
+  int qti;
+  for(pli=0;pli<3;pli++)for(qii=1;qii<_nqis;qii++)for(qti=0;qti<2;qti++){
+    ((ogg_int16_t *)_enquant[pli][qii][qti])[0]=
+     ((ogg_int16_t *)_enquant[pli][0][qti])[0];
+    ((ogg_int16_t *)_enquant[pli][qii][qti])[64]=
+     ((ogg_int16_t *)_enquant[pli][0][qti])[64];
   }
 }
 
 /*Convert DCT coefficients in %[dct] from natural order into zig-zag scan order
    and store them in %[qdct].
-  The index of each output element in the original 64-element array should be
-   the following 8x8 array (the letters indicate the order we compute each
-   4-tuple below):
+  The index of each output element in the original 64-element array should wind
+   up in the following 8x8 matrix (the letters indicate the order we compute
+   each 4-tuple below):
     A  0  1  8 16   9  2  3 10 B
     C 17 24 32 25  18 11  4  5 D
     E 12 19 26 33  40 48 41 34 I
@@ -65,7 +70,7 @@ void oc_enc_enquant_table_init_x86(void *_enquant,
     P 58 59 52 45  38 31 39 46 L
     N 53 60 61 54  47 55 62 63 O
   The order of the coefficients within each tuple is reversed in the comments
-   below to reflect the usual MSB to LSB ordering.*/
+   below to reflect the usual MSB to LSB notation.*/
 #define OC_ZIG_ZAG_MMXEXT \
   "movq 0x00(%[dct]),%%mm0\n\t"  /*mm0=03 02 01 00*/ \
   "movq 0x08(%[dct]),%%mm1\n\t"  /*mm1=07 06 05 04*/ \
@@ -158,33 +163,22 @@ void oc_enc_enquant_table_init_x86(void *_enquant,
   "movq %%mm7,0x60(%[qdct])\n\t" \
 
 int oc_enc_quantize_sse2(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant){
+ const ogg_uint16_t _dequant[64],const void *_enquant){
   ptrdiff_t r;
-  /*Load the first rows of the quantizer data and inject the DC terms.
-    We do this early to reduce general-purpose register pressure and because
-     pinsrw has a very long latency.*/
-  __asm__ __volatile__(
-    "movdqa 0x00(%[dq]),%%xmm2\n\t"
-    "movdqa 0x00(%[q]),%%xmm4\n\t"
-    "movdqa 0x80(%[q]),%%xmm5\n\t"
-    "pinsrw $0,%k[dc_dq],%%xmm2\n\t"
-    "pinsrw $0,0x00(%[dc_q]),%%xmm4\n\t"
-    "pinsrw $0,0x80(%[dc_q]),%%xmm5\n\t"
-    :[dq]"+r"(_ac_dequant),[dc_q]"+r"(_dc_enquant),[q]"+r"(_ac_enquant)
-    :[dc_dq]"r"(_dc_dequant)
-  );
   __asm__ __volatile__(
     /*Put the input in zig-zag order.*/
     OC_ZIG_ZAG_MMXEXT
-    /*Loading the first two rows of data and the second dequant row.*/
-    "movdqa 0x00(%[qdct]),%%xmm0\n\t"
-    "movdqa 0x10(%[qdct]),%%xmm1\n\t"
-    "movdqa 0x10(%[dq]),%%xmm3\n\t"
-    "mov $-0x60,%[r]\n\t"
+    "xor %[r],%[r]\n\t"
     /*Loop through two rows at a time.*/
     ".p2align 4\n\t"
     "0:\n\t"
+    /*Load the first two rows of the data and the quant matrices.*/
+    "movdqa 0x00(%[qdct],%[r]),%%xmm0\n\t"
+    "movdqa 0x10(%[qdct],%[r]),%%xmm1\n\t"
+    "movdqa 0x00(%[dq],%[r]),%%xmm2\n\t"
+    "movdqa 0x10(%[dq],%[r]),%%xmm3\n\t"
+    "movdqa 0x00(%[q],%[r]),%%xmm4\n\t"
+    "movdqa 0x10(%[q],%[r]),%%xmm5\n\t"
     /*Double the input and propagate its sign to the rounding factor.
       Using SSSE3's psignw would help here, but we need the mask later anyway.*/
     "movdqa %%xmm0,%%xmm6\n\t"
@@ -199,64 +193,42 @@ int oc_enc_quantize_sse2(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
     "pxor %%xmm1,%%xmm3\n\t"
     /*Add the rounding factor and perform the first multiply.*/
     "paddw %%xmm2,%%xmm6\n\t"
-    "movdqa 0x70(%[q],%[r]),%%xmm2\n\t"
     "paddw %%xmm3,%%xmm7\n\t"
-    "movdqa 0xF0(%[q],%[r]),%%xmm3\n\t"
     "pmulhw %%xmm6,%%xmm4\n\t"
-    "pmulhw %%xmm7,%%xmm2\n\t"
+    "pmulhw %%xmm7,%%xmm5\n\t"
+    "movdqa 0x80(%[q],%[r]),%%xmm2\n\t"
+    "movdqa 0x90(%[q],%[r]),%%xmm3\n\t"
     "paddw %%xmm4,%%xmm6\n\t"
-    "paddw %%xmm2,%%xmm7\n\t"
+    "paddw %%xmm5,%%xmm7\n\t"
     /*Emulate an element-wise right-shift via a second multiply.*/
-    "pmulhw %%xmm5,%%xmm6\n\t"
+    "pmulhw %%xmm2,%%xmm6\n\t"
     "pmulhw %%xmm3,%%xmm7\n\t"
-    /*Load the bounds for the clamp operation.
-      It would be nice to keep these around across iterations, but there aren't
-       enough registers, and it's not like we're doing anything else while
-       waiting for the multiplies to finish.*/
-    "movdqa %[c],%%xmm2\n\t"
-    "pxor %%xmm3,%%xmm3\n\t"
     "add $32,%[r]\n\t"
-    "psubw %%xmm2,%%xmm3\n\t"
+    "cmp $96,%[r]\n\t"
     /*Correct for the sign.*/
     "psubw %%xmm0,%%xmm6\n\t"
     "psubw %%xmm1,%%xmm7\n\t"
-    /*Clamp into the valid range.*/
-    "pminsw %%xmm2,%%xmm6\n\t"
-    "pminsw %%xmm2,%%xmm7\n\t"
-    "pmaxsw %%xmm3,%%xmm6\n\t"
-    "pmaxsw %%xmm3,%%xmm7\n\t"
     /*Save the result.*/
-    "movdqa %%xmm6,0x40(%[qdct],%[r])\n\t"
-    "movdqa %%xmm7,0x50(%[qdct],%[r])\n\t"
-    "jg 1f\n\t"
-    /*Start loading the data for the next iteration.*/
-    "movdqa 0x60(%[qdct],%[r]),%%xmm0\n\t"
-    "movdqa 0x70(%[qdct],%[r]),%%xmm1\n\t"
-    "movdqa 0x60(%[dq],%[r]),%%xmm2\n\t"
-    "movdqa 0x70(%[dq],%[r]),%%xmm3\n\t"
-    "movdqa 0x60(%[q],%[r]),%%xmm4\n\t"
-    "movdqa 0xE0(%[q],%[r]),%%xmm5\n\t"
-    "jmp 0b\n\t"
-    ".p2align 4\n\t"
-    "1:\n\t"
+    "movdqa %%xmm6,-0x20(%[qdct],%[r])\n\t"
+    "movdqa %%xmm7,-0x10(%[qdct],%[r])\n\t"
+    "jle 0b\n\t"
     /*Now find the location of the last non-zero value.*/
     "movdqa 0x50(%[qdct]),%%xmm5\n\t"
     "movdqa 0x40(%[qdct]),%%xmm4\n\t"
     "packsswb %%xmm7,%%xmm6\n\t"
-    "pxor %%xmm0,%%xmm0\n\t"
-    "mov $0xFFFFFFFF,%[dq]\n\t"
     "packsswb %%xmm5,%%xmm4\n\t"
+    "pxor %%xmm0,%%xmm0\n\t"
+    "mov $-1,%k[dq]\n\t"
     "pcmpeqb %%xmm0,%%xmm6\n\t"
     "pcmpeqb %%xmm0,%%xmm4\n\t"
-    "pmovmskb %%xmm6,%[q]\n\t"
-    "pmovmskb %%xmm4,%[r]\n\t"
-    "shl $16,%[q]\n\t"
-    "or %[r],%[q]\n\t"
+    "pmovmskb %%xmm6,%k[q]\n\t"
+    "pmovmskb %%xmm4,%k[r]\n\t"
+    "shl $16,%k[q]\n\t"
+    "or %k[r],%k[q]\n\t"
     "mov $32,%[r]\n\t"
-    /*We have to use xor here instead of not in order to set the flags.
-      This also makes it easy to flip just the lower 32 bits on x86-64.*/
-    "xor %[dq],%[q]\n\t"
-    "jnz 2f\n\t"
+    /*We have to use xor here instead of not in order to set the flags.*/
+    "xor %k[dq],%k[q]\n\t"
+    "jnz 1f\n\t"
     "movdqa 0x30(%[qdct]),%%xmm7\n\t"
     "movdqa 0x20(%[qdct]),%%xmm6\n\t"
     "movdqa 0x10(%[qdct]),%%xmm5\n\t"
@@ -265,19 +237,18 @@ int oc_enc_quantize_sse2(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
     "packsswb %%xmm5,%%xmm4\n\t"
     "pcmpeqb %%xmm0,%%xmm6\n\t"
     "pcmpeqb %%xmm0,%%xmm4\n\t"
-    "pmovmskb %%xmm6,%[q]\n\t"
-    "pmovmskb %%xmm4,%[r]\n\t"
-    "shl $16,%[q]\n\t"
-    "or %[r],%[q]\n\t"
+    "pmovmskb %%xmm6,%k[q]\n\t"
+    "pmovmskb %%xmm4,%k[r]\n\t"
+    "shl $16,%k[q]\n\t"
+    "or %k[r],%k[q]\n\t"
     "xor %[r],%[r]\n\t"
-    "xor %[dq],%[q]\n\t"
-    "or $1,%[q]\n\t"
-    "2:\n\t"
-    "bsr %[q],%[q]\n\t"
-    "add %[q],%[r]\n\t"
-    :[r]"=&a"(r),[q]"+r"(_ac_enquant)
-    :[dct]"r"(_dct),[qdct]"r"(_qdct),[dq]"r"(_ac_dequant),
-     [c]"m"(OC_CONST_ARRAY_OPERAND(ogg_uint16_t,OC_COEFF_MAX_SSE2,8))
+    "not %k[q]\n\t"
+    "or $1,%k[q]\n\t"
+    "1:\n\t"
+    "bsr %k[q],%k[q]\n\t"
+    "add %k[q],%k[r]\n\t"
+    :[r]"=&a"(r),[q]"+r"(_enquant),[dq]"+r"(_dequant)
+    :[dct]"r"(_dct),[qdct]"r"(_qdct)
     :"cc","memory"
   );
   return (int)r;

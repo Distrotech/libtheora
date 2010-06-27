@@ -129,49 +129,62 @@ void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d){
   _this->l=l;
 }
 
+void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
+ const ogg_uint16_t _dequant[64]){
+  (*_enc->opt_vtable.enquant_table_init)(_enquant,_dequant);
+}
+
 void oc_enc_enquant_table_init_c(void *_enquant,
  const ogg_uint16_t _dequant[64]){
   oc_iquant *enquant;
   int        zzi;
+  /*In the original VP3.2 code, the rounding offset and the size of the
+     dead zone around 0 were controlled by a "sharpness" parameter.
+    We now R-D optimize the tokens for each block after quantization,
+     so the rounding offset should always be 1/2, and an explicit dead
+     zone is unnecessary.
+    Hence, all of that VP3.2 code is gone from here, and the remaining
+     floating point code has been implemented as equivalent integer
+     code with exact precision.*/
   enquant=(oc_iquant *)_enquant;
   for(zzi=0;zzi<64;zzi++)oc_iquant_init(enquant+zzi,_dequant[zzi]);
 }
 
+void oc_enc_enquant_table_fixup(const oc_enc_ctx *_enc,
+ void *_enquant[3][3][2],int _nqis){
+  (*_enc->opt_vtable.enquant_table_fixup)(_enquant,_nqis);
+}
+
+void oc_enc_enquant_table_fixup_c(void *_enquant[3][3][2],int _nqis){
+  int pli;
+  int qii;
+  int qti;
+  for(pli=0;pli<3;pli++)for(qii=1;qii<_nqis;qii++)for(qti=0;qti<2;qti++){
+    *((oc_iquant *)_enquant[pli][qii][qti])=
+     *((oc_iquant *)_enquant[pli][0][qti]);
+  }
+}
+
 int oc_enc_quantize(const oc_enc_ctx *_enc,
  ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant){
-  return (*_enc->opt_vtable.quantize)(_qdct,_dct,
-   _dc_dequant,_ac_dequant,_dc_enquant,_ac_enquant);
+ const ogg_uint16_t _dequant[64],const void *_enquant){
+  return (*_enc->opt_vtable.quantize)(_qdct,_dct,_dequant,_enquant);
 }
 
 int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- ogg_uint16_t _dc_dequant,const ogg_uint16_t _ac_dequant[64],
- const void *_dc_enquant,const void *_ac_enquant){
+ const ogg_uint16_t _dequant[64],const void *_enquant){
   const oc_iquant *enquant;
   int              nonzero;
   int              zzi;
-  int              v;
   int              val;
   int              d;
   int              s;
-  /*Quantize the DC coefficient:*/
-  enquant=(const oc_iquant *)_dc_enquant;
-  v=_dct[0];
-  val=v<<1;
-  s=OC_SIGNMASK(val);
-  val+=_dc_dequant+s^s;
-  val=((enquant[0].m*(ogg_int32_t)val>>16)+val>>enquant[0].l)-s;
-  _qdct[0]=(ogg_int16_t)OC_CLAMPI(-580,val,580);
-  nonzero=0;
-  /*Quantize the AC coefficients:*/
-  enquant=(const oc_iquant *)_ac_enquant;
-  for(zzi=1;zzi<64;zzi++){
-    v=_dct[OC_FZIG_ZAG[zzi]];
-    d=_ac_dequant[zzi];
-    val=v<<1;
-    v=abs(val);
-    if(v>=d){
+  enquant=(const oc_iquant *)_enquant;
+  for(zzi=0;zzi<64;zzi++){
+    val=_dct[OC_FZIG_ZAG[zzi]];
+    d=_dequant[zzi];
+    val=val<<1;
+    if(abs(val)>=d){
       s=OC_SIGNMASK(val);
       /*The bias added here rounds ties away from zero, since token
          optimization can only decrease the magnitude of the quantized
@@ -180,7 +193,7 @@ int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
       /*Note the arithmetic right shift is not guaranteed by ANSI C.
         Hopefully no one still uses ones-complement architectures.*/
       val=((enquant[zzi].m*(ogg_int32_t)val>>16)+val>>enquant[zzi].l)-s;
-      _qdct[zzi]=(ogg_int16_t)OC_CLAMPI(-580,val,580);
+      _qdct[zzi]=(ogg_int16_t)val;
       nonzero=zzi;
     }
     else _qdct[zzi]=0;

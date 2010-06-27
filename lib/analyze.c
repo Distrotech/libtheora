@@ -560,10 +560,6 @@ struct oc_enc_pipeline_state{
   int                 bounding_values[256];
   oc_fr_state         fr[3];
   oc_qii_state        qs[3];
-  /*Condensed dequantization tables.*/
-  const ogg_uint16_t *dequant[3][3][2];
-  /*Condensed quantization tables.*/
-  const oc_iquant    *enquant[3][3][2];
   /*Skip SSD storage for the current MCU in each plane.*/
   unsigned           *skip_ssd[3];
   /*Coded/uncoded fragment lists for each plane for the current MCU.*/
@@ -597,7 +593,9 @@ static void oc_enc_pipeline_init(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe){
   int        hdec;
   int        vdec;
   int        pli;
+  int        nqis;
   int        qii;
+  int        qi0;
   int        qti;
   /*Initialize the per-plane coded block flag trackers.
     These are used for bit-estimation purposes only; the real flag bits span
@@ -626,16 +624,25 @@ static void oc_enc_pipeline_init(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe){
   memset(_pipe->ncoded_fragis,0,sizeof(_pipe->ncoded_fragis));
   memset(_pipe->nuncoded_fragis,0,sizeof(_pipe->nuncoded_fragis));
   /*Set up condensed quantizer tables.*/
+  qi0=_enc->state.qis[0];
+  nqis=_enc->state.nqis;
   for(pli=0;pli<3;pli++){
-    for(qii=0;qii<_enc->state.nqis;qii++){
+    for(qii=0;qii<nqis;qii++){
       int qi;
       qi=_enc->state.qis[qii];
       for(qti=0;qti<2;qti++){
-        _pipe->dequant[pli][qii][qti]=_enc->state.dequant_tables[qi][pli][qti];
-        _pipe->enquant[pli][qii][qti]=_enc->enquant_tables[qi][pli][qti];
+        /*Set the DC coefficient in the dequantization table.*/
+        _enc->state.dequant_tables[qi][pli][qti][0]=
+         _enc->dequant_dc[qi0][pli][qti];
+        _enc->dequant[pli][qii][qti]=_enc->state.dequant_tables[qi][pli][qti];
+        /*Copy over the quantization table.*/
+        memcpy(_enc->enquant[pli][qii][qti],_enc->enquant_tables[qi][pli][qti],
+         _enc->opt_data.enquant_table_size);
       }
     }
   }
+  /*Fix up the DC coefficients in the quantization tables.*/
+  oc_enc_enquant_table_fixup(_enc,_enc->enquant,nqis);
   /*Initialize the tokenization state.*/
   for(pli=0;pli<3;pli++){
     _pipe->ndct_tokens1[pli]=0;
@@ -737,7 +744,8 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   OC_ALIGN16(ogg_int16_t  dct[64]);
   OC_ALIGN16(ogg_int16_t  data[64]);
   oc_qii_state            qs;
-  ogg_uint16_t            dc_dequant;
+  const ogg_uint16_t     *dequant;
+  ogg_uint16_t            dequant_dc;
   ptrdiff_t               frag_offs;
   int                     ystride;
   const unsigned char    *src;
@@ -828,18 +836,16 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   oc_enc_fdct8x8(_enc,dct,data);
   /*Quantize:*/
   qti=mb_mode!=OC_MODE_INTRA;
-  dc_dequant=_pipe->dequant[_pli][0][qti][0];
-  nonzero=oc_enc_quantize(_enc,data,dct,
-   dc_dequant,_pipe->dequant[_pli][qii][qti],
-   _pipe->enquant[_pli][0][qti],_pipe->enquant[_pli][qii][qti]);
+  dequant=_enc->dequant[_pli][qii][qti];
+  nonzero=oc_enc_quantize(_enc,data,dct,dequant,_enc->enquant[_pli][qii][qti]);
   dc=data[0];
   /*Tokenize.*/
   checkpoint=*_stack;
-  ac_bits=oc_enc_tokenize_ac(_enc,_pli,_fragi,data,
-   _pipe->dequant[_pli][qii][qti],dct,nonzero+1,_stack,
-   OC_RD_ISCALE(_enc->lambda,_rd_iscale),qti?0:3);
+  ac_bits=oc_enc_tokenize_ac(_enc,_pli,_fragi,data,dequant,dct,nonzero+1,
+   _stack,OC_RD_ISCALE(_enc->lambda,_rd_iscale),qti?0:3);
   /*Reconstruct.
     TODO: nonzero may need to be adjusted after tokenization.*/
+  dequant_dc=dequant[0];
   if(nonzero==0){
     ogg_int16_t p;
     int         ci;
@@ -847,7 +853,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     int         qi12;
     /*We round this dequant product (and not any of the others) because there's
        no iDCT rounding.*/
-    p=(ogg_int16_t)(dc*(ogg_int32_t)dc_dequant+15>>5);
+    p=(ogg_int16_t)(dc*(ogg_int32_t)dequant_dc+15>>5);
     /*LOOP VECTORIZES.*/
     for(ci=0;ci<64;ci++)data[ci]=p;
     /*We didn't code any AC coefficients, so don't change the quantizer.*/
@@ -857,7 +863,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
     else if(qi01>=0)qii=0;
   }
   else{
-    data[0]=dc*dc_dequant;
+    data[0]=dc*dequant_dc;
     oc_idct8x8(&_enc->state,data,nonzero+1);
   }
   oc_qii_state_advance(&qs,_pipe->qs+_pli,qii);
