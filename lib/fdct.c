@@ -120,11 +120,6 @@ static void oc_fdct8(ogg_int16_t _y[8],const ogg_int16_t *_x){
   _y[7]=v;
 }
 
-void oc_enc_fdct8x8(const oc_enc_ctx *_enc,ogg_int16_t _y[64],
- const ogg_int16_t _x[64]){
-  (*_enc->opt_vtable.fdct8x8)(_y,_x);
-}
-
 /*Performs a forward 8x8 Type-II DCT transform.
   The output is scaled by a factor of 4 relative to the orthonormal version
    of the transform.

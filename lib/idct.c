@@ -295,11 +295,6 @@ static void oc_idct8x8_slow(ogg_int16_t _y[64],const ogg_int16_t _x[64]){
   for(out=_y,end=out+64;out<end;out++)*out=(ogg_int16_t)(*out+8>>4);
 }
 
-void oc_idct8x8(const oc_theora_state *_state,ogg_int16_t _y[64],
- int _last_zzi){
-  (*_state->opt_vtable.idct8x8)(_y,_last_zzi);
-}
-
 /*Performs an inverse 8x8 Type-II DCT transform.
   The input is assumed to be scaled by a factor of 4 relative to orthonormal
    version of the transform.*/

@@ -868,12 +868,6 @@ int oc_state_get_mv_offsets(const oc_theora_state *_state,int _offsets[2],
 #endif
 }
 
-void oc_state_frag_recon(const oc_theora_state *_state,ptrdiff_t _fragi,
- int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant){
-  _state->opt_vtable.state_frag_recon(_state,_fragi,_pli,_dct_coeffs,
-   _last_zzi,_dc_quant);
-}
-
 void oc_state_frag_recon_c(const oc_theora_state *_state,ptrdiff_t _fragi,
  int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant){
   unsigned char *dst;
@@ -924,13 +918,6 @@ void oc_state_frag_recon_c(const oc_theora_state *_state,ptrdiff_t _fragi,
   _dst_frame: The reference frame to copy to.
   _src_frame: The reference frame to copy from.
   _pli:       The color plane the fragments lie in.*/
-void oc_state_frag_copy_list(const oc_theora_state *_state,
- const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
- int _dst_frame,int _src_frame,int _pli){
-  _state->opt_vtable.state_frag_copy_list(_state,_fragis,_nfragis,_dst_frame,
-   _src_frame,_pli);
-}
-
 void oc_state_frag_copy_list_c(const oc_theora_state *_state,
  const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
  int _dst_frame,int _src_frame,int _pli){
@@ -1008,12 +995,6 @@ int oc_state_loop_filter_init(oc_theora_state *_state,int _bv[256]){
   _pli:       The color plane to filter.
   _fragy0:    The Y coordinate of the first fragment row to filter.
   _fragy_end: The Y coordinate of the fragment row to stop filtering at.*/
-void oc_state_loop_filter_frag_rows(const oc_theora_state *_state,int _bv[256],
- int _refi,int _pli,int _fragy0,int _fragy_end){
-  _state->opt_vtable.state_loop_filter_frag_rows(_state,_bv,_refi,_pli,
-   _fragy0,_fragy_end);
-}
-
 void oc_state_loop_filter_frag_rows_c(const oc_theora_state *_state,int *_bv,
  int _refi,int _pli,int _fragy0,int _fragy_end){
   const oc_fragment_plane *fplane;

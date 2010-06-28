@@ -84,76 +84,76 @@ typedef struct oc_theora_state          oc_theora_state;
  (_info)->version_subminor>=(_sub)))
 
 /*A keyframe.*/
-#define OC_INTRA_FRAME (0)
+# define OC_INTRA_FRAME (0)
 /*A predicted frame.*/
-#define OC_INTER_FRAME (1)
+# define OC_INTER_FRAME (1)
 /*A frame of unknown type (frame type decision has not yet been made).*/
-#define OC_UNKWN_FRAME (-1)
+# define OC_UNKWN_FRAME (-1)
 
 /*The amount of padding to add to the reconstructed frame buffers on all
    sides.
   This is used to allow unrestricted motion vectors without special casing.
   This must be a multiple of 2.*/
-#define OC_UMV_PADDING (16)
+# define OC_UMV_PADDING (16)
 
 /*Frame classification indices.*/
 /*The previous golden frame.*/
-#define OC_FRAME_GOLD      (0)
+# define OC_FRAME_GOLD      (0)
 /*The previous frame.*/
-#define OC_FRAME_PREV      (1)
+# define OC_FRAME_PREV      (1)
 /*The current frame.*/
-#define OC_FRAME_SELF      (2)
+# define OC_FRAME_SELF      (2)
 
 /*The input or output buffer.*/
-#define OC_FRAME_IO        (3)
+# define OC_FRAME_IO        (3)
 /*Uncompressed prev golden frame.*/
-#define OC_FRAME_GOLD_ORIG (4)
+# define OC_FRAME_GOLD_ORIG (4)
 /*Uncompressed previous frame. */
-#define OC_FRAME_PREV_ORIG (5)
+# define OC_FRAME_PREV_ORIG (5)
 
 /*Macroblock modes.*/
 /*Macro block is invalid: It is never coded.*/
-#define OC_MODE_INVALID        (-1)
+# define OC_MODE_INVALID        (-1)
 /*Encoded difference from the same macro block in the previous frame.*/
-#define OC_MODE_INTER_NOMV     (0)
+# define OC_MODE_INTER_NOMV     (0)
 /*Encoded with no motion compensated prediction.*/
-#define OC_MODE_INTRA          (1)
+# define OC_MODE_INTRA          (1)
 /*Encoded difference from the previous frame offset by the given motion
    vector.*/
-#define OC_MODE_INTER_MV       (2)
+# define OC_MODE_INTER_MV       (2)
 /*Encoded difference from the previous frame offset by the last coded motion
    vector.*/
-#define OC_MODE_INTER_MV_LAST  (3)
+# define OC_MODE_INTER_MV_LAST  (3)
 /*Encoded difference from the previous frame offset by the second to last
    coded motion vector.*/
-#define OC_MODE_INTER_MV_LAST2 (4)
+# define OC_MODE_INTER_MV_LAST2 (4)
 /*Encoded difference from the same macro block in the previous golden
    frame.*/
-#define OC_MODE_GOLDEN_NOMV    (5)
+# define OC_MODE_GOLDEN_NOMV    (5)
 /*Encoded difference from the previous golden frame offset by the given motion
    vector.*/
-#define OC_MODE_GOLDEN_MV      (6)
+# define OC_MODE_GOLDEN_MV      (6)
 /*Encoded difference from the previous frame offset by the individual motion
    vectors given for each block.*/
-#define OC_MODE_INTER_MV_FOUR  (7)
+# define OC_MODE_INTER_MV_FOUR  (7)
 /*The number of (coded) modes.*/
-#define OC_NMODES              (8)
+# define OC_NMODES              (8)
 
 /*Determines the reference frame used for a given MB mode.*/
-#define OC_FRAME_FOR_MODE(_x) \
+# define OC_FRAME_FOR_MODE(_x) \
  OC_UNIBBLE_TABLE32(OC_FRAME_PREV,OC_FRAME_SELF,OC_FRAME_PREV,OC_FRAME_PREV, \
   OC_FRAME_PREV,OC_FRAME_GOLD,OC_FRAME_GOLD,OC_FRAME_PREV,(_x))
 
 /*Constants for the packet state machine common between encoder and decoder.*/
 
 /*Next packet to emit/read: Codec info header.*/
-#define OC_PACKET_INFO_HDR    (-3)
+# define OC_PACKET_INFO_HDR    (-3)
 /*Next packet to emit/read: Comment header.*/
-#define OC_PACKET_COMMENT_HDR (-2)
+# define OC_PACKET_COMMENT_HDR (-2)
 /*Next packet to emit/read: Codec setup header.*/
-#define OC_PACKET_SETUP_HDR   (-1)
+# define OC_PACKET_SETUP_HDR   (-1)
 /*No more packets to emit/read.*/
-#define OC_PACKET_DONE        (INT_MAX)
+# define OC_PACKET_DONE        (INT_MAX)
 
 
 
@@ -443,30 +443,55 @@ int oc_state_get_mv_offsets(const oc_theora_state *_state,int _offsets[2],
 
 int oc_state_loop_filter_init(oc_theora_state *_state,int *_bv);
 void oc_state_loop_filter(oc_theora_state *_state,int _frame);
-#if defined(OC_DUMP_IMAGES)
+# if defined(OC_DUMP_IMAGES)
 int oc_state_dump_frame(const oc_theora_state *_state,int _frame,
  const char *_suf);
-#endif
+# endif
 
 /*Shared accelerated functions.*/
-void oc_frag_copy(const oc_theora_state *_state,unsigned char *_dst,
- const unsigned char *_src,int _ystride);
-void oc_frag_recon_intra(const oc_theora_state *_state,
- unsigned char *_dst,int _dst_ystride,const ogg_int16_t _residue[64]);
-void oc_frag_recon_inter(const oc_theora_state *_state,unsigned char *_dst,
- const unsigned char *_src,int _ystride,const ogg_int16_t _residue[64]);
-void oc_frag_recon_inter2(const oc_theora_state *_state,
- unsigned char *_dst,const unsigned char *_src1,const unsigned char *_src2,
- int _ystride,const ogg_int16_t _residue[64]);
-void oc_idct8x8(const oc_theora_state *_state,ogg_int16_t _y[64],int _last_zzi);
-void oc_state_frag_recon(const oc_theora_state *_state,ptrdiff_t _fragi,
- int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant);
-void oc_state_frag_copy_list(const oc_theora_state *_state,
- const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
- int _dst_frame,int _src_frame,int _pli);
-void oc_state_loop_filter_frag_rows(const oc_theora_state *_state,
- int _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end);
-void oc_restore_fpu(const oc_theora_state *_state);
+# if !defined(oc_frag_copy)
+#  define oc_frag_copy(_state,_dst,_src,_ystride) \
+  ((*(_state)->opt_vtable.frag_copy)(_dst,_src,_ystride))
+# endif
+# if !defined(oc_frag_recon_intra)
+#  define oc_frag_recon_intra(_state,_dst,_dst_ystride,_residue) \
+  ((*(_state)->opt_vtable.frag_recon_intra)(_dst,_dst_ystride,_residue))
+# endif
+# if !defined(oc_frag_recon_inter)
+#  define oc_frag_recon_inter(_state,_dst,_src,_ystride,_residue) \
+  ((*(_state)->opt_vtable.frag_recon_inter)(_dst,_src,_ystride,_residue))
+# endif
+# if !defined(oc_frag_recon_inter2)
+#  define oc_frag_recon_inter2(_state,_dst,_src1,_src2,_ystride,_residue) \
+  ((*(_state)->opt_vtable.frag_recon_inter2)(_dst, \
+   _src1,_src2,_ystride,_residue))
+# endif
+# if !defined(oc_idct8x8)
+#  define oc_idct8x8(_state,_y,_last_zzi) \
+  ((*(_state)->opt_vtable.idct8x8)(_y,_last_zzi))
+# endif
+# if !defined(oc_state_frag_recon)
+#  define oc_state_frag_recon(_state,_fragi, \
+ _pli,_dct_coeffs,_last_zzi,_dc_quant) \
+  ((*(_state)->opt_vtable.state_frag_recon)(_state,_fragi, \
+   _pli,_dct_coeffs,_last_zzi,_dc_quant))
+# endif
+# if !defined(oc_state_frag_copy_list)
+#  define oc_state_frag_copy_list(_state,_fragis,_nfragis, \
+ _dst_frame,_src_frame,_pli) \
+  ((*(_state)->opt_vtable.state_frag_copy_list)(_state,_fragis,_nfragis, \
+   _dst_frame,_src_frame,_pli))
+# endif
+# if !defined(oc_state_loop_filter_frag_rows)
+#  define oc_state_loop_filter_frag_rows(_state, \
+ _bv,_refi,_pli,_fragy0,_fragy_end) \
+  ((*(_state)->opt_vtable.state_loop_filter_frag_rows)(_state, \
+   _bv,_refi,_pli,_fragy0,_fragy_end))
+# endif
+# if !defined(oc_restore_fpu)
+#  define oc_restore_fpu(_state) \
+  ((*(_state)->opt_vtable.restore_fpu)())
+# endif
 
 /*Default pure-C implementations.*/
 void oc_frag_copy_c(unsigned char *_dst,

@@ -129,11 +129,6 @@ void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d){
   _this->l=l;
 }
 
-void oc_enc_enquant_table_init(const oc_enc_ctx *_enc,void *_enquant,
- const ogg_uint16_t _dequant[64]){
-  (*_enc->opt_vtable.enquant_table_init)(_enquant,_dequant);
-}
-
 void oc_enc_enquant_table_init_c(void *_enquant,
  const ogg_uint16_t _dequant[64]){
   oc_iquant *enquant;
@@ -150,11 +145,6 @@ void oc_enc_enquant_table_init_c(void *_enquant,
   for(zzi=0;zzi<64;zzi++)oc_iquant_init(enquant+zzi,_dequant[zzi]);
 }
 
-void oc_enc_enquant_table_fixup(const oc_enc_ctx *_enc,
- void *_enquant[3][3][2],int _nqis){
-  (*_enc->opt_vtable.enquant_table_fixup)(_enquant,_nqis);
-}
-
 void oc_enc_enquant_table_fixup_c(void *_enquant[3][3][2],int _nqis){
   int pli;
   int qii;
@@ -163,12 +153,6 @@ void oc_enc_enquant_table_fixup_c(void *_enquant[3][3][2],int _nqis){
     *((oc_iquant *)_enquant[pli][qii][qti])=
      *((oc_iquant *)_enquant[pli][0][qti]);
   }
-}
-
-int oc_enc_quantize(const oc_enc_ctx *_enc,
- ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
- const ogg_uint16_t _dequant[64],const void *_enquant){
-  return (*_enc->opt_vtable.quantize)(_qdct,_dct,_dequant,_enquant);
 }
 
 int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
@@ -180,6 +164,7 @@ int oc_enc_quantize_c(ogg_int16_t _qdct[64],const ogg_int16_t _dct[64],
   int              d;
   int              s;
   enquant=(const oc_iquant *)_enquant;
+  nonzero=0;
   for(zzi=0;zzi<64;zzi++){
     val=_dct[OC_FZIG_ZAG[zzi]];
     d=_dequant[zzi];
