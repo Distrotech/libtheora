@@ -157,7 +157,7 @@ static const unsigned char OC_DCT_TOKEN_MAP_LOG_NENTRIES[TH_NDCT_TOKENS]={
 /*The size a lookup table is allowed to grow to relative to the number of
    unique nodes it contains.
   E.g., if OC_HUFF_SLUSH is 4, then at most 75% of the space in the tree is
-   wasted.
+   wasted (1/4 of the space must be used).
   Larger numbers can decode tokens with fewer read operations, while smaller
    numbers may save more space.
   With a sample file:
@@ -166,7 +166,7 @@ static const unsigned char OC_DCT_TOKEN_MAP_LOG_NENTRIES[TH_NDCT_TOKENS]={
   11144969 read calls are required when OC_HUFF_SLUSH is 2 (34.6%).
   10538563 read calls are required when OC_HUFF_SLUSH is 4 (32.7%).
   10192578 read calls are required when OC_HUFF_SLUSH is 8 (31.6%).
-  Since a value of 1 gets us the vast majority of the speed-up with only a
+  Since a value of 2 gets us the vast majority of the speed-up with only a
    small amount of wasted memory, this is what we use.
   This value must be less than 128, or you could create a tree with more than
    32767 entries, which would overflow the 16-bit words used to index it.*/
