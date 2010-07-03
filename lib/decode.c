@@ -1516,7 +1516,7 @@ static void oc_dec_dc_unpredict_mcu_plane(oc_dec_ctx *_dec,
 /*Reconstructs all coded fragments in a single MCU (one or two super block
    rows).
   This requires that each coded fragment have a proper macro block mode and
-   motion vector (if not in INTRA mode), and have it's DC value decoded, with
+   motion vector (if not in INTRA mode), and have its DC value decoded, with
    the DC prediction process reversed, and the number of coded and uncoded
    fragments in this plane of the MCU be counted.
   The token lists for each color plane and coefficient should also be filled

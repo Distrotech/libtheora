@@ -358,6 +358,21 @@ static const ogg_int16_t OC_DCT_TRELLIS_ALT_VALUE[1161]={
 #define OC_DCT_VALUE_EB_PTR (OC_DCT_VALUE_EB+580)
 #define OC_DCT_TRELLIS_ALT_VALUE_PTR (OC_DCT_TRELLIS_ALT_VALUE+580)
 
+/*Some tables for fast construction of combo tokens.*/
+
+static const unsigned char OC_DCT_RUN_CAT1_TOKEN[17]={
+  23,24,25,26,27,28,28,28,28,29,29,29,29,29,29,29,29
+};
+
+static const unsigned char OC_DCT_RUN_CAT1_EB[17][2]={
+  {0,1},{0,1},{0, 1},{0, 1},{0, 1},{0, 4},{1, 5},{2, 6},{3,7},
+  {0,8},{1,9},{2,10},{3,11},{4,12},{5,13},{6,14},{7,15}
+};
+
+static const unsigned char OC_DCT_RUN_CAT2_EB[3][2][2]={
+  { {0,1},{2,3} },{ {0,2},{4,6} },{ {1,3},{5,7} }
+};
+
 /*Token logging to allow a few fragments of efficient rollback.
   Late SKIP analysis is tied up in the tokenization process, so we need to be
    able to undo a fragment's tokens on a whim.*/
@@ -487,11 +502,11 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
     s=-(qc<0);
     qc_m=qc+s^s;
     c=_dct[OC_FZIG_ZAG[zzi]];
+    /*The hard case: try a zero run.*/
     if(qc_m<=1){
       ogg_uint32_t sum_d2;
       int          nzeros;
       int          dc_reserve;
-      /*The hard case: try a zero run.*/
       if(!qc_m){
         /*Skip runs that are already quantized to zeros.
           If we considered each zero coefficient in turn, we might
@@ -507,8 +522,8 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
         d2=0;
       }
       else{
-        c=c+s^s;
         d2=c*(ogg_int32_t)c;
+        c=c+s^s;
       }
       eob=eob_run[zzi];
       nzeros=zzj-zzi;
@@ -522,7 +537,6 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
       best_cost=0xFFFFFFFF;
       for(;;){
         if(nzflags>>zzj&1){
-          int cat;
           int val;
           int val_s;
           int zzk;
@@ -531,8 +545,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
           tk=next&1;
           zzk=next>>1;
           /*Try a pure zero run to this point.*/
-          cat=nzeros+55>>6;
-          token=OC_DCT_SHORT_ZRL_TOKEN+cat;
+          token=OC_DCT_SHORT_ZRL_TOKEN+(nzeros+55>>6);
           bits=oc_token_bits(_enc,huffi,zzi,token);
           d2=sum_d2-d2_accum[zzj];
           cost=d2+_lambda*bits+tokens[zzj][1].cost;
@@ -550,16 +563,9 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
             val=val+val_s^val_s;
             if(val<=2){
               /*Try a +/- 1 combo token.*/
-              if(nzeros<6){
-                token=OC_DCT_RUN_CAT1A+nzeros-1;
-                eb=-val_s;
-              }
-              else{
-                cat=nzeros+54>>6;
-                token=OC_DCT_RUN_CAT1B+cat;
-                eb=(-val_s<<cat+2)+nzeros-6-(cat<<2);
-              }
-              e=(_dct[OC_FZIG_ZAG[zzj]]+val_s^val_s)-_dequant[zzj];
+              token=OC_DCT_RUN_CAT1_TOKEN[nzeros-1];
+              eb=OC_DCT_RUN_CAT1_EB[nzeros-1][-val_s];
+              e=_dct[OC_FZIG_ZAG[zzj]]-(_dequant[zzj]+val_s^val_s);
               d2=e*(ogg_int32_t)e+sum_d2-d2_accum[zzj];
               bits=oc_token_bits(_enc,huffi,zzi,token);
               cost=d2+_lambda*bits+tokens[zzk][tk].cost;
@@ -573,12 +579,13 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
               }
             }
             if(nzeros<3+dc_reserve&&2<=val&&val<=4){
+              int sval;
               /*Try a +/- 2/3 combo token.*/
-              cat=nzeros>>1;
-              token=OC_DCT_RUN_CAT2A+cat;
+              token=OC_DCT_RUN_CAT2A+(nzeros>>1);
               bits=oc_token_bits(_enc,huffi,zzi,token);
               val=2+(val>2);
-              e=(_dct[OC_FZIG_ZAG[zzj]]+val_s^val_s)-_dequant[zzj]*val;
+              sval=val+val_s^val_s;
+              e=_dct[OC_FZIG_ZAG[zzj]]-_dequant[zzj]*sval;
               d2=e*(ogg_int32_t)e+sum_d2-d2_accum[zzj];
               cost=d2+_lambda*bits+tokens[zzk][tk].cost;
               if(cost<=best_cost){
@@ -586,8 +593,8 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
                 best_bits=bits+tokens[zzk][tk].bits;
                 best_next=next;
                 best_token=token;
-                best_eb=(-val_s<<1+cat)+(val-2<<cat)+(nzeros-1>>1);
-                best_qc=val+val_s^val_s;
+                best_eb=OC_DCT_RUN_CAT2_EB[nzeros-1][-val_s][val-2];
+                best_qc=sval;
               }
             }
           }
