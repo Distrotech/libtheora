@@ -544,7 +544,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
             best_bits=bits+tokens[zzj][1].bits;
             best_qc=0;
           }
-          if(nzeros<16+dc_reserve){
+          if(nzeros<17+dc_reserve){
             val=_qdct[zzj];
             val_s=-(val<0);
             val=val+val_s^val_s;
@@ -572,7 +572,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
                 best_qc=1+val_s^val_s;
               }
             }
-            if(nzeros<2+dc_reserve&&2<=val&&val<=4){
+            if(nzeros<3+dc_reserve&&2<=val&&val<=4){
               /*Try a +/- 2/3 combo token.*/
               cat=nzeros>>1;
               token=OC_DCT_RUN_CAT2A+cat;
