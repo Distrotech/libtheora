@@ -577,7 +577,7 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
               cat=nzeros>>1;
               token=OC_DCT_RUN_CAT2A+cat;
               bits=oc_token_bits(_enc,huffi,zzi,token);
-              val=2+((val+val_s^val_s)>2);
+              val=2+(val>2);
               e=(_dct[OC_FZIG_ZAG[zzj]]+val_s^val_s)-_dequant[zzj]*val;
               d2=e*(ogg_int32_t)e+sum_d2-d2_accum[zzj];
               cost=d2+_lambda*bits+tokens[zzk][tk].cost;
