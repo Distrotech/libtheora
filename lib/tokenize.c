@@ -80,7 +80,7 @@ static const unsigned char OC_DCT_VALUE_TOKEN[1161]={
   21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
   21,21,21,21,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,
   19,19,19,19,19,19,19,19,18,18,18,18,17,17,16,15,14,13,12,10,
-  -1,
+   7,
    9,11,13,14,15,16,17,17,18,18,18,18,19,19,19,19,19,19,19,19,
   20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,21,21,21,21,
   21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
@@ -171,7 +171,7 @@ static const ogg_uint16_t OC_DCT_VALUE_EB[1161]={
     25,  24,  23,  22,  21,  20,  19,  18,  17,  16,
     15,  14,  13,  12,  11,  10,   9,   8,   7,   6,
      5,   4,   3,   2,   1,   1,   1,   1,   0,   0,
-    -1,
+     0,
      0,   0,   0,   0,   0,   0,   0,   1,   0,   1,
      2,   3,   0,   1,   2,   3,   4,   5,   6,   7,
      0,   1,   2,   3,   4,   5,   6,   7,   8,   9,
@@ -744,6 +744,240 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
   while(zzi);
   *_stack=stack;
   return bits;
+}
+
+/*Simplistic R/D tokenizer.
+  This could be made more accurate by using more sophisticated
+   rate predictions for zeros.
+  It could be made faster by switching from R/D decisions to static
+   lambda-derived rounding biases.*/
+int oc_enc_tokenize_ac_fast(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
+ ogg_int16_t *_qdct,const ogg_uint16_t *_dequant,const ogg_int16_t *_dct,
+ int _zzi,oc_token_checkpoint **_stack,int _lambda,int _acmin){
+  OC_ALIGN16(ogg_int16_t  coef[64]);
+  const unsigned char *dct_fzig_zag;
+  ogg_uint16_t        *eob_run;
+  oc_token_checkpoint *stack;
+  int                  huffi;
+  int                  zzi;
+  int                  zzj;
+  int                  zzk;
+  int                  total_bits;
+  int                  zr[4];
+  stack=*_stack;
+  total_bits=0;
+  /*The apparent bit-cost of coding a zero from observing the trellis
+     quantizer is pre-combined with lambda.
+    Four predictive cases are considered: The last optimized value is zero (+2) or
+     non-zero and the non-optimized value is zero (+1) or non-zero.*/
+  zr[0]=3*_lambda>>1;
+  zr[1]=_lambda;
+  zr[2]=4*_lambda;
+  zr[3]=7*_lambda>>1;
+  eob_run=_enc->eob_run[_pli];
+  dct_fzig_zag=_enc->state.opt_data.dct_fzig_zag;
+  huffi=_enc->huff_idxs[_enc->state.frame_type][1][_pli+1>>1];
+  memcpy(coef,_qdct,_zzi*sizeof(*coef));
+  for(zzj=zzi=1;zzj<_zzi&&!coef[zzj];zzj++);
+  while(zzj<_zzi){
+    int v;
+    int d0;
+    int d1;
+    int sign;
+    int k;
+    int eob;
+    int dq0;
+    int dq1;
+    int dd0;
+    int dd1;
+    int next_zero;
+    int eob_bits;
+    int dct_fzig_zzj;
+    dct_fzig_zzj=dct_fzig_zag[zzj];
+    v=_dct[OC_FZIG_ZAG[zzj]];
+    d0=coef[zzj];
+    eob=eob_run[zzi];
+    for(zzk=zzj+1;zzk<_zzi&&!coef[zzk];zzk++);
+    next_zero=zzk-zzj+62>>6;
+    dq0=d0*_dequant[zzj];
+    dd0=dq0-v;
+    dd0*=dd0;
+    sign=-(d0<0);
+    k=d0+sign^sign;
+    d1=(k-(zzj>_acmin))+sign^sign;
+    dq1=d1*_dequant[zzj];
+    dd1=dq1-v;
+    dd1*=dd1;
+    /*The cost of ending an eob run is included when the alternative is to
+      extend this eob run.
+      A per qi/zzi weight would probably be useful.
+      Including it in the overall tokenization cost was not helpful.
+      The same is true at the far end of the zero run plus token case.*/
+    if(eob>0&&d1==0&&zzk==_zzi){
+      eob_bits=oc_token_bits(_enc,huffi,zzi,OC_DCT_EOB1_TOKEN);
+    }
+    else eob_bits=0;
+    if(zzj==zzi){
+      /*No active zero run.*/
+      int best_token;
+      int best_eb;
+      int token;
+      int best_bits;
+      int bits;
+      int cost;
+      best_token=*(OC_DCT_VALUE_TOKEN_PTR+d0);
+      best_bits=oc_token_bits(_enc,huffi,zzi,best_token);
+      if(d1!=0){
+        token=*(OC_DCT_VALUE_TOKEN_PTR+d1);
+        bits=oc_token_bits(_enc,huffi,zzi,token);
+        cost=dd1+(bits+eob_bits)*_lambda;
+      }
+      else{
+        token=bits=0;
+        cost=dd1+zr[next_zero];
+      }
+      if((dd0+(best_bits+eob_bits)*_lambda)>cost){
+        _qdct[dct_fzig_zzj]=dq1;
+        if(d1==0){
+          zzj=zzk;
+          continue;
+        }
+        best_bits=bits;
+        best_token=token;
+        best_eb=*(OC_DCT_VALUE_EB_PTR+d1);
+      }
+      else{
+        best_eb=*(OC_DCT_VALUE_EB_PTR+d0);
+        _qdct[dct_fzig_zzj]=dq0;
+      }
+      oc_enc_tokenlog_checkpoint(_enc,stack++,_pli,zzi);
+      if(eob>0){
+        oc_enc_eob_log(_enc,_pli,zzi,eob);
+        eob_run[zzi]=0;
+      }
+      oc_enc_token_log(_enc,_pli,zzi,best_token,best_eb);
+      total_bits+=best_bits;
+    }
+    else{
+      int d;
+      int dc_reserve;
+      int best_token;
+      int best_eb;
+      int best_bits;
+      int best_cost;
+      int best_bits1;
+      int best_token1;
+      int best_eb1;
+      int zr_bits;
+      int eob2;
+      int eob_bits2;
+      int bits;
+      int token;
+      int nzeros;
+      nzeros=zzj-zzi;
+      dc_reserve=zzi+62>>6;
+      /*A zero run, followed by the value alone.*/
+      best_token=best_token1=OC_DCT_SHORT_ZRL_TOKEN+(nzeros+55>>6);
+      best_eb=best_eb1=nzeros-1;
+      eob2=eob_run[zzj];
+      if(eob2>0){
+        eob_bits2=oc_token_bits(_enc,huffi,zzj,OC_DCT_EOB1_TOKEN);
+      }
+      else eob_bits2=0;
+      zr_bits=oc_token_bits(_enc,huffi,zzi,best_token)+eob_bits2;
+      best_bits=zr_bits
+       +oc_token_bits(_enc,huffi,zzj,*(OC_DCT_VALUE_TOKEN_PTR+d0));
+      d=d0;
+
+      best_bits1=0;
+      if(d1!=0){
+        best_bits1=zr_bits
+         +oc_token_bits(_enc,huffi,zzj,*(OC_DCT_VALUE_TOKEN_PTR+d1));
+      }
+      if(nzeros<17+dc_reserve){
+        if(k<=2){
+          /*+/- 1 combo token.*/
+          token=OC_DCT_RUN_CAT1_TOKEN[nzeros-1];
+          bits=oc_token_bits(_enc,huffi,zzi,token);
+          if(k==2&&bits<=best_bits1){
+            best_bits1=bits;
+            best_token1=token;
+            best_eb1=OC_DCT_RUN_CAT1_EB[nzeros-1][-sign];
+          }
+          if(k==1&&bits<=best_bits){
+            best_bits=bits;
+            best_token=token;
+            best_eb=OC_DCT_RUN_CAT1_EB[nzeros-1][-sign];
+          }
+        }
+        if(nzeros<3+dc_reserve&&2<=k&&k<=4){
+          /*+/- 2/3 combo token.*/
+          token=OC_DCT_RUN_CAT2A+(nzeros>>1);
+          bits=oc_token_bits(_enc,huffi,zzi,token);
+          if(k==4&&bits<=best_bits1){
+            best_bits1=bits;
+            best_token1=token;
+            best_eb1=OC_DCT_RUN_CAT2_EB[nzeros-1][-sign][1];
+          }
+          if(k!=4&&bits<=best_bits){
+            best_bits=bits;
+            best_token=token;
+            best_eb=OC_DCT_RUN_CAT2_EB[nzeros-1][-sign][k-2];
+          }
+        }
+      }
+      best_cost=dd0+(best_bits+eob_bits)*_lambda;
+      if(d1==0&&(dd1+zr[2+next_zero])<=best_cost){
+        _qdct[dct_fzig_zzj]=0;
+        zzj=zzk;
+        continue;
+      }
+      if(d1!=0&&dd1+(best_bits1+eob_bits)*_lambda<best_cost){
+        best_bits=best_bits1;
+        best_token=best_token1;
+        best_eb=best_eb1;
+        d=d1;
+        _qdct[dct_fzig_zzj]=dq1;
+      }
+      else _qdct[dct_fzig_zzj]=dq0;
+      oc_enc_tokenlog_checkpoint(_enc,stack++,_pli,zzi);
+      if(eob){
+        oc_enc_eob_log(_enc,_pli,zzi,eob);
+        eob_run[zzi]=0;
+      }
+      oc_enc_token_log(_enc,_pli,zzi,best_token,best_eb);
+      /*If a zero run won vs. the combo token we still need to code this value.*/
+      if(best_token<=OC_DCT_ZRL_TOKEN){
+        oc_enc_tokenlog_checkpoint(_enc,stack++,_pli,zzj);
+        if(eob2){
+          oc_enc_eob_log(_enc,_pli,zzj,eob2);
+          /*The cost of any EOB run we disrupted is ignored because doing so
+             improved PSNR/SSIM by a small amount.*/
+          best_bits-=eob_bits2;
+          eob_run[zzj]=0;
+        }
+        oc_enc_token_log(_enc,_pli,zzj,*(OC_DCT_VALUE_TOKEN_PTR+d),*(OC_DCT_VALUE_EB_PTR+d));
+      }
+      total_bits+=best_bits;
+    }
+    zzi=zzj+1;
+    zzj=zzk;
+  }
+  /*Code an EOB run to complete this block.
+    The cost of the EOB run is not included in the total as explained in
+     in a comment in the trellis tokenizer above.*/
+  if(zzi<64){
+    int eob;
+    eob=eob_run[zzi]+1;
+    oc_enc_tokenlog_checkpoint(_enc,stack++,_pli,zzi);
+    if(eob>=4095){
+      oc_enc_token_log(_enc,_pli,zzi,OC_DCT_REPEAT_RUN3_TOKEN,eob);
+      eob=0;
+    }
+    eob_run[zzi]=eob;
+  }
+  *_stack=stack;
+  return total_bits;
 }
 
 void oc_enc_pred_dc_frag_rows(oc_enc_ctx *_enc,

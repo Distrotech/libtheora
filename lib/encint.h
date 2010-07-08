@@ -49,13 +49,15 @@ typedef struct oc_token_checkpoint    oc_token_checkpoint;
 #define OC_PACKET_READY (1)
 
 /*All features enabled.*/
-#define OC_SP_LEVEL_SLOW       (0)
+#define OC_SP_LEVEL_SLOW          (0)
 /*Enable early skip.*/
-#define OC_SP_LEVEL_EARLY_SKIP (1)
+#define OC_SP_LEVEL_EARLY_SKIP    (1)
+/*Use analysis shortcuts, single quantizer, and faster tokenization.*/
+#define OC_SP_LEVEL_FAST_ANALYSIS (2)
 /*Disable motion compensation.*/
-#define OC_SP_LEVEL_NOMC       (2)
+#define OC_SP_LEVEL_NOMC          (3)
 /*Maximum valid speed level.*/
-#define OC_SP_LEVEL_MAX        (2)
+#define OC_SP_LEVEL_MAX           (3)
 
 
 /*The number of extra bits of precision at which to store rate metrics.*/
@@ -520,6 +522,9 @@ struct oc_token_checkpoint{
 
 void oc_enc_tokenize_start(oc_enc_ctx *_enc);
 int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
+ ogg_int16_t *_qdct,const ogg_uint16_t *_dequant,const ogg_int16_t *_dct,
+ int _zzi,oc_token_checkpoint **_stack,int _lambda,int _acmin);
+int oc_enc_tokenize_ac_fast(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
  ogg_int16_t *_qdct,const ogg_uint16_t *_dequant,const ogg_int16_t *_dct,
  int _zzi,oc_token_checkpoint **_stack,int _lambda,int _acmin);
 void oc_enc_tokenlog_rollback(oc_enc_ctx *_enc,
