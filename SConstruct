@@ -139,6 +139,7 @@ if conf.CheckHost_x86_32():
         x86/mmxencfrag.c
         x86/mmxfdct.c
         x86/x86enc.c
+        x86/x86enquant.c
         x86/sse2encfrag.c
         x86/mmxfrag.c
         x86/mmxidct.c
@@ -158,6 +159,7 @@ elif conf.CheckHost_x86_64():
         x86/mmxencfrag.c
         x86/mmxfdct.c
         x86/x86enc.c
+        x86/x86enquant.c
         x86/sse2fdct.c
         x86/mmxfrag.c
         x86/mmxidct.c
