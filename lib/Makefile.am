@@ -84,6 +84,8 @@ encoder_uniq_sources = \
 
 encoder_sources = \
 	apiwrapper.c \
+	bitpack.c \
+	dequant.c \
 	fragment.c \
 	idct.c \
 	internal.c \

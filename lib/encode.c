@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "encint.h"
+#include "dequant.h"
 #if defined(OC_X86_ASM)
 # include "x86/x86enc.h"
 #endif
@@ -1093,6 +1094,17 @@ static void oc_enc_enquant_tables_init(oc_enc_ctx *_enc,
   }
 }
 
+/*Updates the encoder state after the quantization parameters have been
+   changed.*/
+static void oc_enc_quant_params_updated(oc_enc_ctx *_enc,
+ const th_quant_info *_qinfo){
+  oc_enc_enquant_tables_init(_enc,_qinfo);
+  memcpy(_enc->state.loop_filter_limits,_qinfo->loop_filter_limits,
+   sizeof(_enc->state.loop_filter_limits));
+  oc_enquant_qavg_init(_enc->log_qavg,_enc->log_plq,_enc->chroma_rd_scale,
+   _enc->state.dequant_tables,_enc->state.info.pixel_fmt);
+}
+
 /*Sets the quantization parameters to use.
   This may only be called before the setup header is written.
   If it is called multiple times, only the last call has any effect.
@@ -1102,16 +1114,20 @@ static void oc_enc_enquant_tables_init(oc_enc_ctx *_enc,
            will be used.*/
 static int oc_enc_set_quant_params(oc_enc_ctx *_enc,
  const th_quant_info *_qinfo){
+  th_quant_info old_qinfo;
+  int           ret;
   if(_enc==NULL)return TH_EFAULT;
   if(_enc->packet_state>OC_PACKET_SETUP_HDR)return TH_EINVAL;
   if(_qinfo==NULL)_qinfo=&TH_DEF_QUANT_INFO;
-  /*TODO: Analyze for packing purposes instead of just doing a shallow copy.*/
-  memcpy(&_enc->qinfo,_qinfo,sizeof(_enc->qinfo));
-  oc_enc_enquant_tables_init(_enc,_qinfo);
-  memcpy(_enc->state.loop_filter_limits,_qinfo->loop_filter_limits,
-   sizeof(_enc->state.loop_filter_limits));
-  oc_enquant_qavg_init(_enc->log_qavg,_enc->log_plq,_enc->chroma_rd_scale,
-   _enc->state.dequant_tables,_enc->state.info.pixel_fmt);
+  memcpy(&old_qinfo,&_enc->qinfo,sizeof(old_qinfo));
+  ret=oc_quant_params_clone(&_enc->qinfo,_qinfo);
+  if(ret<0){
+    oc_quant_params_clear(&_enc->qinfo);
+    memcpy(&_enc->qinfo,&old_qinfo,sizeof(old_qinfo));
+    return ret;
+  }
+  else oc_quant_params_clear(&old_qinfo);
+  oc_enc_quant_params_updated(_enc,_qinfo);
   return 0;
 }
 
@@ -1180,21 +1196,8 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   _enc->luma_avg=128<<8;
   oc_rc_state_init(&_enc->rc,_enc);
   oggpackB_writeinit(&_enc->opb);
-  if(_enc->mb_info==NULL||_enc->frag_dc==NULL||_enc->coded_mbis==NULL||
-   _enc->mcu_skip_ssd==NULL||_enc->dct_tokens[0]==NULL||
-   _enc->dct_tokens[1]==NULL||_enc->dct_tokens[2]==NULL||
-   _enc->extra_bits[0]==NULL||_enc->extra_bits[1]==NULL||
-   _enc->extra_bits[2]==NULL
-#if defined(OC_COLLECT_METRICS)
-   ||_enc->frag_satd==NULL||_enc->frag_ssd==NULL
-#endif
-   ){
-    oc_enc_clear(_enc);
-    return TH_EFAULT;
-  }
-  oc_mode_scheme_chooser_init(&_enc->chooser);
-  oc_enc_mb_info_init(_enc);
-  memset(_enc->huff_idxs,0,sizeof(_enc->huff_idxs));
+  memcpy(_enc->huff_codes,TH_VP31_HUFF_CODES,sizeof(_enc->huff_codes));
+  memset(_enc->qinfo.qi_ranges,0,sizeof(_enc->qinfo.qi_ranges));
   /*Reset the packet-out state machine.*/
   _enc->packet_state=OC_PACKET_INFO_HDR;
   _enc->dup_count=0;
@@ -1206,8 +1209,21 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   _enc->vp3_compatible=0;
   /*No INTER frames coded yet.*/
   _enc->coded_inter_frame=0;
-  memcpy(_enc->huff_codes,TH_VP31_HUFF_CODES,sizeof(_enc->huff_codes));
-  oc_enc_set_quant_params(_enc,NULL);
+  if(_enc->mb_info==NULL||_enc->frag_dc==NULL||_enc->coded_mbis==NULL
+   ||_enc->mcu_skip_ssd==NULL||_enc->dct_tokens[0]==NULL
+   ||_enc->dct_tokens[1]==NULL||_enc->dct_tokens[2]==NULL
+   ||_enc->extra_bits[0]==NULL||_enc->extra_bits[1]==NULL
+   ||_enc->extra_bits[2]==NULL
+#if defined(OC_COLLECT_METRICS)
+   ||_enc->frag_satd==NULL||_enc->frag_ssd==NULL
+#endif
+   ||oc_enc_set_quant_params(_enc,NULL)<0){
+    oc_enc_clear(_enc);
+    return TH_EFAULT;
+  }
+  oc_mode_scheme_chooser_init(&_enc->chooser);
+  oc_enc_mb_info_init(_enc);
+  memset(_enc->huff_idxs,0,sizeof(_enc->huff_idxs));
   return 0;
 }
 
@@ -1215,6 +1231,7 @@ static void oc_enc_clear(oc_enc_ctx *_enc){
   int pli;
   oc_rc_state_clear(&_enc->rc);
   oggpackB_writeclear(&_enc->opb);
+  oc_quant_params_clear(&_enc->qinfo);
   _ogg_free(_enc->enquant_table_data);
 #if defined(OC_COLLECT_METRICS)
   /*Save the collected metrics from this run.
@@ -1370,12 +1387,17 @@ int th_encode_ctl(th_enc_ctx *_enc,int _req,void *_buf,size_t _buf_sz){
     }break;
     case TH_ENCCTL_SET_VP3_COMPATIBLE:{
       int vp3_compatible;
+      int ret;
       if(_enc==NULL||_buf==NULL)return TH_EFAULT;
       if(_buf_sz!=sizeof(vp3_compatible))return TH_EINVAL;
+      /*Try this before we change anything else, because it can fail.*/
+      ret=oc_enc_set_quant_params(_enc,&TH_VP31_QUANT_INFO);
+      /*If we can't allocate enough memory, don't change any of the state.*/
+      if(ret==TH_EFAULT)return ret;
       vp3_compatible=*(int *)_buf;
       _enc->vp3_compatible=vp3_compatible;
       if(oc_enc_set_huffman_codes(_enc,TH_VP31_HUFF_CODES)<0)vp3_compatible=0;
-      if(oc_enc_set_quant_params(_enc,&TH_VP31_QUANT_INFO)<0)vp3_compatible=0;
+      if(ret<0)vp3_compatible=0;
       if(_enc->state.info.pixel_fmt!=TH_PF_420||
        _enc->state.info.pic_width<_enc->state.info.frame_width||
        _enc->state.info.pic_height<_enc->state.info.frame_height||
@@ -1484,6 +1506,38 @@ int th_encode_ctl(th_enc_ctx *_enc,int _req,void *_buf,size_t _buf_sz){
       }
       return oc_enc_rc_2pass_in(_enc,_buf,_buf_sz);
     }break;
+    case TH_ENCCTL_SET_COMPAT_CONFIG:{
+      unsigned char buf[7];
+      oc_pack_buf   opb;
+      th_quant_info qinfo;
+      th_huff_code  huff_codes[TH_NHUFFMAN_TABLES][TH_NDCT_TOKENS];
+      int           ret;
+      int           i;
+      if(_enc==NULL||_buf==NULL)return TH_EFAULT;
+      if(_enc->packet_state>OC_PACKET_SETUP_HDR)return TH_EINVAL;
+      oc_pack_readinit(&opb,_buf,_buf_sz);
+      /*Validate the setup packet header.*/
+      for(i=0;i<7;i++)buf[i]=(unsigned char)oc_pack_read(&opb,8);
+      if(!(buf[0]&0x80)||memcmp(buf+1,"theora",6)!=0)return TH_ENOTFORMAT;
+      if(buf[0]!=0x82)return TH_EBADHEADER;
+      /*Reads its contents.*/
+      ret=oc_quant_params_unpack(&opb,&qinfo);
+      if(ret<0){
+        oc_quant_params_clear(&qinfo);
+        return ret;
+      }
+      ret=oc_huff_codes_unpack(&opb,huff_codes);
+      if(ret<0){
+        oc_quant_params_clear(&qinfo);
+        return ret;
+      }
+      /*Install the new state.*/
+      oc_quant_params_clear(&_enc->qinfo);
+      memcpy(&_enc->qinfo,&qinfo,sizeof(qinfo));
+      oc_enc_quant_params_updated(_enc,&qinfo);
+      memcpy(_enc->huff_codes,huff_codes,sizeof(_enc->huff_codes));
+      return 0;
+    }
 #if defined(OC_COLLECT_METRICS)
     case TH_ENCCTL_SET_METRICS_FILE:{
       OC_MODE_METRICS_FILENAME=(const char *)_buf;

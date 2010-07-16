@@ -16,6 +16,7 @@ struct oc_iquant{
 
 
 
+int oc_quant_params_clone(th_quant_info *_dst,const th_quant_info *_src);
 void oc_quant_params_pack(oggpack_buffer *_opb,const th_quant_info *_qinfo);
 void oc_iquant_init(oc_iquant *_this,ogg_uint16_t _d);
 void oc_enquant_qavg_init(ogg_int64_t _log_qavg[2][64],

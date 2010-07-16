@@ -20,6 +20,69 @@
 
 
 
+int oc_quant_params_clone(th_quant_info *_dst,const th_quant_info *_src){
+  int i;
+  memcpy(_dst,_src,sizeof(*_dst));
+  memset(_dst->qi_ranges,0,sizeof(_dst->qi_ranges));
+  for(i=0;i<6;i++){
+    int nranges;
+    int qti;
+    int pli;
+    int qtj;
+    int plj;
+    int pdup;
+    int qdup;
+    qti=i/3;
+    pli=i%3;
+    qtj=(i-1)/3;
+    plj=(i-1)%3;
+    nranges=_src->qi_ranges[qti][pli].nranges;
+    /*Check for those duplicates that can be cleanly handled by
+       oc_quant_params_clear().*/
+    pdup=i>0&&nranges<=_src->qi_ranges[qtj][plj].nranges;
+    qdup=qti>0&&nranges<=_src->qi_ranges[0][pli].nranges;
+    _dst->qi_ranges[qti][pli].nranges=nranges;
+    if(pdup&&_src->qi_ranges[qti][pli].sizes==_src->qi_ranges[qtj][plj].sizes){
+      _dst->qi_ranges[qti][pli].sizes=_dst->qi_ranges[qtj][plj].sizes;
+    }
+    else if(qdup&&_src->qi_ranges[1][pli].sizes==_src->qi_ranges[0][pli].sizes){
+      _dst->qi_ranges[1][pli].sizes=_dst->qi_ranges[0][pli].sizes;
+    }
+    else{
+      int *sizes;
+      sizes=(int *)_ogg_malloc(nranges*sizeof(*sizes));
+      /*Note: The caller is responsible for cleaning up any partially
+         constructed qinfo.*/
+      if(sizes==NULL)return TH_EFAULT;
+      memcpy(sizes,_src->qi_ranges[qti][pli].sizes,nranges*sizeof(*sizes));
+      _dst->qi_ranges[qti][pli].sizes=sizes;
+    }
+    if(pdup&&_src->qi_ranges[qti][pli].base_matrices==
+     _src->qi_ranges[qtj][plj].base_matrices){
+      _dst->qi_ranges[qti][pli].base_matrices=
+       _dst->qi_ranges[qtj][plj].base_matrices;
+    }
+    else if(qdup&&_src->qi_ranges[1][pli].base_matrices==
+     _src->qi_ranges[0][pli].base_matrices){
+      _dst->qi_ranges[1][pli].base_matrices=
+       _dst->qi_ranges[0][pli].base_matrices;
+    }
+    else{
+      th_quant_base *base_matrices;
+      base_matrices=(th_quant_base *)_ogg_malloc(
+       (nranges+1)*sizeof(*base_matrices));
+      /*Note: The caller is responsible for cleaning up any partially
+         constructed qinfo.*/
+      if(base_matrices==NULL)return TH_EFAULT;
+      memcpy(base_matrices,_src->qi_ranges[qti][pli].base_matrices,
+       (nranges+1)*sizeof(*base_matrices));
+      _dst->qi_ranges[qti][pli].base_matrices=
+       (const th_quant_base *)base_matrices;
+    }
+  }
+  return 0;
+}
+
 void oc_quant_params_pack(oggpack_buffer *_opb,const th_quant_info *_qinfo){
   const th_quant_ranges *qranges;
   const th_quant_base   *base_mats[2*3*64];
