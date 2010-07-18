@@ -88,7 +88,7 @@ typedef struct oc_theora_state          oc_theora_state;
 /*A predicted frame.*/
 # define OC_INTER_FRAME (1)
 /*A frame of unknown type (frame type decision has not yet been made).*/
-# define OC_UNKWN_FRAME (-1)
+# define OC_UNKWN_FRAME ((unsigned)-1)
 
 /*The amount of padding to add to the reconstructed frame buffers on all
    sides.

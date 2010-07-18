@@ -216,12 +216,18 @@ if test "x${ac_enable_asm}" = xyes; then
     AC_DEFINE([OC_X86_ASM], [],  [make use of x86 asm optimization])
     AC_DEFINE([OC_X86_64_ASM], [],  [make use of x86_64 asm optimization])
     ;;
+  tic6x)
+    cpu_c64x=yes
+    cpu_optimization="TI C64x+"
+    AC_DEFINE([OC_C64X_ASM], [],  [make use of c64x+ asm optimization])
+    ;;
   esac
 else
   cpu_optimization="disabled"
 fi
 AM_CONDITIONAL([CPU_x86_64], [test x$cpu_x86_64 = xyes])
 AM_CONDITIONAL([CPU_x86_32], [test x$cpu_x86_32 = xyes])
+AM_CONDITIONAL([CPU_c64x], [test x$cpu_c64x = xyes])
 
 # Test whenever ld supports -version-script
 AC_PROG_LD

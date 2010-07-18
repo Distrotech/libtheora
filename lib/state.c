@@ -25,6 +25,9 @@
 # include "x86/x86int.h"
 #endif
 #endif
+#if defined(OC_C64X_ASM)
+# include "c64x/c64xint.h"
+#endif
 #if defined(OC_DUMP_IMAGES)
 # include <stdio.h>
 # include "png.h"
@@ -610,6 +613,8 @@ void oc_state_vtable_init_c(oc_theora_state *_state){
 void oc_state_vtable_init(oc_theora_state *_state){
 #if defined(OC_X86_ASM)
   oc_state_vtable_init_x86(_state);
+#elif defined(OC_C64X_ASM)
+  oc_state_vtable_init_c64x(_state);
 #else
   oc_state_vtable_init_c(_state);
 #endif

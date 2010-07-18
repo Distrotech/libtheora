@@ -20,7 +20,9 @@ EXTRA_DIST = \
 	x86/sse2idct.c \
 	x86/x86int.h \
 	x86/x86state.c \
-	x86_vc
+	x86_vc \
+	c64x/c64xint.h \
+	c64x/c64xdec.h
 
 lib_LTLIBRARIES = libtheoradec.la libtheoraenc.la libtheora.la
 
@@ -102,13 +104,24 @@ decoder_x86_sources = \
 	x86/mmxstate.c \
 	x86/sse2idct.c \
 	x86/x86state.c
+
+decoder_c64x_sources = \
+	c64x/c64xdec.c \
+	c64x/c64xfrag.c \
+	c64x/c64xidct.c \
+	c64x/c64xstate.c
+
 if CPU_x86_64
 decoder_arch_sources = $(decoder_x86_sources)
 else
 if CPU_x86_32
 decoder_arch_sources = $(decoder_x86_sources)
 else
+if CPU_c64x
+decoder_arch_sources = $(decoder_c64x_sources)
+else
 decoder_arch_sources =
+endif
 endif
 endif
 

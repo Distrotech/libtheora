@@ -22,8 +22,10 @@
 # include "internal.h"
 # include "bitpack.h"
 
-typedef struct th_setup_info oc_setup_info;
-typedef struct th_dec_ctx    oc_dec_ctx;
+typedef struct th_setup_info         oc_setup_info;
+typedef struct oc_dec_opt_vtable     oc_dec_opt_vtable;
+typedef struct oc_dec_pipeline_state oc_dec_pipeline_state;
+typedef struct th_dec_ctx            oc_dec_ctx;
 
 # include "huffdec.h"
 # include "dequant.h"
@@ -42,6 +44,33 @@ struct th_setup_info{
   th_quant_info  qinfo;
 };
 
+
+
+/*Decoder specific functions with accelerated variants.*/
+struct oc_dec_opt_vtable{
+  void (*dc_unpredict_mcu_plane)(oc_dec_ctx *_dec,
+   oc_dec_pipeline_state *_pipe,int _pli);
+};
+
+
+
+struct oc_dec_pipeline_state{
+  int                 bounding_values[256];
+  ptrdiff_t           ti[3][64];
+  ptrdiff_t           ebi[3][64];
+  ptrdiff_t           eob_runs[3][64];
+  const ptrdiff_t    *coded_fragis[3];
+  const ptrdiff_t    *uncoded_fragis[3];
+  ptrdiff_t           ncoded_fragis[3];
+  ptrdiff_t           nuncoded_fragis[3];
+  const ogg_uint16_t *dequant[3][3][2];
+  int                 fragy0[3];
+  int                 fragy_end[3];
+  int                 pred_last[3][3];
+  int                 mcu_nvfrags;
+  int                 loop_filter;
+  int                 pp_level;
+};
 
 
 struct th_dec_ctx{
@@ -87,6 +116,9 @@ struct th_dec_ctx{
   th_ycbcr_buffer      pp_frame_buf;
   /*The striped decode callback function.*/
   th_stripe_callback   stripe_cb;
+  oc_dec_pipeline_state pipe;
+  /*Table for decoder acceleration functions.*/
+  oc_dec_opt_vtable    opt_vtable;
 # if defined(HAVE_CAIRO)
   /*Output metrics for debugging.*/
   int                  telemetry;
@@ -103,5 +135,21 @@ struct th_dec_ctx{
   unsigned char       *telemetry_frame_data;
 # endif
 };
+
+/*Decoder-specific accelerated functions.*/
+# if defined(OC_C64X_ASM)
+#  include "c64x/c64xdec.h"
+# endif
+
+# if !defined(oc_dec_dc_unpredict_mcu_plane)
+#  define oc_dec_dc_unpredict_mcu_plane(_dec,_pipe,_pli) \
+ ((*(_dec)->opt_vtable.dc_unpredict_mcu_plane)(_dec,_pipe,_pli))
+# endif
+
+/*Default pure-C implementations.*/
+void oc_dec_vtable_init_c(oc_dec_ctx *_dec);
+
+void oc_dec_dc_unpredict_mcu_plane_c(oc_dec_ctx *_dec,
+ oc_dec_pipeline_state *_pipe,int _pli);
 
 #endif
