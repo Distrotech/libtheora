@@ -2212,8 +2212,9 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
         if(_dec->pipe.loop_filter){
           sdelay+=notstart;
           edelay+=notdone;
-          oc_state_loop_filter_frag_rows(&_dec->state,_dec->pipe.bounding_values,
-           refi,pli,_dec->pipe.fragy0[pli]-sdelay,_dec->pipe.fragy_end[pli]-edelay);
+          oc_state_loop_filter_frag_rows(&_dec->state,
+           _dec->pipe.bounding_values,refi,pli,
+           _dec->pipe.fragy0[pli]-sdelay,_dec->pipe.fragy_end[pli]-edelay);
         }
         /*To fill the borders, we have an additional two pixel delay, since a
            fragment in the next row could filter its top edge, using two pixels
@@ -2250,7 +2251,8 @@ int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
            doubled, but luma might have more post-processing filters enabled
            than chroma, so we don't know up front which one is the limiting
            factor.*/
-        avail_fragy0=OC_MINI(avail_fragy0,_dec->pipe.fragy0[pli]-sdelay<<frag_shift);
+        avail_fragy0=OC_MINI(avail_fragy0,
+         _dec->pipe.fragy0[pli]-sdelay<<frag_shift);
         avail_fragy_end=OC_MINI(avail_fragy_end,
          _dec->pipe.fragy_end[pli]-edelay<<frag_shift);
       }

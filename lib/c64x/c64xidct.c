@@ -18,13 +18,13 @@
 #include "c64xint.h"
 #include "dct.h"
 
-#define DOC_C1S7 ((OC_C1S7<<16)|(OC_C1S7&0xffff))
-#define DOC_C2S6 ((OC_C2S6<<16)|(OC_C2S6&0xffff))
-#define DOC_C3S5 ((OC_C3S5<<16)|(OC_C3S5&0xffff))
-#define DOC_C4S4 ((OC_C4S4<<16)|(OC_C4S4&0xffff))
-#define DOC_C5S3 ((OC_C5S3<<16)|(OC_C5S3&0xffff))
-#define DOC_C6S2 ((OC_C6S2<<16)|(OC_C6S2&0xffff))
-#define DOC_C7S1 ((OC_C7S1<<16)|(OC_C7S1&0xffff))
+#define OC_C1S7D ((OC_C1S7<<16)|(OC_C1S7&0xFFFF))
+#define OC_C2S6D ((OC_C2S6<<16)|(OC_C2S6&0xFFFF))
+#define OC_C3S5D ((OC_C3S5<<16)|(OC_C3S5&0xFFFF))
+#define OC_C4S4D ((OC_C4S4<<16)|(OC_C4S4&0xFFFF))
+#define OC_C5S3D ((OC_C5S3<<16)|(OC_C5S3&0xFFFF))
+#define OC_C6S2D ((OC_C6S2<<16)|(OC_C6S2&0xFFFF))
+#define OC_C7S1D ((OC_C7S1<<16)|(OC_C7S1&0xFFFF))
 
 /*Various building blocks for the iDCT implementations.
   These are done in macros instead of functions so that we can use all local
@@ -92,48 +92,48 @@
     ll=_addsub2(x0,x4); \
     a=_hill(ll); \
     b=_loll(ll); \
-    t0=_packh2(_mpyhus(DOC_C4S4,a),_mpyus(DOC_C4S4,a)); \
-    t1=_packh2(_mpyhus(DOC_C4S4,b),_mpyus(DOC_C4S4,b)); \
-    ll=_mpy2ll(DOC_C6S2,x2); \
+    t0=_packh2(_mpyhus(OC_C4S4D,a),_mpyus(OC_C4S4D,a)); \
+    t1=_packh2(_mpyhus(OC_C4S4D,b),_mpyus(OC_C4S4D,b)); \
+    ll=_mpy2ll(OC_C6S2D,x2); \
     a=_packh2(_hill(ll),_loll(ll)); \
-    ll=_mpy2ll(DOC_C2S6,x6); \
+    ll=_mpy2ll(OC_C2S6D,x6); \
     b=_add2(_packh2(_hill(ll),_loll(ll)),x6); \
     t2=_sub2(a,b); \
-    ll=_mpy2ll(DOC_C2S6,x2); \
+    ll=_mpy2ll(OC_C2S6D,x2); \
     a=_add2(_packh2(_hill(ll),_loll(ll)),x2); \
-    ll=_mpy2ll(DOC_C6S2,x6); \
+    ll=_mpy2ll(OC_C6S2D,x6); \
     b=_packh2(_hill(ll),_loll(ll)); \
     t3=_add2(a,b); \
-    ll=_mpy2ll(DOC_C7S1,x1); \
+    ll=_mpy2ll(OC_C7S1D,x1); \
     a=_packh2(_hill(ll),_loll(ll)); \
-    ll=_mpy2ll(DOC_C1S7,x7); \
+    ll=_mpy2ll(OC_C1S7D,x7); \
     b=_add2(_packh2(_hill(ll),_loll(ll)),x7); \
     t4=_sub2(a,b); \
-    ll=_mpy2ll(DOC_C3S5,x5); \
+    ll=_mpy2ll(OC_C3S5D,x5); \
     a=_add2(_packh2(_hill(ll),_loll(ll)),x5); \
-    ll=_mpy2ll(DOC_C5S3,x3); \
+    ll=_mpy2ll(OC_C5S3D,x3); \
     b=_add2(_packh2(_hill(ll),_loll(ll)),x3); \
     t5=_sub2(a,b); \
-    ll=_mpy2ll(DOC_C5S3,x5); \
+    ll=_mpy2ll(OC_C5S3D,x5); \
     a=_add2(_packh2(_hill(ll),_loll(ll)),x5); \
-    ll=_mpy2ll(DOC_C3S5,x3); \
+    ll=_mpy2ll(OC_C3S5D,x3); \
     b=_add2(_packh2(_hill(ll),_loll(ll)),x3); \
     t6=_add2(a,b); \
-    ll=_mpy2ll(DOC_C1S7,x1); \
+    ll=_mpy2ll(OC_C1S7D,x1); \
     a=_add2(_packh2(_hill(ll),_loll(ll)),x1); \
-    ll=_mpy2ll(DOC_C7S1,x7); \
+    ll=_mpy2ll(OC_C7S1D,x7); \
     b=_packh2(_hill(ll),_loll(ll)); \
     t7=_add2(a,b); \
     /*Stage 2:*/ \
     ll=_addsub2(t4,t5); \
     t4=_hill(ll); \
     b=_loll(ll); \
-    ll=_mpy2ll(DOC_C4S4,b); \
+    ll=_mpy2ll(OC_C4S4D,b); \
     t5=_add2(_packh2(_hill(ll),_loll(ll)),b); \
     ll=_addsub2(t7,t6); \
     t7=_hill(ll); \
     b=_loll(ll); \
-    ll=_mpy2ll(DOC_C4S4,b); \
+    ll=_mpy2ll(OC_C4S4D,b); \
     t6=_add2(_packh2(_hill(ll),_loll(ll)),b); \
     /*Stage 3:*/ \
     ll=_addsub2(t0,t3); \
@@ -154,31 +154,31 @@
     long long ll; \
     int       a; \
     /*Stage 1:*/ \
-    ll=_mpy2ll(DOC_C4S4,x0); \
+    ll=_mpy2ll(OC_C4S4D,x0); \
     t0=_add2(_packh2(_hill(ll),_loll(ll)),x0); \
     t1=t0; \
-    ll=_mpy2ll(DOC_C6S2,x2); \
+    ll=_mpy2ll(OC_C6S2D,x2); \
     t2=_packh2(_hill(ll),_loll(ll)); \
-    ll=_mpy2ll(DOC_C2S6,x2); \
+    ll=_mpy2ll(OC_C2S6D,x2); \
     t3=_add2(_packh2(_hill(ll),_loll(ll)),x2); \
-    ll=_mpy2ll(DOC_C7S1,x1); \
+    ll=_mpy2ll(OC_C7S1D,x1); \
     t4=_packh2(_hill(ll),_loll(ll)); \
-    ll=_mpy2ll(DOC_C5S3,x3); \
+    ll=_mpy2ll(OC_C5S3D,x3); \
     t5=_add2(_packh2(_hill(ll),_loll(ll)),x3); \
-    ll=_mpy2ll(DOC_C3S5,x3); \
+    ll=_mpy2ll(OC_C3S5D,x3); \
     t6=_add2(_packh2(_hill(ll),_loll(ll)),x3); \
-    ll=_mpy2ll(DOC_C1S7,x1); \
+    ll=_mpy2ll(OC_C1S7D,x1); \
     t7=_add2(_packh2(_hill(ll),_loll(ll)),x1); \
     /*Stage 2:*/ \
     ll=_addsub2(t4,t5); \
     t4=_loll(ll); \
     a=_hill(ll); \
-    ll=_mpy2ll(DOC_C4S4,a); \
+    ll=_mpy2ll(OC_C4S4D,a); \
     t5=_add2(_packh2(_hill(ll),_loll(ll)),a); \
     ll=_addsub2(t7,t6); \
     t7=_hill(ll); \
     a=_loll(ll); \
-    ll=_mpy2ll(DOC_C4S4,a); \
+    ll=_mpy2ll(OC_C4S4D,a); \
     t6=_add2(_packh2(_hill(ll),_loll(ll)),a); \
     /*Stage 3:*/ \
     ll=_addsub2(t0,t3); \
@@ -198,17 +198,17 @@
   do{ \
     long long ll; \
     /*Stage 1:*/ \
-    ll=_mpy2ll(DOC_C4S4,x0); \
+    ll=_mpy2ll(OC_C4S4D,x0); \
     t0=_add2(_packh2(_hill(ll),_loll(ll)),x0); \
     t1=t0; \
-    ll=_mpy2ll(DOC_C7S1,x1); \
+    ll=_mpy2ll(OC_C7S1D,x1); \
     t4=_packh2(_hill(ll),_loll(ll)); \
-    ll=_mpy2ll(DOC_C1S7,x1); \
+    ll=_mpy2ll(OC_C1S7D,x1); \
     t7=_add2(_packh2(_hill(ll),_loll(ll)),x1); \
     /*Stage 2:*/ \
-    ll=_mpy2ll(DOC_C4S4,t4); \
+    ll=_mpy2ll(OC_C4S4D,t4); \
     t5=_add2(_packh2(_hill(ll),_loll(ll)),t4); \
-    ll=_mpy2ll(DOC_C4S4,t7); \
+    ll=_mpy2ll(OC_C4S4D,t7); \
     t6=_add2(_packh2(_hill(ll),_loll(ll)),t7); \
     /*Stage 3:*/ \
     t3=t0; \

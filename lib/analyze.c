@@ -1756,8 +1756,9 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
          _enc->sp_level<OC_SP_LEVEL_NOMC&&_enc->keyframe_frequency_force>1){
           oc_mcenc_search(_enc,mbi);
         }
-        if(_enc->sp_level<OC_SP_LEVEL_FAST_ANALYSIS)
+        if(_enc->sp_level<OC_SP_LEVEL_FAST_ANALYSIS){
           oc_analyze_intra_mb_luma(_enc,pipe.qs+0,mbi,rd_scale);
+        }
         mb_modes[mbi]=OC_MODE_INTRA;
         oc_enc_mb_transform_quantize_intra_luma(_enc,&pipe,
          mbi,rd_scale,rd_iscale);
@@ -1994,7 +1995,7 @@ static void oc_analyze_mb_mode_chroma(oc_enc_ctx *_enc,
   _modec->rate=rate;
 }
 
-static unsigned oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
+static void oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
  unsigned _mbi,const unsigned _rd_scale[4],unsigned _ssd[12]){
   const unsigned char   *src;
   const unsigned char   *ref;
@@ -2007,7 +2008,6 @@ static unsigned oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   oc_mv                 *mvs;
   int                    map_nidxs;
   unsigned               uncoded_ssd;
-  unsigned               total_ssd;
   int                    mapii;
   int                    mapi;
   int                    pli;
@@ -2022,7 +2022,6 @@ static unsigned oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
   frag_buf_offs=_enc->state.frag_buf_offs;
   sb_map=_enc->state.sb_maps[_mbi>>2][_mbi&3];
   mvs=_enc->mb_info[_mbi].block_mv;
-  total_ssd=0;
   for(bi=0;bi<4;bi++){
     fragi=sb_map[bi];
     borderi=frags[fragi].borderi;
@@ -2042,7 +2041,6 @@ static unsigned oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
        hard limit.*/
     if(mvs[bi][0]!=0||mvs[bi][1]!=0)uncoded_ssd*=2;
     _pipe->skip_ssd[0][fragi-_pipe->froffset[0]]=_ssd[bi]=uncoded_ssd;
-    total_ssd+=uncoded_ssd>>4;
   }
   mb_map=(const oc_mb_map_plane *)_enc->state.mb_maps[_mbi];
   map_nidxs=OC_MB_MAP_NIDXS[_enc->state.info.pixel_fmt];
@@ -2073,11 +2071,9 @@ static unsigned oc_skip_cost(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe,
          a hard limit*/
       if(mvs[OC_FRAME_PREV][0]!=0||mvs[OC_FRAME_PREV][1]!=0)uncoded_ssd*=2;
       _pipe->skip_ssd[pli][fragi-_pipe->froffset[pli]]=_ssd[mapii]=uncoded_ssd;
-      total_ssd+=uncoded_ssd>>4;
     }
     map_nidxs=(map_nidxs-4<<1)+4;
   }
-  return total_ssd;
 }
 
 
@@ -2402,7 +2398,6 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
         unsigned       skip_ssd[12];
         unsigned       intra_satd[12];
         unsigned       luma;
-        unsigned       uncoded_ssd;
         int            mb_mv_bits_0;
         int            mb_gmv_bits_0;
         int            inter_mv_pref;
@@ -2454,7 +2449,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           }
         }
         /*Estimate the cost in a delta frame for various modes.*/
-        uncoded_ssd=oc_skip_cost(_enc,&pipe,mbi,rd_scale,skip_ssd);
+        oc_skip_cost(_enc,&pipe,mbi,rd_scale,skip_ssd);
         if(sp_level<OC_SP_LEVEL_NOMC){
           oc_cost_inter_nomv(_enc,modes+OC_MODE_INTER_NOMV,mbi,
            OC_MODE_INTER_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
@@ -2487,7 +2482,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
             modes[OC_MODE_INTER_MV_FOUR].cost=UINT_MAX;
           }
           if(modes[OC_MODE_INTER_MV_FOUR].cost<modes[OC_MODE_INTER_MV].cost&&
-             modes[OC_MODE_INTER_MV_FOUR].cost<modes[OC_MODE_GOLDEN_MV].cost){
+           modes[OC_MODE_INTER_MV_FOUR].cost<modes[OC_MODE_GOLDEN_MV].cost){
             if(!(embs[mbi].refined&0x80)){
               oc_mcenc_refine4mv(_enc,mbi);
               embs[mbi].refined|=0x80;
@@ -2540,7 +2535,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
             mb_mode=OC_MODE_INTER_MV;
           }
         }
-        else {
+        else{
           oc_cost_inter_nomv(_enc,modes+OC_MODE_INTER_NOMV,mbi,
            OC_MODE_INTER_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
           oc_cost_intra(_enc,modes+OC_MODE_INTRA,mbi,

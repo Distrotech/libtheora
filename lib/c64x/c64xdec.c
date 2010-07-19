@@ -90,9 +90,6 @@ void oc_dec_dc_unpredict_mcu_plane_c64x(oc_dec_ctx *_dec,
            OC_FRAME_FOR_MODE(u_frags[fragi+1].mb_mode):-1;
         }
         ref=OC_FRAME_FOR_MODE(frags[fragi].mb_mode);
-        /*HACK: This p0 reference could potentially be out of bounds, but
-           because we know what allocator we're using, we know it can't
-           segfault.*/
         if(frags[fragi].coded){
           static const int OC_PRED_SCALE[16][2]={
             {0x00000000,0x00000000},
@@ -119,6 +116,9 @@ void oc_dec_dc_unpredict_mcu_plane_c64x(oc_dec_ctx *_dec,
           int         pred;
           int         pflags;
           /*29 cycles.*/
+          /*HACK: This p0 reference could potentially be out of bounds, but
+             because we know what allocator Leonora is using, we know it can't
+             segfault.*/
           p0=u_frags[fragi-1].dc;
           p1=u_frags[fragi].dc;
           p2=u_frags[fragi+1].dc;
