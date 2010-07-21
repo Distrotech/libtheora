@@ -18,6 +18,7 @@
 #if !defined(_x86_x86int_H)
 # define _x86_x86int_H (1)
 # include "../internal.h"
+# include "cpu.h"
 
 /*Converts the expression in the argument to a string.*/
 #define OC_M2STR(_s) #_s

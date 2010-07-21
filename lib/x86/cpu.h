@@ -16,7 +16,7 @@
 
 #if !defined(_x86_cpu_H)
 # define _x86_cpu_H (1)
-#include "internal.h"
+#include "../internal.h"
 
 #define OC_CPU_X86_MMX      (1<<0)
 #define OC_CPU_X86_3DNOW    (1<<1)
@@ -30,5 +30,7 @@
 #define OC_CPU_X86_SSE4_2   (1<<9)
 #define OC_CPU_X86_SSE4A    (1<<10)
 #define OC_CPU_X86_SSE5     (1<<11)
+
+ogg_uint32_t oc_cpu_flags_get(void);
 
 #endif

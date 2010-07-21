@@ -18,11 +18,9 @@
 
 #if defined(OC_X86_ASM)
 
-#include "../cpu.c"
-
 void oc_enc_vtable_init_x86(oc_enc_ctx *_enc){
   ogg_uint32_t cpu_flags;
-  cpu_flags=oc_cpu_flags_get();
+  cpu_flags=_enc->state.cpu_flags;
   oc_enc_vtable_init_c(_enc);
   if(cpu_flags&OC_CPU_X86_MMX){
     _enc->opt_vtable.frag_sub=oc_enc_frag_sub_mmx;

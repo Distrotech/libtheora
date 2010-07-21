@@ -18,6 +18,7 @@
 #if !defined(_x86_vc_x86int_H)
 # define _x86_vc_x86int_H (1)
 # include "../internal.h"
+# include "cpu.h"
 
 void oc_state_vtable_init_x86(oc_theora_state *_state);
 

@@ -2,8 +2,8 @@ INCLUDES = -I$(top_srcdir)/include
 AM_CFLAGS = $(OGG_CFLAGS) $(CAIRO_CFLAGS)
 
 EXTRA_DIST = \
-	cpu.c \
 	encoder_disabled.c \
+	x86/cpu.c \
 	x86/mmxencfrag.c \
 	x86/mmxfdct.c \
 	x86/sse2encfrag.c \
@@ -44,6 +44,7 @@ encoder_uniq_x86_64_sources = \
 	x86/sse2fdct.c
 
 encoder_shared_x86_sources = \
+	x86/cpu.c \
 	x86/mmxfrag.c \
 	x86/mmxidct.c \
 	x86/mmxstate.c \
@@ -99,6 +100,7 @@ encoder_sources = \
 endif
 
 decoder_x86_sources = \
+	x86/cpu.c \
 	x86/mmxidct.c \
 	x86/mmxfrag.c \
 	x86/mmxstate.c \
@@ -142,7 +144,6 @@ decoder_sources = \
 	$(decoder_arch_sources)
 
 noinst_HEADERS = \
-	cpu.h \
 	internal.h \
 	encint.h \
 	enquant.h \
@@ -158,6 +159,7 @@ noinst_HEADERS = \
 	huffman.h \
 	ocintrin.h \
 	quant.h \
+	x86/cpu.h \
 	x86/mmxfrag.h \
 	x86/mmxloop.h \
 	x86/sse2trans.h \

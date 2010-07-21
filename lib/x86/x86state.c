@@ -19,8 +19,6 @@
 
 #if defined(OC_X86_ASM)
 
-#include "../cpu.c"
-
 /*This table has been modified from OC_FZIG_ZAG by baking a 4x4 transpose into
    each quadrant of the destination.*/
 static const unsigned char OC_FZIG_ZAG_MMX[128]={

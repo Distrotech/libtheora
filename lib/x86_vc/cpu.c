@@ -21,34 +21,10 @@
 #include "cpu.h"
 
 #if !defined(OC_X86_ASM)
-static ogg_uint32_t oc_cpu_flags_get(void){
+ogg_uint32_t oc_cpu_flags_get(void){
   return 0;
 }
 #else
-# if !defined(_MSC_VER)
-#  if defined(__amd64__)||defined(__x86_64__)
-/*On x86-64, gcc seems to be able to figure out how to save %rbx for us when
-   compiling with -fPIC.*/
-#   define cpuid(_op,_eax,_ebx,_ecx,_edx) \
-  __asm__ __volatile__( \
-   "cpuid\n\t" \
-   :[eax]"=a"(_eax),[ebx]"=b"(_ebx),[ecx]"=c"(_ecx),[edx]"=d"(_edx) \
-   :"a"(_op) \
-   :"cc" \
-  )
-#  else
-/*On x86-32, not so much.*/
-#   define cpuid(_op,_eax,_ebx,_ecx,_edx) \
-  __asm__ __volatile__( \
-   "xchgl %%ebx,%[ebx]\n\t" \
-   "cpuid\n\t" \
-   "xchgl %%ebx,%[ebx]\n\t" \
-   :[eax]"=a"(_eax),[ebx]"=r"(_ebx),[ecx]"=c"(_ecx),[edx]"=d"(_edx) \
-   :"a"(_op) \
-   :"cc" \
-  )
-#  endif
-# else
 /*Why does MSVC need this complicated rigamarole?
   At this point I honestly do not care.*/
 
@@ -95,7 +71,6 @@ static void oc_detect_cpuid_helper(ogg_uint32_t *_eax,ogg_uint32_t *_ebx){
     mov [ecx],ebx
   }
 }
-# endif
 
 static ogg_uint32_t oc_parse_intel_flags(ogg_uint32_t _edx,ogg_uint32_t _ecx){
   ogg_uint32_t flags;
@@ -124,7 +99,7 @@ static ogg_uint32_t oc_parse_amd_flags(ogg_uint32_t _edx,ogg_uint32_t _ecx){
   return flags;
 }
 
-static ogg_uint32_t oc_cpu_flags_get(void){
+ogg_uint32_t oc_cpu_flags_get(void){
   ogg_uint32_t flags;
   ogg_uint32_t eax;
   ogg_uint32_t ebx;
@@ -132,25 +107,7 @@ static ogg_uint32_t oc_cpu_flags_get(void){
   ogg_uint32_t edx;
 # if !defined(__amd64__)&&!defined(__x86_64__)
   /*Not all x86-32 chips support cpuid, so we have to check.*/
-#  if !defined(_MSC_VER)
-  __asm__ __volatile__(
-   "pushfl\n\t"
-   "pushfl\n\t"
-   "popl %[a]\n\t"
-   "movl %[a],%[b]\n\t"
-   "xorl $0x200000,%[a]\n\t"
-   "pushl %[a]\n\t"
-   "popfl\n\t"
-   "pushfl\n\t"
-   "popl %[a]\n\t"
-   "popfl\n\t"
-   :[a]"=r"(eax),[b]"=r"(ebx)
-   :
-   :"cc"
-  );
-#  else
   oc_detect_cpuid_helper(&eax,&ebx);
-#  endif
   /*No cpuid.*/
   if(eax==ebx)return 0;
 # endif
