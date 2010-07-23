@@ -2703,7 +2703,11 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
     We could use a Bessel follower here, but fast reaction is probably almost
      always best.*/
   _enc->activity_avg=
-   (unsigned)((activity_sum+(_enc->state.fplanes[0].nfrags>>1))/_enc->state.fplanes[0].nfrags);
+   (unsigned)((activity_sum+(_enc->state.fplanes[0].nfrags>>1))/
+   _enc->state.fplanes[0].nfrags);
+  /*activity_avg must be positive, or flat regions will get an rd_scale of 0
+     in the next frame, which breaks analysis.*/
+  if(_enc->activity_avg<=0)_enc->activity_avg=1;
   _enc->luma_avg=(unsigned)((luma_sum+(_enc->state.nmbs>>1))/_enc->state.nmbs);
   /*Finish filling in the reference frame borders.*/
   refi=_enc->state.ref_frame_idx[OC_FRAME_SELF];
