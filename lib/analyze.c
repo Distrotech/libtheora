@@ -1193,6 +1193,12 @@ static unsigned oc_dct_cost2(oc_enc_ctx *_enc,unsigned *_ssd,
   return OC_MAXI(y0+(dy*dx>>OC_SAD_SHIFT),0);
 }
 
+/*activity_avg must be positive, or flat regions could get a zero weight, which
+   confounds analysis.
+  We set the minimum to this value so that it also avoids the need for divide
+   by zero checks in oc_mb_masking().*/
+# define OC_ACTIVITY_AVG_MIN (1<<OC_RD_SCALE_BITS)
+
 static unsigned oc_mb_activity(oc_enc_ctx *_enc,unsigned _mbi,
  unsigned _activity[4]){
   const unsigned char   *src;
@@ -1374,7 +1380,7 @@ static unsigned oc_mb_masking(unsigned _rd_scale[5],unsigned _rd_iscale[5],
     /*Apply activity masking.*/
     a=_activity[bi]+4*_activity_avg;
     b=4*_activity[bi]+_activity_avg;
-    d=OC_MAXI(OC_RD_SCALE(b,1),1);
+    d=OC_RD_SCALE(b,1);
     /*And luminance masking.*/
     d=(a+(d>>1))/d;
     _rd_scale[bi]=(d*la+(lb>>1))/lb;
@@ -1790,8 +1796,9 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
     notstart=1;
   }
   /*Compute the average block activity and MB luma score for the frame.*/
-  _enc->activity_avg=
-   (unsigned)((activity_sum+(_enc->state.fplanes[0].nfrags>>1))/_enc->state.fplanes[0].nfrags);
+  _enc->activity_avg=OC_MAXI(OC_ACTIVITY_AVG_MIN,
+   (unsigned)((activity_sum+(_enc->state.fplanes[0].nfrags>>1))/
+   _enc->state.fplanes[0].nfrags));
   _enc->luma_avg=(unsigned)((luma_sum+(_enc->state.nmbs>>1))/_enc->state.nmbs);
   /*Finish filling in the reference frame borders.*/
   refi=_enc->state.ref_frame_idx[OC_FRAME_SELF];
@@ -2702,12 +2709,9 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   /*Update the average block activity and MB luma score for the frame.
     We could use a Bessel follower here, but fast reaction is probably almost
      always best.*/
-  _enc->activity_avg=
+  _enc->activity_avg=OC_MAXI(OC_ACTIVITY_AVG_MIN,
    (unsigned)((activity_sum+(_enc->state.fplanes[0].nfrags>>1))/
-   _enc->state.fplanes[0].nfrags);
-  /*activity_avg must be positive, or flat regions will get an rd_scale of 0
-     in the next frame, which breaks analysis.*/
-  if(_enc->activity_avg<=0)_enc->activity_avg=1;
+   _enc->state.fplanes[0].nfrags));
   _enc->luma_avg=(unsigned)((luma_sum+(_enc->state.nmbs>>1))/_enc->state.nmbs);
   /*Finish filling in the reference frame borders.*/
   refi=_enc->state.ref_frame_idx[OC_FRAME_SELF];
