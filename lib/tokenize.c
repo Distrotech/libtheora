@@ -778,6 +778,7 @@ int oc_enc_tokenize_ac_fast(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
   dct_fzig_zag=_enc->state.opt_data.dct_fzig_zag;
   huffi=_enc->huff_idxs[_enc->state.frame_type][1][_pli+1>>1];
   memcpy(coef,_qdct,_zzi*sizeof(*coef));
+  for(zzj=0;zzj<64;zzj++)_qdct[zzj]=0;
   for(zzj=zzi=1;zzj<_zzi&&!coef[zzj];zzj++);
   while(zzj<_zzi){
     int v;
