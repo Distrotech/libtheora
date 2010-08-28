@@ -1337,9 +1337,9 @@ static void oc_enc_set_granpos(oc_enc_ctx *_enc){
 th_enc_ctx *th_encode_alloc(const th_info *_info){
   oc_enc_ctx *enc;
   if(_info==NULL)return NULL;
-  enc=_ogg_malloc(sizeof(*enc));
+  enc=oc_aligned_malloc(sizeof(*enc),16);
   if(enc==NULL||oc_enc_init(enc,_info)<0){
-    _ogg_free(enc);
+    oc_aligned_free(enc);
     return NULL;
   }
   return enc;
@@ -1348,7 +1348,7 @@ th_enc_ctx *th_encode_alloc(const th_info *_info){
 void th_encode_free(th_enc_ctx *_enc){
   if(_enc!=NULL){
     oc_enc_clear(_enc);
-    _ogg_free(_enc);
+    oc_aligned_free(_enc);
   }
 }
 

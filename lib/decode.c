@@ -1965,9 +1965,9 @@ static void oc_dec_dering_frag_rows(oc_dec_ctx *_dec,th_img_plane *_img,
 th_dec_ctx *th_decode_alloc(const th_info *_info,const th_setup_info *_setup){
   oc_dec_ctx *dec;
   if(_info==NULL||_setup==NULL)return NULL;
-  dec=_ogg_malloc(sizeof(*dec));
+  dec=oc_aligned_malloc(sizeof(*dec),16);
   if(dec==NULL||oc_dec_init(dec,_info,_setup)<0){
-    _ogg_free(dec);
+    oc_aligned_free(dec);
     return NULL;
   }
   dec->state.curframe_num=0;
@@ -1977,7 +1977,7 @@ th_dec_ctx *th_decode_alloc(const th_info *_info,const th_setup_info *_setup){
 void th_decode_free(th_dec_ctx *_dec){
   if(_dec!=NULL){
     oc_dec_clear(_dec);
-    _ogg_free(_dec);
+    oc_aligned_free(_dec);
   }
 }
 

@@ -171,6 +171,30 @@ const oc_set_chroma_mvs_func OC_SET_CHROMA_MVS_TABLE[TH_PF_NFORMATS]={
 
 
 
+void *oc_aligned_malloc(size_t _sz,size_t _align){
+  unsigned char *p;
+  if(_align>UCHAR_MAX||(_align&_align-1)||_sz>~(size_t)0-_align)return NULL;
+  p=(unsigned char *)_ogg_malloc(_sz+_align);
+  if(p!=NULL){
+    int offs;
+    offs=((p-(unsigned char *)0)-1&_align-1);
+    p[offs]=offs;
+    p+=offs+1;
+  }
+  return p;
+}
+
+void oc_aligned_free(void *_ptr){
+  unsigned char *p;
+  p=(unsigned char *)_ptr;
+  if(p!=NULL){
+    int offs;
+    offs=*--p;
+    _ogg_free(p-offs);
+  }
+}
+
+
 void **oc_malloc_2d(size_t _height,size_t _width,size_t _sz){
   size_t  rowsz;
   size_t  colsz;

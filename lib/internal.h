@@ -421,6 +421,8 @@ extern const oc_set_chroma_mvs_func OC_SET_CHROMA_MVS_TABLE[TH_PF_NFORMATS];
 
 
 int oc_ilog(unsigned _v);
+void *oc_aligned_malloc(size_t _sz,size_t _align);
+void oc_aligned_free(void *_ptr);
 void **oc_malloc_2d(size_t _height,size_t _width,size_t _sz);
 void **oc_calloc_2d(size_t _height,size_t _width,size_t _sz);
 void oc_free_2d(void *_ptr);
