@@ -61,8 +61,10 @@ static const unsigned char OC_FZIG_ZAG_SSE2[128]={
   64,64,64,64,64,64,64,64
 };
 
-void oc_state_vtable_init_x86(oc_theora_state *_state){
+void oc_state_accel_init_x86(oc_theora_state *_state){
+  oc_state_accel_init_c(_state);
   _state->cpu_flags=oc_cpu_flags_get();
+# if defined(OC_STATE_USE_VTABLE)
   if(_state->cpu_flags&OC_CPU_X86_MMX){
     _state->opt_vtable.frag_copy=oc_frag_copy_mmx;
     _state->opt_vtable.frag_recon_intra=oc_frag_recon_intra_mmx;
@@ -76,14 +78,16 @@ void oc_state_vtable_init_x86(oc_theora_state *_state){
     _state->opt_vtable.restore_fpu=oc_restore_fpu_mmx;
     _state->opt_data.dct_fzig_zag=OC_FZIG_ZAG_MMX;
   }
-  else oc_state_vtable_init_c(_state);
   if(_state->cpu_flags&OC_CPU_X86_MMXEXT){
     _state->opt_vtable.state_loop_filter_frag_rows=
      oc_state_loop_filter_frag_rows_mmxext;
   }
   if(_state->cpu_flags&OC_CPU_X86_SSE2){
     _state->opt_vtable.idct8x8=oc_idct8x8_sse2;
+# endif
     _state->opt_data.dct_fzig_zag=OC_FZIG_ZAG_SSE2;
+# if defined(OC_STATE_USE_VTABLE)
   }
+# endif
 }
 #endif

@@ -19,14 +19,13 @@
 # include "c64xint.h"
 
 # if defined(OC_C64X_ASM)
-#  if !defined(oc_dec_dc_unpredict_mcu_plane)
-#   define oc_dec_dc_unpredict_mcu_plane oc_dec_dc_unpredict_mcu_plane_c64x
-#  endif
+#  define oc_dec_accel_init oc_dec_accel_init_c64x
+#  define oc_dec_dc_unpredict_mcu_plane oc_dec_dc_unpredict_mcu_plane_c64x
 # endif
 
 # include "../decint.h"
 
-void oc_dec_vtable_init_c64x(oc_dec_ctx *_dec);
+void oc_dec_accel_init_c64x(oc_dec_ctx *_dec);
 
 void oc_dec_dc_unpredict_mcu_plane_c64x(oc_dec_ctx *_dec,
  oc_dec_pipeline_state *_pipe,int _pli);

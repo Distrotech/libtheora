@@ -19,7 +19,9 @@
 
 #if defined(OC_C64X_ASM)
 
-void oc_state_vtable_init_c64x(oc_theora_state *_state){
+void oc_state_accel_init_c64x(oc_theora_state *_state){
+  _state->cpu_flags=0;
+# if defined(OC_STATE_USE_VTABLE)
   _state->opt_vtable.frag_copy=oc_frag_copy_c64x;
   _state->opt_vtable.frag_recon_intra=oc_frag_recon_intra_c64x;
   _state->opt_vtable.frag_recon_inter=oc_frag_recon_inter_c64x;
@@ -30,6 +32,7 @@ void oc_state_vtable_init_c64x(oc_theora_state *_state){
   _state->opt_vtable.state_loop_filter_frag_rows=
    oc_state_loop_filter_frag_rows_c64x;
   _state->opt_vtable.restore_fpu=oc_restore_fpu_c;
+# endif
   _state->opt_data.dct_fzig_zag=OC_FZIG_ZAG;
 }
 

@@ -17,45 +17,29 @@
 
 #if !defined(_c64x_c64xint_H)
 # define _c64x_c64xint_H (1)
-
-# if defined(OC_C64X_ASM)
-#  if !defined(oc_frag_copy)
-#   define oc_frag_copy(_state,_dst,_src,_ystride) \
-     oc_frag_copy_c64x(_dst,_src,_ystride)
-#  endif
-#  if !defined(oc_frag_recon_intra)
-#   define oc_frag_recon_intra(_state,_dst,_dst_ystride,_residue) \
-     oc_frag_recon_intra_c64x(_dst,_dst_ystride,_residue)
-#  endif
-#  if !defined(oc_frag_recon_inter)
-#   define oc_frag_recon_inter(_state,_dst,_src,_ystride,_residue) \
-     oc_frag_recon_inter_c64x(_dst,_src,_ystride,_residue)
-#  endif
-#  if !defined(oc_frag_recon_inter2)
-#   define oc_frag_recon_inter2(_state,_dst,_src1,_src2,_ystride,_residue) \
-     oc_frag_recon_inter2_c64x(_dst,_src1,_src2,_ystride,_residue)
-#  endif
-#  if !defined(oc_idct8x8)
-#   define oc_idct8x8(_state,_y,_last_zzi) \
-     define oc_idct8x8_c64x(_y,_last_zzi)
-#  endif
-#  if !defined(oc_state_frag_recon)
-#   define oc_state_frag_recon oc_state_frag_recon_c64x
-#  endif
-#  if !defined(oc_state_frag_copy_list)
-#   define oc_state_frag_copy_list oc_state_frag_copy_list_c64x
-#  endif
-#  if !defined(oc_state_loop_filter_frag_rows)
-#   define oc_state_loop_filter_frag_rows oc_state_loop_filter_frag_rows_c64x
-#  endif
-#  if !defined(oc_restore_fpu)
-#   define oc_restore_fpu(_state) do{}while(0)
-#  endif
-# endif
-
 # include "../internal.h"
 
-void oc_state_vtable_init_c64x(oc_theora_state *_state);
+# if defined(OC_C64X_ASM)
+#  define oc_state_accel_init oc_state_accel_init_c64x
+#  define oc_frag_copy(_state,_dst,_src,_ystride) \
+  oc_frag_copy_c64x(_dst,_src,_ystride)
+#  define oc_frag_recon_intra(_state,_dst,_dst_ystride,_residue) \
+  oc_frag_recon_intra_c64x(_dst,_dst_ystride,_residue)
+#  define oc_frag_recon_inter(_state,_dst,_src,_ystride,_residue) \
+  oc_frag_recon_inter_c64x(_dst,_src,_ystride,_residue)
+#  define oc_frag_recon_inter2(_state,_dst,_src1,_src2,_ystride,_residue) \
+  oc_frag_recon_inter2_c64x(_dst,_src1,_src2,_ystride,_residue)
+#  define oc_idct8x8(_state,_y,_last_zzi) \
+  oc_idct8x8_c64x(_y,_last_zzi)
+#  define oc_state_frag_recon oc_state_frag_recon_c64x
+#  define oc_state_frag_copy_list oc_state_frag_copy_list_c64x
+#  define oc_state_loop_filter_frag_rows oc_state_loop_filter_frag_rows_c64x
+#  define oc_restore_fpu(_state) do{}while(0)
+# endif
+
+# include "../state.h"
+
+void oc_state_accel_init_c64x(oc_theora_state *_state);
 
 void oc_frag_copy_c64x(unsigned char *_dst,
  const unsigned char *_src,int _ystride);

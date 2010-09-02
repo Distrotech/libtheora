@@ -17,21 +17,85 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "internal.h"
-#if defined(OC_X86_ASM)
-#if defined(_MSC_VER)
-# include "x86_vc/x86int.h"
-#else
-# include "x86/x86int.h"
-#endif
-#endif
-#if defined(OC_C64X_ASM)
-# include "c64x/c64xint.h"
-#endif
+#include "state.h"
 #if defined(OC_DUMP_IMAGES)
 # include <stdio.h>
 # include "png.h"
 #endif
+
+/*The function used to fill in the chroma plane motion vectors for a macro
+   block when 4 different motion vectors are specified in the luma plane.
+  This version is for use with chroma decimated in the X and Y directions
+   (4:2:0).
+  _cbmvs: The chroma block-level motion vectors to fill in.
+  _lbmvs: The luma block-level motion vectors.*/
+static void oc_set_chroma_mvs00(oc_mv _cbmvs[4],const oc_mv _lbmvs[4]){
+  int dx;
+  int dy;
+  dx=_lbmvs[0][0]+_lbmvs[1][0]+_lbmvs[2][0]+_lbmvs[3][0];
+  dy=_lbmvs[0][1]+_lbmvs[1][1]+_lbmvs[2][1]+_lbmvs[3][1];
+  _cbmvs[0][0]=(signed char)OC_DIV_ROUND_POW2(dx,2,2);
+  _cbmvs[0][1]=(signed char)OC_DIV_ROUND_POW2(dy,2,2);
+}
+
+/*The function used to fill in the chroma plane motion vectors for a macro
+   block when 4 different motion vectors are specified in the luma plane.
+  This version is for use with chroma decimated in the Y direction.
+  _cbmvs: The chroma block-level motion vectors to fill in.
+  _lbmvs: The luma block-level motion vectors.*/
+static void oc_set_chroma_mvs01(oc_mv _cbmvs[4],const oc_mv _lbmvs[4]){
+  int dx;
+  int dy;
+  dx=_lbmvs[0][0]+_lbmvs[2][0];
+  dy=_lbmvs[0][1]+_lbmvs[2][1];
+  _cbmvs[0][0]=(signed char)OC_DIV_ROUND_POW2(dx,1,1);
+  _cbmvs[0][1]=(signed char)OC_DIV_ROUND_POW2(dy,1,1);
+  dx=_lbmvs[1][0]+_lbmvs[3][0];
+  dy=_lbmvs[1][1]+_lbmvs[3][1];
+  _cbmvs[1][0]=(signed char)OC_DIV_ROUND_POW2(dx,1,1);
+  _cbmvs[1][1]=(signed char)OC_DIV_ROUND_POW2(dy,1,1);
+}
+
+/*The function used to fill in the chroma plane motion vectors for a macro
+   block when 4 different motion vectors are specified in the luma plane.
+  This version is for use with chroma decimated in the X direction (4:2:2).
+  _cbmvs: The chroma block-level motion vectors to fill in.
+  _lbmvs: The luma block-level motion vectors.*/
+static void oc_set_chroma_mvs10(oc_mv _cbmvs[4],const oc_mv _lbmvs[4]){
+  int dx;
+  int dy;
+  dx=_lbmvs[0][0]+_lbmvs[1][0];
+  dy=_lbmvs[0][1]+_lbmvs[1][1];
+  _cbmvs[0][0]=(signed char)OC_DIV_ROUND_POW2(dx,1,1);
+  _cbmvs[0][1]=(signed char)OC_DIV_ROUND_POW2(dy,1,1);
+  dx=_lbmvs[2][0]+_lbmvs[3][0];
+  dy=_lbmvs[2][1]+_lbmvs[3][1];
+  _cbmvs[2][0]=(signed char)OC_DIV_ROUND_POW2(dx,1,1);
+  _cbmvs[2][1]=(signed char)OC_DIV_ROUND_POW2(dy,1,1);
+}
+
+/*The function used to fill in the chroma plane motion vectors for a macro
+   block when 4 different motion vectors are specified in the luma plane.
+  This version is for use with no chroma decimation (4:4:4).
+  _cbmvs: The chroma block-level motion vectors to fill in.
+  _lmbmv: The luma macro-block level motion vector to fill in for use in
+           prediction.
+  _lbmvs: The luma block-level motion vectors.*/
+static void oc_set_chroma_mvs11(oc_mv _cbmvs[4],const oc_mv _lbmvs[4]){
+  memcpy(_cbmvs,_lbmvs,4*sizeof(_lbmvs[0]));
+}
+
+/*A table of functions used to fill in the chroma plane motion vectors for a
+   macro block when 4 different motion vectors are specified in the luma
+   plane.*/
+const oc_set_chroma_mvs_func OC_SET_CHROMA_MVS_TABLE[TH_PF_NFORMATS]={
+  (oc_set_chroma_mvs_func)oc_set_chroma_mvs00,
+  (oc_set_chroma_mvs_func)oc_set_chroma_mvs01,
+  (oc_set_chroma_mvs_func)oc_set_chroma_mvs10,
+  (oc_set_chroma_mvs_func)oc_set_chroma_mvs11
+};
+
+
 
 /*Returns the fragment index of the top-left block in a macro block.
   This can be used to test whether or not the whole macro block is valid.
@@ -595,7 +659,9 @@ static void oc_state_ref_bufs_clear(oc_theora_state *_state){
 }
 
 
-void oc_state_vtable_init_c(oc_theora_state *_state){
+void oc_state_accel_init_c(oc_theora_state *_state){
+  _state->cpu_flags=0;
+#if defined(OC_STATE_USE_VTABLE)
   _state->opt_vtable.frag_copy=oc_frag_copy_c;
   _state->opt_vtable.frag_recon_intra=oc_frag_recon_intra_c;
   _state->opt_vtable.frag_recon_inter=oc_frag_recon_inter_c;
@@ -606,18 +672,8 @@ void oc_state_vtable_init_c(oc_theora_state *_state){
   _state->opt_vtable.state_loop_filter_frag_rows=
    oc_state_loop_filter_frag_rows_c;
   _state->opt_vtable.restore_fpu=oc_restore_fpu_c;
-  _state->opt_data.dct_fzig_zag=OC_FZIG_ZAG;
-}
-
-/*Initialize the accelerated function pointers.*/
-void oc_state_vtable_init(oc_theora_state *_state){
-#if defined(OC_X86_ASM)
-  oc_state_vtable_init_x86(_state);
-#elif defined(OC_C64X_ASM)
-  oc_state_vtable_init_c64x(_state);
-#else
-  oc_state_vtable_init_c(_state);
 #endif
+  _state->opt_data.dct_fzig_zag=OC_FZIG_ZAG;
 }
 
 
@@ -655,7 +711,7 @@ int oc_state_init(oc_theora_state *_state,const th_info *_info,int _nrefs){
      system.*/
   _state->info.pic_y=_info->frame_height-_info->pic_height-_info->pic_y;
   _state->frame_type=OC_UNKWN_FRAME;
-  oc_state_vtable_init(_state);
+  oc_state_accel_init(_state);
   ret=oc_state_frarray_init(_state);
   if(ret>=0)ret=oc_state_ref_bufs_init(_state,_nrefs);
   if(ret<0){

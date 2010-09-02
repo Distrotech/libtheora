@@ -144,21 +144,22 @@ decoder_sources = \
 	$(decoder_arch_sources)
 
 noinst_HEADERS = \
-	internal.h \
-	encint.h \
-	enquant.h \
-	huffenc.h \
-	mathops.h \
-	modedec.h \
 	apiwrapper.h \
 	bitpack.h \
 	dct.h \
 	decint.h \
 	dequant.h \
+	encint.h \
+	enquant.h \
 	huffdec.h \
+	huffenc.h \
 	huffman.h \
+	internal.h \
+	mathops.h \
+	modedec.h \
 	ocintrin.h \
 	quant.h \
+	state.h \
 	x86/cpu.h \
 	x86/mmxfrag.h \
 	x86/mmxloop.h \

@@ -18,9 +18,6 @@
 #include <string.h>
 #include "encint.h"
 #include "dequant.h"
-#if defined(OC_X86_ASM)
-# include "x86/x86enc.h"
-#endif
 
 
 
@@ -934,9 +931,10 @@ static void oc_enc_frame_pack(oc_enc_ctx *_enc){
 }
 
 
-void oc_enc_vtable_init_c(oc_enc_ctx *_enc){
+void oc_enc_accel_init_c(oc_enc_ctx *_enc){
   /*The implementations prefixed with oc_enc_ are encoder-specific.
     The rest we re-use from the decoder.*/
+# if defined(OC_ENC_USE_VTABLE)
   _enc->opt_vtable.frag_sub=oc_enc_frag_sub_c;
   _enc->opt_vtable.frag_sub_128=oc_enc_frag_sub_128_c;
   _enc->opt_vtable.frag_sad=oc_enc_frag_sad_c;
@@ -948,14 +946,15 @@ void oc_enc_vtable_init_c(oc_enc_ctx *_enc){
   _enc->opt_vtable.frag_ssd=oc_enc_frag_ssd_c;
   _enc->opt_vtable.frag_border_ssd=oc_enc_frag_border_ssd_c;
   _enc->opt_vtable.frag_copy2=oc_enc_frag_copy2_c;
-  _enc->opt_data.enquant_table_size=64*sizeof(oc_iquant);
-  _enc->opt_data.enquant_table_alignment=16;
   _enc->opt_vtable.enquant_table_init=oc_enc_enquant_table_init_c;
   _enc->opt_vtable.enquant_table_fixup=oc_enc_enquant_table_fixup_c;
   _enc->opt_vtable.quantize=oc_enc_quantize_c;
   _enc->opt_vtable.frag_recon_intra=oc_frag_recon_intra_c;
   _enc->opt_vtable.frag_recon_inter=oc_frag_recon_inter_c;
   _enc->opt_vtable.fdct8x8=oc_enc_fdct8x8_c;
+# endif
+  _enc->opt_data.enquant_table_size=64*sizeof(oc_iquant);
+  _enc->opt_data.enquant_table_alignment=16;
 }
 
 /*Initialize the macro block neighbor lists for MC analysis.
@@ -1153,6 +1152,7 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
   /*Initialize the shared encoder/decoder state.*/
   ret=oc_state_init(&_enc->state,&info,6);
   if(ret<0)return ret;
+  oc_enc_accel_init(_enc);
   _enc->mb_info=_ogg_calloc(_enc->state.nmbs,sizeof(*_enc->mb_info));
   _enc->frag_dc=_ogg_calloc(_enc->state.nfrags,sizeof(*_enc->frag_dc));
   _enc->coded_mbis=
@@ -1180,11 +1180,6 @@ static int oc_enc_init(oc_enc_ctx *_enc,const th_info *_info){
 #if defined(OC_COLLECT_METRICS)
   _enc->frag_satd=_ogg_calloc(_enc->state.nfrags,sizeof(*_enc->frag_satd));
   _enc->frag_ssd=_ogg_calloc(_enc->state.nfrags,sizeof(*_enc->frag_ssd));
-#endif
-#if defined(OC_X86_ASM)
-  oc_enc_vtable_init_x86(_enc);
-#else
-  oc_enc_vtable_init_c(_enc);
 #endif
   _enc->enquant_table_data=(unsigned char *)_ogg_malloc(
    (64+3)*3*2*_enc->opt_data.enquant_table_size

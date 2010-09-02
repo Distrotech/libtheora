@@ -19,16 +19,38 @@
 #if !defined(_decint_H)
 # define _decint_H (1)
 # include "theora/theoradec.h"
-# include "internal.h"
+# include "state.h"
 # include "bitpack.h"
+# include "huffdec.h"
+# include "dequant.h"
 
 typedef struct th_setup_info         oc_setup_info;
 typedef struct oc_dec_opt_vtable     oc_dec_opt_vtable;
 typedef struct oc_dec_pipeline_state oc_dec_pipeline_state;
 typedef struct th_dec_ctx            oc_dec_ctx;
 
-# include "huffdec.h"
-# include "dequant.h"
+
+
+/*Decoder-specific accelerated functions.*/
+# if defined(OC_C64X_ASM)
+#  include "c64x/c64xdec.h"
+# endif
+
+# if !defined(oc_dec_accel_init)
+#  define oc_dec_accel_init oc_dec_accel_init_c
+# endif
+# if defined(OC_DEC_USE_VTABLE)
+#  if !defined(oc_dec_dc_unpredict_mcu_plane)
+#   define oc_dec_dc_unpredict_mcu_plane(_dec,_pipe,_pli) \
+ ((*(_dec)->opt_vtable.dc_unpredict_mcu_plane)(_dec,_pipe,_pli))
+#  endif
+# else
+#  if !defined(oc_dec_dc_unpredict_mcu_plane)
+#   define oc_dec_dc_unpredict_mcu_plane oc_dec_dc_unpredict_mcu_plane_c
+#  endif
+# endif
+
+
 
 /*Constants for the packet-in state machine specific to the decoder.*/
 
@@ -117,8 +139,10 @@ struct th_dec_ctx{
   /*The striped decode callback function.*/
   th_stripe_callback   stripe_cb;
   oc_dec_pipeline_state pipe;
+# if defined(OC_DEC_USE_VTABLE)
   /*Table for decoder acceleration functions.*/
   oc_dec_opt_vtable    opt_vtable;
+# endif
 # if defined(HAVE_CAIRO)
   /*Output metrics for debugging.*/
   int                  telemetry;
@@ -136,18 +160,8 @@ struct th_dec_ctx{
 # endif
 };
 
-/*Decoder-specific accelerated functions.*/
-# if defined(OC_C64X_ASM)
-#  include "c64x/c64xdec.h"
-# endif
-
-# if !defined(oc_dec_dc_unpredict_mcu_plane)
-#  define oc_dec_dc_unpredict_mcu_plane(_dec,_pipe,_pli) \
- ((*(_dec)->opt_vtable.dc_unpredict_mcu_plane)(_dec,_pipe,_pli))
-# endif
-
-/*Default pure-C implementations.*/
-void oc_dec_vtable_init_c(oc_dec_ctx *_dec);
+/*Default pure-C implementations of decoder-specific accelerated functions.*/
+void oc_dec_accel_init_c(oc_dec_ctx *_dec);
 
 void oc_dec_dc_unpredict_mcu_plane_c(oc_dec_ctx *_dec,
  oc_dec_pipeline_state *_pipe,int _pli);

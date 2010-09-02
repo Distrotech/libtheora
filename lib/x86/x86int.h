@@ -18,6 +18,35 @@
 #if !defined(_x86_x86int_H)
 # define _x86_x86int_H (1)
 # include "../internal.h"
+
+# if defined(OC_X86_ASM)
+#  define oc_state_accel_init oc_state_accel_init_x86
+#  if defined(OC_X86_64_ASM)
+/*x86-64 guarantees SIMD support up through at least SSE2.
+  If the best routine we have available only needs SSE2 (which at the moment
+   covers all of them), then we can avoid runtime detection and the indirect
+   call.*/
+#   define oc_frag_copy(_state,_dst,_src,_ystride) \
+  oc_frag_copy_mmx(_dst,_src,_ystride)
+#   define oc_frag_recon_intra(_state,_dst,_ystride,_residue) \
+  oc_frag_recon_intra_mmx(_dst,_ystride,_residue)
+#   define oc_frag_recon_inter(_state,_dst,_src,_ystride,_residue) \
+  oc_frag_recon_inter_mmx(_dst,_src,_ystride,_residue)
+#   define oc_frag_recon_inter2(_state,_dst,_src1,_src2,_ystride,_residue) \
+  oc_frag_recon_inter2_mmx(_dst,_src1,_src2,_ystride,_residue)
+#   define oc_idct8x8(_state,_y,_last_zzi) \
+  oc_idct8x8_sse2(_y,_last_zzi)
+#   define oc_state_frag_recon oc_state_frag_recon_mmx
+#   define oc_state_frag_copy_list oc_state_frag_copy_list_mmx
+#   define oc_state_loop_filter_frag_rows oc_state_loop_filter_frag_rows_mmxext
+#   define oc_restore_fpu(_state) \
+  oc_restore_fpu_mmx()
+#  else
+#   define OC_STATE_USE_VTABLE (1)
+#  endif
+# endif
+
+# include "../state.h"
 # include "cpu.h"
 
 /*Converts the expression in the argument to a string.*/
@@ -62,7 +91,7 @@
 
 extern const short __attribute__((aligned(16))) OC_IDCT_CONSTS[64];
 
-void oc_state_vtable_init_x86(oc_theora_state *_state);
+void oc_state_accel_init_x86(oc_theora_state *_state);
 
 void oc_frag_copy_mmx(unsigned char *_dst,
  const unsigned char *_src,int _ystride);

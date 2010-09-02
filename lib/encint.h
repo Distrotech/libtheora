@@ -17,8 +17,7 @@
 #if !defined(_encint_H)
 # define _encint_H (1)
 # include "theora/theoraenc.h"
-# include "internal.h"
-# include "ocintrin.h"
+# include "state.h"
 # include "mathops.h"
 # include "enquant.h"
 # include "huffenc.h"
@@ -38,6 +37,155 @@ typedef struct oc_frame_metrics       oc_frame_metrics;
 typedef struct oc_rc_state            oc_rc_state;
 typedef struct th_enc_ctx             oc_enc_ctx;
 typedef struct oc_token_checkpoint    oc_token_checkpoint;
+
+
+
+/*Encoder-specific accelerated functions.*/
+# if defined(OC_X86_ASM)
+#  include "x86/x86enc.h"
+# endif
+
+# if !defined(oc_enc_accel_init)
+#  define oc_enc_accel_init oc_enc_accel_init_c
+# endif
+# if defined(OC_ENC_USE_VTABLE)
+#  if !defined(oc_enc_frag_sub)
+#   define oc_enc_frag_sub(_enc,_diff,_src,_ref,_ystride) \
+  ((*(_enc)->opt_vtable.frag_sub)(_diff,_src,_ref,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_sub_128)
+#   define oc_enc_frag_sub_128(_enc,_diff,_src,_ystride) \
+  ((*(_enc)->opt_vtable.frag_sub_128)(_diff,_src,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_sad)
+#   define oc_enc_frag_sad(_enc,_src,_ref,_ystride) \
+  ((*(_enc)->opt_vtable.frag_sad)(_src,_ref,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_sad_thresh)
+#   define oc_enc_frag_sad_thresh(_enc,_src,_ref,_ystride,_thresh) \
+  ((*(_enc)->opt_vtable.frag_sad_thresh)(_src,_ref,_ystride,_thresh))
+#  endif
+#  if !defined(oc_enc_frag_sad2_thresh)
+#   define oc_enc_frag_sad2_thresh(_enc,_src,_ref1,_ref2,_ystride,_thresh) \
+  ((*(_enc)->opt_vtable.frag_sad2_thresh)(_src,_ref1,_ref2,_ystride,_thresh))
+#  endif
+#  if !defined(oc_enc_frag_satd)
+#   define oc_enc_frag_satd(_enc,_dc,_src,_ref,_ystride) \
+  ((*(_enc)->opt_vtable.frag_satd)(_dc,_src,_ref,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_satd2)
+#   define oc_enc_frag_satd2(_enc,_dc,_src,_ref1,_ref2,_ystride) \
+  ((*(_enc)->opt_vtable.frag_satd2)(_dc,_src,_ref1,_ref2,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_intra_satd)
+#   define oc_enc_frag_intra_satd(_enc,_dc,_src,_ystride) \
+  ((*(_enc)->opt_vtable.frag_intra_satd)(_dc,_src,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_ssd)
+#   define oc_enc_frag_ssd(_enc,_src,_ref,_ystride) \
+  ((*(_enc)->opt_vtable.frag_ssd)(_src,_ref,_ystride))
+#  endif
+#  if !defined(oc_enc_frag_border_ssd)
+#   define oc_enc_frag_border_ssd(_enc,_src,_ref,_ystride,_mask) \
+  ((*(_enc)->opt_vtable.frag_border_ssd)(_src,_ref,_ystride,_mask))
+#  endif
+#  if !defined(oc_enc_frag_copy2)
+#   define oc_enc_frag_copy2(_enc,_dst,_src1,_src2,_ystride) \
+  ((*(_enc)->opt_vtable.frag_copy2)(_dst,_src1,_src2,_ystride))
+#  endif
+#  if !defined(oc_enc_enquant_table_init)
+#   define oc_enc_enquant_table_init(_enc,_enquant,_dequant) \
+  ((*(_enc)->opt_vtable.enquant_table_init)(_enquant,_dequant))
+#  endif
+#  if !defined(oc_enc_enquant_table_fixup)
+#   define oc_enc_enquant_table_fixup(_enc,_enquant,_nqis) \
+  ((*(_enc)->opt_vtable.enquant_table_fixup)(_enquant,_nqis))
+#  endif
+#  if !defined(oc_enc_quantize)
+#   define oc_enc_quantize(_enc,_qdct,_dct,_dequant,_enquant) \
+  ((*(_enc)->opt_vtable.quantize)(_qdct,_dct,_dequant,_enquant))
+#  endif
+#  if !defined(oc_enc_frag_recon_intra)
+#   define oc_enc_frag_recon_intra(_enc,_dst,_ystride,_residue) \
+  ((*(_enc)->opt_vtable.frag_recon_intra)(_dst,_ystride,_residue))
+#  endif
+#  if !defined(oc_enc_frag_recon_inter)
+#   define oc_enc_frag_recon_inter(_enc,_dst,_src,_ystride,_residue) \
+  ((*(_enc)->opt_vtable.frag_recon_inter)(_dst,_src,_ystride,_residue))
+#  endif
+#  if !defined(oc_enc_fdct8x8)
+#   define oc_enc_fdct8x8(_enc,_y,_x) \
+  ((*(_enc)->opt_vtable.fdct8x8)(_y,_x))
+#  endif
+# else
+#  if !defined(oc_enc_frag_sub)
+#   define oc_enc_frag_sub(_enc,_diff,_src,_ref,_ystride) \
+  oc_enc_frag_sub_c(_diff,_src,_ref,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_sub_128)
+#   define oc_enc_frag_sub_128(_enc,_diff,_src,_ystride) \
+  oc_enc_frag_sub_128_c(_diff,_src,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_sad)
+#   define oc_enc_frag_sad(_enc,_src,_ref,_ystride) \
+  oc_enc_frag_sad_c(_src,_ref,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_sad_thresh)
+#   define oc_enc_frag_sad_thresh(_enc,_src,_ref,_ystride,_thresh) \
+  oc_enc_frag_sad_thresh_c(_src,_ref,_ystride,_thresh)
+#  endif
+#  if !defined(oc_enc_frag_sad2_thresh)
+#   define oc_enc_frag_sad2_thresh(_enc,_src,_ref1,_ref2,_ystride,_thresh) \
+  oc_enc_frag_sad2_thresh_c(_src,_ref1,_ref2,_ystride,_thresh)
+#  endif
+#  if !defined(oc_enc_frag_satd)
+#   define oc_enc_frag_satd(_enc,_dc,_src,_ref,_ystride) \
+  oc_enc_frag_satd_c(_dc,_src,_ref,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_satd2)
+#   define oc_enc_frag_satd2(_enc,_dc,_src,_ref1,_ref2,_ystride) \
+  oc_enc_frag_satd2_c(_dc,_src,_ref1,_ref2,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_intra_satd)
+#   define oc_enc_frag_intra_satd(_enc,_dc,_src,_ystride) \
+  oc_enc_frag_intra_satd_c(_dc,_src,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_ssd)
+#   define oc_enc_frag_ssd(_enc,_src,_ref,_ystride) \
+  oc_enc_frag_ssd_c(_src,_ref,_ystride)
+#  endif
+#  if !defined(oc_enc_frag_border_ssd)
+#   define oc_enc_frag_border_ssd(_enc,_src,_ref,_ystride,_mask) \
+  oc_enc_frag_border_ssd_c(_src,_ref,_ystride,_mask)
+#  endif
+#  if !defined(oc_enc_frag_copy2)
+#   define oc_enc_frag_copy2(_enc,_dst,_src1,_src2,_ystride) \
+  oc_enc_frag_copy2_c(_dst,_src1,_src2,_ystride)
+#  endif
+#  if !defined(oc_enc_enquant_table_init)
+#   define oc_enc_enquant_table_init(_enc,_enquant,_dequant) \
+  oc_enc_enquant_table_init_c(_enquant,_dequant)
+#  endif
+#  if !defined(oc_enc_enquant_table_fixup)
+#   define oc_enc_enquant_table_fixup(_enc,_enquant,_nqis) \
+  oc_enc_enquant_table_fixup_c(_enquant,_nqis)
+#  endif
+#  if !defined(oc_enc_quantize)
+#   define oc_enc_quantize(_enc,_qdct,_dct,_dequant,_enquant) \
+  oc_enc_quantize_c(_qdct,_dct,_dequant,_enquant)
+#  endif
+#  if !defined(oc_enc_frag_recon_intra)
+#   define oc_enc_frag_recon_intra(_enc,_dst,_ystride,_residue) \
+  oc_frag_recon_intra_c(_dst,_ystride,_residue)
+#  endif
+#  if !defined(oc_enc_frag_recon_inter)
+#   define oc_enc_frag_recon_inter(_enc,_dst,_src,_ystride,_residue) \
+  oc_frag_recon_inter_c(_dst,_src,_ystride,_residue)
+#  endif
+#  if !defined(oc_enc_fdct8x8)
+#   define oc_enc_fdct8x8(_enc,_y,_x) oc_enc_fdct8x8_c(_y,_x)
+#  endif
+# endif
 
 
 
@@ -171,7 +319,7 @@ struct oc_enc_opt_data{
 };
 
 
-void oc_enc_vtable_init(oc_enc_ctx *_enc);
+void oc_enc_accel_init(oc_enc_ctx *_enc);
 
 
 
@@ -483,8 +631,10 @@ struct th_enc_ctx{
   oc_mode_rd               mode_rd[3][3][2][OC_SAD_BINS];
   /*The buffer state used to drive rate control.*/
   oc_rc_state              rc;
+# if defined(OC_ENC_USE_VTABLE)
   /*Table for encoder acceleration functions.*/
   oc_enc_opt_vtable        opt_vtable;
+# endif
   /*Table for encoder data used by accelerated functions.*/
   oc_enc_opt_data          opt_data;
 };
@@ -546,78 +696,8 @@ int oc_state_flushheader(oc_theora_state *_state,int *_packet_state,
 
 
 
-/*Encoder-specific accelerated functions.*/
-# if !defined(oc_enc_frag_sub)
-#  define oc_enc_frag_sub(_enc,_diff,_src,_ref,_ystride) \
-  ((*(_enc)->opt_vtable.frag_sub)(_diff,_src,_ref,_ystride))
-# endif
-#if !defined(oc_enc_frag_sub_128)
-#  define oc_enc_frag_sub_128(_enc,_diff,_src,_ystride) \
-  ((*(_enc)->opt_vtable.frag_sub_128)(_diff,_src,_ystride))
-# endif
-#if !defined(oc_enc_frag_sad)
-#  define oc_enc_frag_sad(_enc,_src,_ref,_ystride) \
-  ((*(_enc)->opt_vtable.frag_sad)(_src,_ref,_ystride))
-#endif
-#if !defined(oc_enc_frag_sad_thresh)
-#  define oc_enc_frag_sad_thresh(_enc,_src,_ref,_ystride,_thresh) \
-  ((*(_enc)->opt_vtable.frag_sad_thresh)(_src,_ref,_ystride,_thresh))
-#endif
-#if !defined(oc_enc_frag_sad2_thresh)
-#  define oc_enc_frag_sad2_thresh(_enc,_src,_ref1,_ref2,_ystride,_thresh) \
-  ((*(_enc)->opt_vtable.frag_sad2_thresh)(_src,_ref1,_ref2,_ystride,_thresh))
-#endif
-#if !defined(oc_enc_frag_satd)
-#  define oc_enc_frag_satd(_enc,_dc,_src,_ref,_ystride) \
-  ((*(_enc)->opt_vtable.frag_satd)(_dc,_src,_ref,_ystride))
-#endif
-#if !defined(oc_enc_frag_satd2)
-#  define oc_enc_frag_satd2(_enc,_dc,_src,_ref1,_ref2,_ystride) \
-  ((*(_enc)->opt_vtable.frag_satd2)(_dc,_src,_ref1,_ref2,_ystride))
-#endif
-#if !defined(oc_enc_frag_intra_satd)
-#  define oc_enc_frag_intra_satd(_enc,_dc,_src,_ystride) \
-  ((*(_enc)->opt_vtable.frag_intra_satd)(_dc,_src,_ystride))
-#endif
-#if !defined(oc_enc_frag_ssd)
-#  define oc_enc_frag_ssd(_enc,_src,_ref,_ystride) \
-  ((*(_enc)->opt_vtable.frag_ssd)(_src,_ref,_ystride))
-#endif
-#if !defined(oc_enc_frag_border_ssd)
-#  define oc_enc_frag_border_ssd(_enc,_src,_ref,_ystride,_mask) \
-  ((*(_enc)->opt_vtable.frag_border_ssd)(_src,_ref,_ystride,_mask))
-#endif
-#if !defined(oc_enc_frag_copy2)
-#  define oc_enc_frag_copy2(_enc,_dst,_src1,_src2,_ystride) \
-  ((*(_enc)->opt_vtable.frag_copy2)(_dst,_src1,_src2,_ystride))
-#endif
-#if !defined(oc_enc_enquant_table_init)
-#  define oc_enc_enquant_table_init(_enc,_enquant,_dequant) \
-  ((*(_enc)->opt_vtable.enquant_table_init)(_enquant,_dequant))
-#endif
-#if !defined(oc_enc_enquant_table_fixup)
-#  define oc_enc_enquant_table_fixup(_enc,_enquant,_nqis) \
-  ((*(_enc)->opt_vtable.enquant_table_fixup)(_enquant,_nqis))
-#endif
-#if !defined(oc_enc_quantize)
-#  define oc_enc_quantize(_enc,_qdct,_dct,_dequant,_enquant) \
-  ((*(_enc)->opt_vtable.quantize)(_qdct,_dct,_dequant,_enquant))
-#endif
-#if !defined(oc_enc_frag_recon_intra)
-#  define oc_enc_frag_recon_intra(_enc,_dst,_ystride,_residue) \
-  ((*(_enc)->opt_vtable.frag_recon_intra)(_dst,_ystride,_residue))
-#endif
-#if !defined(oc_enc_frag_recon_inter)
-#  define oc_enc_frag_recon_inter(_enc,_dst,_src,_ystride,_residue) \
-  ((*(_enc)->opt_vtable.frag_recon_inter)(_dst,_src,_ystride,_residue))
-#endif
-#if !defined(oc_enc_fdct8x8)
-#  define oc_enc_fdct8x8(_enc,_y,_x) \
-  ((*(_enc)->opt_vtable.fdct8x8)(_y,_x))
-#endif
-
-/*Default pure-C implementations.*/
-void oc_enc_vtable_init_c(oc_enc_ctx *_enc);
+/*Default pure-C implementations of encoder-specific accelerated functions.*/
+void oc_enc_accel_init_c(oc_enc_ctx *_enc);
 
 void oc_enc_frag_sub_c(ogg_int16_t _diff[64],
  const unsigned char *_src,const unsigned char *_ref,int _ystride);
