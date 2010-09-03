@@ -25,8 +25,6 @@
 # include "theora/theora.h"
 # include "ocintrin.h"
 
-#define OC_DUMP_IMAGES (1)
-
 # if defined(_MSC_VER)
 /*Disable missing EMMS warnings.*/
 #  pragma warning(disable:4799)
