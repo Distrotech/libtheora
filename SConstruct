@@ -232,4 +232,6 @@ png2theora_Sources = Split("""png2theora.c
 	../lib/libtheoradec.a
 """)
 png2theora.ParseConfig('pkg-config --cflags --libs libpng')
+png2theora.Append(LIBS=['m'])
 png2theora.Program('examples/png2theora', path('examples', png2theora_Sources))
+
