@@ -129,6 +129,7 @@ if build_player_example and not conf.CheckSDL():
 if conf.CheckHost_x86_32():
   env.Append(CPPDEFINES='OC_X86_ASM')
   decoder_sources += """
+        x86/cpu.c
         x86/mmxidct.c
         x86/mmxfrag.c
         x86/mmxstate.c
@@ -136,6 +137,7 @@ if conf.CheckHost_x86_32():
         x86/x86state.c
   """
   encoder_sources += """
+        x86/cpu.c
         x86/mmxencfrag.c
         x86/mmxfdct.c
         x86/x86enc.c
@@ -149,6 +151,7 @@ if conf.CheckHost_x86_32():
 elif conf.CheckHost_x86_64():
   env.Append(CPPDEFINES=['OC_X86_ASM', 'OC_X86_64_ASM'])
   decoder_sources += """
+        x86/cpu.c
         x86/mmxidct.c
         x86/mmxfrag.c
         x86/mmxstate.c
@@ -156,6 +159,7 @@ elif conf.CheckHost_x86_64():
         x86/x86state.c
   """
   encoder_sources += """
+        x86/cpu.c
         x86/mmxencfrag.c
         x86/mmxfdct.c
         x86/x86enc.c
