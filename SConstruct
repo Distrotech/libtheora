@@ -210,6 +210,7 @@ dump_psnr.Program('examples/dump_psnr', path('examples', dump_psnr_Sources))
 if have_vorbis:
   encex = dump_video.Clone()
   encex.ParseConfig('pkg-config --cflags --libs vorbisenc vorbis')
+  encex.Append(LIBS=['m'])
   encex_Sources = Split("""
 	encoder_example.c
 	../lib/libtheoraenc.a 
@@ -224,6 +225,7 @@ if have_vorbis:
 	../lib/libtheoradec.a
     """)
     plyex.ParseConfig('sdl-config --cflags --libs')
+    plyex.Append(LIBS=['m'])
     plyex.Program('examples/player_example', path('examples', plyex_Sources))
 
 png2theora = env.Clone()
