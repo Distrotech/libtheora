@@ -1535,7 +1535,7 @@ static void oc_dec_frags_recon_mcu_plane(oc_dec_ctx *_dec,
     /*This array is made one element larger because the zig-zag index array
        uses the final element as a dumping ground for out-of-range indices
        to protect us from buffer overflow.*/
-    OC_ALIGN8(ogg_int16_t dct_coeffs[65]);
+    OC_ALIGN16(ogg_int16_t dct_coeffs[65]);
     const ogg_uint16_t *ac_quant;
     ptrdiff_t           fragi;
     int                 last_zzi;
