@@ -296,8 +296,8 @@
   } \
   while(0)
 
-/*179 cycles.*/
-static void oc_idct8x8_slow_c64x(ogg_int16_t _y[64]){
+/*196 cycles.*/
+static void oc_idct8x8_slow_c64x(ogg_int16_t _y[64],ogg_int16_t _x[64]){
   ogg_int16_t w[64];
   int         x0;
   int         x1;
@@ -318,7 +318,13 @@ static void oc_idct8x8_slow_c64x(ogg_int16_t _y[64]){
   int         i;
   /*Transform rows of x into columns of w.*/
   for(i=0;i<8;i+=2){
-    OC_IDCT8x2_LOAD8(_y+i*8);
+    OC_IDCT8x2_LOAD8(_x+i*8);
+    if(_x!=_y){
+      _amem8(_x+i*8)=0LL;
+      _amem8(_x+i*8+4)=0LL;
+      _amem8(_x+i*8+8)=0LL;
+      _amem8(_x+i*8+12)=0LL;
+    }
     OC_IDCT8x2();
     OC_IDCT8x2_STORET(w+i);
   }
@@ -330,8 +336,8 @@ static void oc_idct8x8_slow_c64x(ogg_int16_t _y[64]){
   }
 }
 
-/*107 cycles.*/
-static void oc_idct8x8_10_c64x(ogg_int16_t _y[64]){
+/*106 cycles.*/
+static void oc_idct8x8_10_c64x(ogg_int16_t _y[64],ogg_int16_t _x[64]){
   ogg_int16_t w[64];
   int         t0;
   int         t1;
@@ -347,10 +353,16 @@ static void oc_idct8x8_10_c64x(ogg_int16_t _y[64]){
   int         x3;
   int         i;
   /*Transform rows of x into columns of w.*/
-  OC_IDCT8x2_LOAD4(_y);
+  OC_IDCT8x2_LOAD4(_x);
   OC_IDCT8x2_4();
   OC_IDCT8x2_STORET(w);
-  OC_IDCT8x2_LOAD2(_y+16);
+  OC_IDCT8x2_LOAD2(_x+16);
+  if(_x!=_y){
+    _amem8(_x)=0LL;
+    _amem8(_x+8)=0LL;
+    _amem4(_x+16)=0;
+    _amem4(_x+24)=0;
+  }
   OC_IDCT8x2_2();
   OC_IDCT8x2_STORET(w+2);
   /*Transform rows of w into columns of y.*/
@@ -361,8 +373,13 @@ static void oc_idct8x8_10_c64x(ogg_int16_t _y[64]){
   }
 }
 
-/*88 cycles.*/
-static void oc_idct8x8_3_c64x(ogg_int16_t _y[64]){
+#if 0
+/*This used to compile to something faster (88 cycles), but no longer, and I'm
+   not sure what changed to cause this.
+  In any case, it's barely an advantage over the 10-coefficient version, and is
+   now hardly worth the icache space.*/
+/*95 cycles.*/
+static inline void oc_idct8x8_3_c64x(ogg_int16_t _y[64],ogg_int16_t _x[64]){
   ogg_int16_t w[64];
   int         t0;
   int         t1;
@@ -377,9 +394,13 @@ static void oc_idct8x8_3_c64x(ogg_int16_t _y[64]){
   int         i;
   /*Transform rows of x into rows of w.*/
   for(i=0;i<2;i+=2){
-    OC_IDCT8x2_LOAD2(_y+i*8);
+    OC_IDCT8x2_LOAD2(_x+i*8);
     OC_IDCT8x2_2();
     OC_IDCT8x2_STORE(w+i*8);
+  }
+  if(_x!=_y){
+    _amem4(_x)=0;
+    _amem4(_x+8)=0;
   }
   /*Transform columns of w into columns of y.*/
   for(i=0;i<8;i+=2){
@@ -388,12 +409,13 @@ static void oc_idct8x8_3_c64x(ogg_int16_t _y[64]){
     OC_IDCT8x2_ROUND_STORET(_y+i);
   }
 }
+#endif
 
 /*Performs an inverse 8x8 Type-II DCT transform.
   The input is assumed to be scaled by a factor of 4 relative to orthonormal
    version of the transform.*/
-void oc_idct8x8_c64x(ogg_int16_t _y[64],int _last_zzi){
-  if(_last_zzi<3)oc_idct8x8_3_c64x(_y);
-  else if(_last_zzi<10)oc_idct8x8_10_c64x(_y);
-  else oc_idct8x8_slow_c64x(_y);
+void oc_idct8x8_c64x(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi){
+  /*if(_last_zzi<=3)oc_idct8x8_3_c64x(_y,_x);
+  else*/ if(_last_zzi<=10)oc_idct8x8_10_c64x(_y,_x);
+  else oc_idct8x8_slow_c64x(_y,_x);
 }

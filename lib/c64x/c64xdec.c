@@ -61,7 +61,7 @@ void oc_dec_dc_unpredict_mcu_plane_c64x(oc_dec_ctx *_dec,
         /*The TI compiler refuses to pipeline this if we put it in an if(coded)
            block.
           We can do the loads unconditionally, which helps move them earlier.
-          We do the store unconditionally too, because if we use a condtional
+          We do the store unconditionally too, because if we use a conditional
            store, the compiler propagates the condition back to the operations
            the store depended on, presumably to reduce cache pressure by
            eliminating dead loads.

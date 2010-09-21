@@ -3,7 +3,17 @@ AM_CFLAGS = $(OGG_CFLAGS) $(CAIRO_CFLAGS)
 
 EXTRA_DIST = \
 	encoder_disabled.c \
-	x86/cpu.c \
+	arm/armcpu.c \
+	arm/armbits.h \
+	arm/armbits.s \
+	arm/armfrag.s \
+	arm/armidct.s \
+	arm/armint.h \
+	arm/armopts.s.in \
+	arm/arm2gnu.pl \
+	c64x/c64xint.h \
+	c64x/c64xdec.h \
+	x86/x86cpu.c \
 	x86/mmxencfrag.c \
 	x86/mmxfdct.c \
 	x86/sse2encfrag.c \
@@ -13,16 +23,13 @@ EXTRA_DIST = \
 	x86/x86enc.h \
 	x86/x86enquant.c \
 	x86/mmxfrag.c \
-	x86/mmxfrag.h \
 	x86/mmxidct.c \
 	x86/mmxloop.h \
 	x86/mmxstate.c \
 	x86/sse2idct.c \
 	x86/x86int.h \
 	x86/x86state.c \
-	x86_vc \
-	c64x/c64xint.h \
-	c64x/c64xdec.h
+	x86_vc
 
 lib_LTLIBRARIES = libtheoradec.la libtheoraenc.la libtheora.la
 
@@ -44,7 +51,7 @@ encoder_uniq_x86_64_sources = \
 	x86/sse2fdct.c
 
 encoder_shared_x86_sources = \
-	x86/cpu.c \
+	x86/x86cpu.c \
 	x86/mmxfrag.c \
 	x86/mmxidct.c \
 	x86/mmxstate.c \
@@ -52,6 +59,26 @@ encoder_shared_x86_sources = \
 	x86/x86state.c
 
 encoder_shared_x86_64_sources =
+
+encoder_uniq_arm_sources =
+
+if CPU_arm
+BUILT_SOURCES = \
+	armbits-gnu.S \
+	armfrag-gnu.S \
+	armidct-gnu.S \
+	armloop-gnu.S \
+	armopts-gnu.S
+endif
+
+encoder_shared_arm_sources = \
+	armbits-gnu.S \
+	armfrag-gnu.S \
+	armidct-gnu.S \
+	armloop-gnu.S \
+	armopts-gnu.S \
+	arm/armcpu.c \
+	arm/armstate.c
 
 if CPU_x86_64
 encoder_uniq_arch_sources = \
@@ -65,8 +92,13 @@ if CPU_x86_32
 encoder_uniq_arch_sources = $(encoder_uniq_x86_sources)
 encoder_shared_arch_sources = $(encoder_shared_x86_sources)
 else
+if CPU_arm
+encoder_uniq_arch_sources = $(encoder_uniq_arm_sources)
+encoder_shared_arch_sources = $(encoder_shared_arm_sources)
+else
 encoder_uniq_arch_sources =
 encoder_shared_arch_sources =
+endif
 endif
 endif
 
@@ -100,12 +132,23 @@ encoder_sources = \
 endif
 
 decoder_x86_sources = \
-	x86/cpu.c \
+	x86/x86cpu.c \
 	x86/mmxidct.c \
 	x86/mmxfrag.c \
 	x86/mmxstate.c \
 	x86/sse2idct.c \
 	x86/x86state.c
+
+decoder_arm_sources = \
+	arm/armcpu.c \
+	arm/armstate.c
+
+nodist_decoder_arm_sources = \
+	armbits-gnu.S \
+	armfrag-gnu.S \
+	armidct-gnu.S \
+	armloop-gnu.S \
+	armopts-gnu.S
 
 decoder_c64x_sources = \
 	c64x/c64xdec.c \
@@ -115,14 +158,23 @@ decoder_c64x_sources = \
 
 if CPU_x86_64
 decoder_arch_sources = $(decoder_x86_sources)
+nodist_decoder_arch_sources =
 else
 if CPU_x86_32
 decoder_arch_sources = $(decoder_x86_sources)
+nodist_decoder_arch_sources =
+else
+if CPU_arm
+decoder_arch_sources = $(decoder_arm_sources)
+nodist_decoder_arch_sources = $(nodist_decoder_arm_sources)
 else
 if CPU_c64x
 decoder_arch_sources = $(decoder_c64x_sources)
+nodist_decoder_arch_sources =
 else
 decoder_arch_sources =
+nodist_decoder_arch_sources =
+endif
 endif
 endif
 endif
@@ -160,8 +212,10 @@ noinst_HEADERS = \
 	ocintrin.h \
 	quant.h \
 	state.h \
-	x86/cpu.h \
-	x86/mmxfrag.h \
+	arm/armcpu.h \
+	c64x/c64xdec.h \
+	c64x/c64xint.h \
+	x86/x86cpu.h \
 	x86/mmxloop.h \
 	x86/sse2trans.h \
 	x86/x86enc.h \
@@ -170,6 +224,8 @@ noinst_HEADERS = \
 libtheoradec_la_SOURCES = \
 	$(decoder_sources) \
 	Version_script-dec theoradec.exp
+nodist_libtheoradec_la_SOURCES = \
+	$(nodist_decoder_arch_sources)
 libtheoradec_la_LDFLAGS = \
   -version-info @THDEC_LIB_CURRENT@:@THDEC_LIB_REVISION@:@THDEC_LIB_AGE@ \
   @THEORADEC_LDFLAGS@ @CAIRO_LIBS@ \
@@ -188,6 +244,8 @@ libtheora_la_SOURCES = \
 	$(decoder_sources) \
 	$(encoder_uniq_sources) \
 	Version_script theora.exp
+nodist_libtheora_la_SOURCES = \
+	$(nodist_decoder_arch_sources)
 libtheora_la_LDFLAGS = \
   -version-info @TH_LIB_CURRENT@:@TH_LIB_REVISION@:@TH_LIB_AGE@ \
   @THEORA_LDFLAGS@ @CAIRO_LIBS@ $(OGG_LIBS) \
@@ -202,3 +260,19 @@ profile:
 # contstruct various symbol export list files
 .def.exp : defexp.awk
 	awk -f defexp.awk $< > $@
+
+CLEANFILES = \
+	armbits-gnu.S \
+	armfrag-gnu.S \
+	armidct-gnu.S \
+	armloop-gnu.S \
+	armopts-gnu.S
+
+# automake doesn't do dependency tracking for asm files, that I can tell
+armfrag-gnu.S: armopts-gnu.S
+armidct-gnu.S: armopts-gnu.S
+armloop-gnu.S: armopts-gnu.S
+
+# convert ARM asm to GNU as format
+%-gnu.S: $(srcdir)/arm/%.s
+	$(srcdir)/arm/arm2gnu.pl < $< > $@

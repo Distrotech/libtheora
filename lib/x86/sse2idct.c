@@ -38,16 +38,16 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
 /*Performs the first three stages of the iDCT.
   xmm2, xmm6, xmm3, and xmm5 must contain the corresponding rows of the input
    (accessed in that order).
-  The remaining rows must be in %[y] at their corresponding locations.
+  The remaining rows must be in _x at their corresponding locations.
   On output, xmm7 down to xmm4 contain rows 0 through 3, and xmm0 up to xmm3
    contain rows 4 through 7.*/
-#define OC_IDCT_8x8_ABC \
+#define OC_IDCT_8x8_ABC(_x) \
   "#OC_IDCT_8x8_ABC\n\t" \
   /*Stage 1:*/ \
   /*2-3 rotation by 6pi/16. \
     xmm4=xmm7=C6, xmm0=xmm1=C2, xmm2=X2, xmm6=X6.*/ \
-  "movdqa 0x20(%[c]),%%xmm1\n\t" \
-  "movdqa 0x60(%[c]),%%xmm4\n\t" \
+  "movdqa "OC_MEM_OFFS(0x20,c)",%%xmm1\n\t" \
+  "movdqa "OC_MEM_OFFS(0x60,c)",%%xmm4\n\t" \
   "movdqa %%xmm1,%%xmm0\n\t" \
   "pmulhw %%xmm2,%%xmm1\n\t" \
   "movdqa %%xmm4,%%xmm7\n\t" \
@@ -55,12 +55,12 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
   "pmulhw %%xmm2,%%xmm7\n\t" \
   "pmulhw %%xmm6,%%xmm4\n\t" \
   "paddw %%xmm6,%%xmm0\n\t" \
-  "movdqa 0x30(%[c]),%%xmm6\n\t" \
+  "movdqa "OC_MEM_OFFS(0x30,c)",%%xmm6\n\t" \
   "paddw %%xmm1,%%xmm2\n\t" \
   "psubw %%xmm0,%%xmm7\n\t" \
   "movdqa %%xmm7,"OC_MEM_OFFS(0x00,buf)"\n\t" \
   "paddw %%xmm4,%%xmm2\n\t" \
-  "movdqa 0x50(%[c]),%%xmm4\n\t" \
+  "movdqa "OC_MEM_OFFS(0x50,c)",%%xmm4\n\t" \
   "movdqa %%xmm2,"OC_MEM_OFFS(0x10,buf)"\n\t" \
   /*5-6 rotation by 3pi/16. \
     xmm4=xmm2=C5, xmm1=xmm6=C3, xmm3=X3, xmm5=X5.*/ \
@@ -73,13 +73,13 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
   "paddw %%xmm3,%%xmm4\n\t" \
   "paddw %%xmm5,%%xmm3\n\t" \
   "paddw %%xmm6,%%xmm3\n\t" \
-  "movdqa 0x70(%[y]),%%xmm6\n\t" \
+  "movdqa "OC_MEM_OFFS(0x70,_x)",%%xmm6\n\t" \
   "paddw %%xmm5,%%xmm1\n\t" \
-  "movdqa 0x10(%[y]),%%xmm5\n\t" \
+  "movdqa "OC_MEM_OFFS(0x10,_x)",%%xmm5\n\t" \
   "paddw %%xmm3,%%xmm2\n\t" \
-  "movdqa 0x70(%[c]),%%xmm3\n\t" \
+  "movdqa "OC_MEM_OFFS(0x70,c)",%%xmm3\n\t" \
   "psubw %%xmm4,%%xmm1\n\t" \
-  "movdqa 0x10(%[c]),%%xmm4\n\t" \
+  "movdqa "OC_MEM_OFFS(0x10,c)",%%xmm4\n\t" \
   /*4-7 rotation by 7pi/16. \
     xmm4=xmm7=C1, xmm3=xmm0=C7, xmm5=X1, xmm6=X7.*/ \
   "movdqa %%xmm3,%%xmm0\n\t" \
@@ -89,12 +89,12 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
   "pmulhw %%xmm6,%%xmm4\n\t" \
   "pmulhw %%xmm6,%%xmm0\n\t" \
   "paddw %%xmm6,%%xmm4\n\t" \
-  "movdqa 0x40(%[y]),%%xmm6\n\t" \
+  "movdqa "OC_MEM_OFFS(0x40,_x)",%%xmm6\n\t" \
   "paddw %%xmm5,%%xmm7\n\t" \
   "psubw %%xmm4,%%xmm3\n\t" \
-  "movdqa 0x40(%[c]),%%xmm4\n\t" \
+  "movdqa "OC_MEM_OFFS(0x40,c)",%%xmm4\n\t" \
   "paddw %%xmm7,%%xmm0\n\t" \
-  "movdqa 0x00(%[y]),%%xmm7\n\t" \
+  "movdqa "OC_MEM_OFFS(0x00,_x)",%%xmm7\n\t" \
   /*0-1 butterfly. \
     xmm4=xmm5=C4, xmm7=X0, xmm6=X4.*/ \
   "paddw %%xmm7,%%xmm6\n\t" \
@@ -172,15 +172,15 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
     2-5 butterfly: xmm5=t[2], xmm2=t[5] -> xmm2=t[2]+t[5], xmm5=t[2]-t[5] \
     3-4 butterfly: xmm4=t[3], xmm3=t[4] -> xmm3=t[3]+t[4], xmm4=t[3]-t[4]*/ \
   "psubw %%xmm3,%%xmm4\n\t" \
-  "movdqa %%xmm4,0x40(%[y])\n\t" \
-  "movdqa 0x00(%[c]),%%xmm4\n\t" \
+  "movdqa %%xmm4,"OC_MEM_OFFS(0x40,y)"\n\t" \
+  "movdqa "OC_MEM_OFFS(0x00,c)",%%xmm4\n\t" \
   "psubw %%xmm0,%%xmm7\n\t" \
   "psubw %%xmm1,%%xmm6\n\t" \
   "psubw %%xmm2,%%xmm5\n\t" \
   "paddw %%xmm4,%%xmm7\n\t" \
   "paddw %%xmm4,%%xmm6\n\t" \
   "paddw %%xmm4,%%xmm5\n\t" \
-  "paddw 0x40(%[y]),%%xmm4\n\t" \
+  "paddw "OC_MEM_OFFS(0x40,y)",%%xmm4\n\t" \
   "paddw %%xmm0,%%xmm0\n\t" \
   "paddw %%xmm1,%%xmm1\n\t" \
   "paddw %%xmm2,%%xmm2\n\t" \
@@ -189,45 +189,61 @@ const short __attribute__((aligned(16),used)) OC_IDCT_CONSTS[64]={
   "paddw %%xmm6,%%xmm1\n\t" \
   "psraw $4,%%xmm0\n\t" \
   "paddw %%xmm5,%%xmm2\n\t" \
-  "movdqa %%xmm0,0x00(%[y])\n\t" \
+  "movdqa %%xmm0,"OC_MEM_OFFS(0x00,y)"\n\t" \
   "psraw $4,%%xmm1\n\t" \
   "paddw %%xmm4,%%xmm3\n\t" \
-  "movdqa %%xmm1,0x10(%[y])\n\t" \
+  "movdqa %%xmm1,"OC_MEM_OFFS(0x10,y)"\n\t" \
   "psraw $4,%%xmm2\n\t" \
-  "movdqa %%xmm2,0x20(%[y])\n\t" \
+  "movdqa %%xmm2,"OC_MEM_OFFS(0x20,y)"\n\t" \
   "psraw $4,%%xmm3\n\t" \
-  "movdqa %%xmm3,0x30(%[y])\n\t" \
+  "movdqa %%xmm3,"OC_MEM_OFFS(0x30,y)"\n\t" \
   "psraw $4,%%xmm4\n\t" \
-  "movdqa %%xmm4,0x40(%[y])\n\t" \
+  "movdqa %%xmm4,"OC_MEM_OFFS(0x40,y)"\n\t" \
   "psraw $4,%%xmm5\n\t" \
-  "movdqa %%xmm5,0x50(%[y])\n\t" \
+  "movdqa %%xmm5,"OC_MEM_OFFS(0x50,y)"\n\t" \
   "psraw $4,%%xmm6\n\t" \
-  "movdqa %%xmm6,0x60(%[y])\n\t" \
+  "movdqa %%xmm6,"OC_MEM_OFFS(0x60,y)"\n\t" \
   "psraw $4,%%xmm7\n\t" \
-  "movdqa %%xmm7,0x70(%[y])\n\t" \
+  "movdqa %%xmm7,"OC_MEM_OFFS(0x70,y)"\n\t" \
 
-static void oc_idct8x8_slow_sse2(ogg_int16_t _y[64]){
+static void oc_idct8x8_slow_sse2(ogg_int16_t _y[64],ogg_int16_t _x[64]){
   OC_ALIGN16(ogg_int16_t buf[16]);
   /*This routine accepts an 8x8 matrix pre-transposed.*/
   __asm__ __volatile__(
     /*Load rows 2, 3, 5, and 6 for the first stage of the iDCT.*/
-    "movdqa 0x20(%[y]),%%xmm2\n\t"
-    "movdqa 0x60(%[y]),%%xmm6\n\t"
-    "movdqa 0x30(%[y]),%%xmm3\n\t"
-    "movdqa 0x50(%[y]),%%xmm5\n\t"
-    OC_IDCT_8x8_ABC
+    "movdqa "OC_MEM_OFFS(0x20,x)",%%xmm2\n\t"
+    "movdqa "OC_MEM_OFFS(0x60,x)",%%xmm6\n\t"
+    "movdqa "OC_MEM_OFFS(0x30,x)",%%xmm3\n\t"
+    "movdqa "OC_MEM_OFFS(0x50,x)",%%xmm5\n\t"
+    OC_IDCT_8x8_ABC(x)
     OC_IDCT_8x8_D
     OC_TRANSPOSE_8x8
     /*Clear out rows 0, 1, 4, and 7 for the first stage of the iDCT.*/
-    "movdqa %%xmm7,0x70(%[y])\n\t"
-    "movdqa %%xmm4,0x40(%[y])\n\t"
-    "movdqa %%xmm1,0x10(%[y])\n\t"
-    "movdqa %%xmm0,0x00(%[y])\n\t"
-    OC_IDCT_8x8_ABC
+    "movdqa %%xmm7,"OC_MEM_OFFS(0x70,y)"\n\t"
+    "movdqa %%xmm4,"OC_MEM_OFFS(0x40,y)"\n\t"
+    "movdqa %%xmm1,"OC_MEM_OFFS(0x10,y)"\n\t"
+    "movdqa %%xmm0,"OC_MEM_OFFS(0x00,y)"\n\t"
+    OC_IDCT_8x8_ABC(y)
     OC_IDCT_8x8_D_STORE
-    :[buf]"=m"(OC_ARRAY_OPERAND(short,buf,16))
-    :[y]"r"(_y),[c]"r"(OC_IDCT_CONSTS)
+    :[buf]"=m"(OC_ARRAY_OPERAND(ogg_int16_t,buf,16)),
+     [y]"=m"(OC_ARRAY_OPERAND(ogg_int16_t,_y,64))
+    :[x]"m"(OC_CONST_ARRAY_OPERAND(ogg_int16_t,_x,64)),
+     [c]"m"(OC_CONST_ARRAY_OPERAND(ogg_int16_t,OC_IDCT_CONSTS,128))
   );
+  if(_x!=_y){
+    int i;
+    __asm__ __volatile__("pxor %%xmm0,%%xmm0\n\t"::);
+    /*Clear input data for next block (decoder only).*/
+    for(i=0;i<2;i++){
+      __asm__ __volatile__(
+        "movdqa %%xmm0,"OC_MEM_OFFS(0x00,x)"\n\t"
+        "movdqa %%xmm0,"OC_MEM_OFFS(0x10,x)"\n\t"
+        "movdqa %%xmm0,"OC_MEM_OFFS(0x20,x)"\n\t"
+        "movdqa %%xmm0,"OC_MEM_OFFS(0x30,x)"\n\t"
+        :[x]"=m"(OC_ARRAY_OPERAND(ogg_int16_t,_x+i*32,32))
+      );
+    }
+  }
 }
 
 /*For the first step of the 10-coefficient version of the 8x8 iDCT, we only
@@ -238,28 +254,28 @@ static void oc_idct8x8_slow_sse2(ogg_int16_t _y[64]){
   /*Stage 1:*/ \
   /*2-3 rotation by 6pi/16. \
     mm7=C6, mm6=C2, mm2=X2, X6=0.*/ \
-  "movq 0x60(%[c]),%%mm7\n\t" \
-  "movq 0x20(%[c]),%%mm6\n\t" \
+  "movq "OC_MEM_OFFS(0x60,c)",%%mm7\n\t" \
+  "movq "OC_MEM_OFFS(0x20,c)",%%mm6\n\t" \
   "pmulhw %%mm2,%%mm6\n\t" \
   "pmulhw %%mm2,%%mm7\n\t" \
-  "movq 0x50(%[c]),%%mm5\n\t" \
+  "movq "OC_MEM_OFFS(0x50,c)",%%mm5\n\t" \
   "paddw %%mm6,%%mm2\n\t" \
   "movq %%mm2,"OC_MEM_OFFS(0x10,buf)"\n\t" \
-  "movq 0x30(%[c]),%%mm2\n\t" \
+  "movq "OC_MEM_OFFS(0x30,c)",%%mm2\n\t" \
   "movq %%mm7,"OC_MEM_OFFS(0x00,buf)"\n\t" \
   /*5-6 rotation by 3pi/16. \
     mm5=C5, mm2=C3, mm3=X3, X5=0.*/ \
   "pmulhw %%mm3,%%mm5\n\t" \
   "pmulhw %%mm3,%%mm2\n\t" \
-  "movq 0x10(%[c]),%%mm7\n\t" \
+  "movq "OC_MEM_OFFS(0x10,c)",%%mm7\n\t" \
   "paddw %%mm3,%%mm5\n\t" \
   "paddw %%mm3,%%mm2\n\t" \
-  "movq 0x70(%[c]),%%mm3\n\t" \
+  "movq "OC_MEM_OFFS(0x70,c)",%%mm3\n\t" \
   /*4-7 rotation by 7pi/16. \
     mm7=C1, mm3=C7, mm1=X1, X7=0.*/ \
   "pmulhw %%mm1,%%mm3\n\t" \
   "pmulhw %%mm1,%%mm7\n\t" \
-  "movq 0x40(%[c]),%%mm4\n\t" \
+  "movq "OC_MEM_OFFS(0x40,c)",%%mm4\n\t" \
   "movq %%mm3,%%mm6\n\t" \
   "paddw %%mm1,%%mm7\n\t" \
   /*0-1 butterfly. \
@@ -319,28 +335,28 @@ static void oc_idct8x8_slow_sse2(ogg_int16_t _y[64]){
   /*Stage 1:*/ \
   /*2-3 rotation by 6pi/16. \
     xmm7=C6, xmm6=C2, xmm2=X2, X6=0.*/ \
-  "movdqa 0x60(%[c]),%%xmm7\n\t" \
-  "movdqa 0x20(%[c]),%%xmm6\n\t" \
+  "movdqa "OC_MEM_OFFS(0x60,c)",%%xmm7\n\t" \
+  "movdqa "OC_MEM_OFFS(0x20,c)",%%xmm6\n\t" \
   "pmulhw %%xmm2,%%xmm6\n\t" \
   "pmulhw %%xmm2,%%xmm7\n\t" \
-  "movdqa 0x50(%[c]),%%xmm5\n\t" \
+  "movdqa "OC_MEM_OFFS(0x50,c)",%%xmm5\n\t" \
   "paddw %%xmm6,%%xmm2\n\t" \
   "movdqa %%xmm2,"OC_MEM_OFFS(0x10,buf)"\n\t" \
-  "movdqa 0x30(%[c]),%%xmm2\n\t" \
+  "movdqa "OC_MEM_OFFS(0x30,c)",%%xmm2\n\t" \
   "movdqa %%xmm7,"OC_MEM_OFFS(0x00,buf)"\n\t" \
   /*5-6 rotation by 3pi/16. \
     xmm5=C5, xmm2=C3, xmm3=X3, X5=0.*/ \
   "pmulhw %%xmm3,%%xmm5\n\t" \
   "pmulhw %%xmm3,%%xmm2\n\t" \
-  "movdqa 0x10(%[c]),%%xmm7\n\t" \
+  "movdqa "OC_MEM_OFFS(0x10,c)",%%xmm7\n\t" \
   "paddw %%xmm3,%%xmm5\n\t" \
   "paddw %%xmm3,%%xmm2\n\t" \
-  "movdqa 0x70(%[c]),%%xmm3\n\t" \
+  "movdqa "OC_MEM_OFFS(0x70,c)",%%xmm3\n\t" \
   /*4-7 rotation by 7pi/16. \
     xmm7=C1, xmm3=C7, xmm1=X1, X7=0.*/ \
   "pmulhw %%xmm1,%%xmm3\n\t" \
   "pmulhw %%xmm1,%%xmm7\n\t" \
-  "movdqa 0x40(%[c]),%%xmm4\n\t" \
+  "movdqa "OC_MEM_OFFS(0x40,c)",%%xmm4\n\t" \
   "movdqa %%xmm3,%%xmm6\n\t" \
   "paddw %%xmm1,%%xmm7\n\t" \
   /*0-1 butterfly. \
@@ -378,27 +394,40 @@ static void oc_idct8x8_slow_sse2(ogg_int16_t _y[64]){
   "psubw %%xmm7,%%xmm4\n\t" \
   "psubw %%xmm6,%%xmm5\n\t" \
 
-static void oc_idct8x8_10_sse2(ogg_int16_t _y[64]){
+static void oc_idct8x8_10_sse2(ogg_int16_t _y[64],ogg_int16_t _x[64]){
   OC_ALIGN16(ogg_int16_t buf[16]);
   /*This routine accepts an 8x8 matrix pre-transposed.*/
   __asm__ __volatile__(
-    "movq 0x20(%[y]),%%mm2\n\t"
-    "movq 0x30(%[y]),%%mm3\n\t"
-    "movq 0x10(%[y]),%%mm1\n\t"
-    "movq 0x00(%[y]),%%mm0\n\t"
+    "movq "OC_MEM_OFFS(0x20,x)",%%mm2\n\t"
+    "movq "OC_MEM_OFFS(0x30,x)",%%mm3\n\t"
+    "movq "OC_MEM_OFFS(0x10,x)",%%mm1\n\t"
+    "movq "OC_MEM_OFFS(0x00,x)",%%mm0\n\t"
     OC_IDCT_8x8_10_MMX
     OC_TRANSPOSE_8x4_MMX2SSE
     OC_IDCT_8x8_10_ABC
     OC_IDCT_8x8_D_STORE
-    :[buf]"=m"(OC_ARRAY_OPERAND(short,buf,16))
-    :[y]"r"(_y),[c]"r"(OC_IDCT_CONSTS)
+    :[buf]"=m"(OC_ARRAY_OPERAND(short,buf,16)),
+     [y]"=m"(OC_ARRAY_OPERAND(ogg_int16_t,_y,64))
+    :[x]"m"OC_CONST_ARRAY_OPERAND(ogg_int16_t,_x,64),
+     [c]"m"(OC_CONST_ARRAY_OPERAND(ogg_int16_t,OC_IDCT_CONSTS,128))
   );
+  if(_x!=_y){
+    /*Clear input data for next block (decoder only).*/
+    __asm__ __volatile__(
+      "pxor %%mm0,%%mm0\n\t"
+      "movq %%mm0,"OC_MEM_OFFS(0x00,x)"\n\t"
+      "movq %%mm0,"OC_MEM_OFFS(0x10,x)"\n\t"
+      "movq %%mm0,"OC_MEM_OFFS(0x20,x)"\n\t"
+      "movq %%mm0,"OC_MEM_OFFS(0x30,x)"\n\t"
+      :[x]"+m"(OC_ARRAY_OPERAND(ogg_int16_t,_x,28))
+    );
+  }
 }
 
 /*Performs an inverse 8x8 Type-II DCT transform.
   The input is assumed to be scaled by a factor of 4 relative to orthonormal
    version of the transform.*/
-void oc_idct8x8_sse2(ogg_int16_t _y[64],int _last_zzi){
+void oc_idct8x8_sse2(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi){
   /*_last_zzi is subtly different from an actual count of the number of
      coefficients we decoded for this block.
     It contains the value of zzi BEFORE the final token in the block was
@@ -424,8 +453,8 @@ void oc_idct8x8_sse2(ogg_int16_t _y[64],int _last_zzi){
      gets.
     Needless to say we inherited this approach from VP3.*/
   /*Then perform the iDCT.*/
-  if(_last_zzi<10)oc_idct8x8_10_sse2(_y);
-  else oc_idct8x8_slow_sse2(_y);
+  if(_last_zzi<=10)oc_idct8x8_10_sse2(_y,_x);
+  else oc_idct8x8_slow_sse2(_y,_x);
 }
 
 #endif

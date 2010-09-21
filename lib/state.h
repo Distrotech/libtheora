@@ -52,6 +52,9 @@ typedef struct oc_theora_state          oc_theora_state;
 #   include "x86/x86int.h"
 #  endif
 # endif
+# if defined(OC_ARM_ASM)
+#  include "arm/armint.h"
+# endif
 # if defined(OC_C64X_ASM)
 #  include "c64x/c64xint.h"
 # endif
@@ -63,6 +66,12 @@ typedef struct oc_theora_state          oc_theora_state;
 #  if !defined(oc_frag_copy)
 #   define oc_frag_copy(_state,_dst,_src,_ystride) \
   ((*(_state)->opt_vtable.frag_copy)(_dst,_src,_ystride))
+#  endif
+#  if !defined(oc_frag_copy_list)
+#   define oc_frag_copy_list(_state,_dst_frame,_src_frame,_ystride, \
+ _fragis,_nfragis,_frag_buf_offs) \
+ ((*(_state)->opt_vtable.frag_copy_list)(_dst_frame,_src_frame,_ystride, \
+  _fragis,_nfragis,_frag_buf_offs))
 #  endif
 #  if !defined(oc_frag_recon_intra)
 #   define oc_frag_recon_intra(_state,_dst,_dst_ystride,_residue) \
@@ -78,8 +87,8 @@ typedef struct oc_theora_state          oc_theora_state;
    _src1,_src2,_ystride,_residue))
 #  endif
 # if !defined(oc_idct8x8)
-#   define oc_idct8x8(_state,_y,_last_zzi) \
-  ((*(_state)->opt_vtable.idct8x8)(_y,_last_zzi))
+#   define oc_idct8x8(_state,_y,_x,_last_zzi) \
+  ((*(_state)->opt_vtable.idct8x8)(_y,_x,_last_zzi))
 #  endif
 #  if !defined(oc_state_frag_recon)
 #   define oc_state_frag_recon(_state,_fragi, \
@@ -87,11 +96,9 @@ typedef struct oc_theora_state          oc_theora_state;
   ((*(_state)->opt_vtable.state_frag_recon)(_state,_fragi, \
    _pli,_dct_coeffs,_last_zzi,_dc_quant))
 #  endif
-#  if !defined(oc_state_frag_copy_list)
-#   define oc_state_frag_copy_list(_state,_fragis,_nfragis, \
- _dst_frame,_src_frame,_pli) \
- ((*(_state)->opt_vtable.state_frag_copy_list)(_state,_fragis,_nfragis, \
-   _dst_frame,_src_frame,_pli))
+#  if !defined(oc_loop_filter_init)
+#   define oc_loop_filter_init(_state,_bv,_flimit) \
+  ((*(_state)->opt_vtable.loop_filter_init)(_bv,_flimit))
 #  endif
 #  if !defined(oc_state_loop_filter_frag_rows)
 #   define oc_state_loop_filter_frag_rows(_state, \
@@ -108,6 +115,12 @@ typedef struct oc_theora_state          oc_theora_state;
 #   define oc_frag_copy(_state,_dst,_src,_ystride) \
   oc_frag_copy_c(_dst,_src,_ystride)
 #  endif
+#  if !defined(oc_frag_copy_list)
+#   define oc_frag_copy_list(_state,_dst_frame,_src_frame,_ystride, \
+ _fragis,_nfragis,_frag_buf_offs) \
+  oc_frag_copy_list_c(_dst_frame,_src_frame,_ystride, \
+  _fragis,_nfragis,_frag_buf_offs)
+#  endif
 #  if !defined(oc_frag_recon_intra)
 #   define oc_frag_recon_intra(_state,_dst,_dst_ystride,_residue) \
   oc_frag_recon_intra_c(_dst,_dst_ystride,_residue)
@@ -121,13 +134,14 @@ typedef struct oc_theora_state          oc_theora_state;
   oc_frag_recon_inter2_c(_dst,_src1,_src2,_ystride,_residue)
 #  endif
 #  if !defined(oc_idct8x8)
-#   define oc_idct8x8(_state,_y,_last_zzi) oc_idct8x8_c(_y,_last_zzi)
+#   define oc_idct8x8(_state,_y,_x,_last_zzi) oc_idct8x8_c(_y,_x,_last_zzi)
 #  endif
 #  if !defined(oc_state_frag_recon)
 #   define oc_state_frag_recon oc_state_frag_recon_c
 #  endif
-#  if !defined(oc_state_frag_copy_list)
-#   define oc_state_frag_copy_list oc_state_frag_copy_list_c
+#  if !defined(oc_loop_filter_init)
+#   define oc_loop_filter_init(_state,_bv,_flimit) \
+  oc_loop_filter_init_c(_bv,_flimit)
 #  endif
 #  if !defined(oc_state_loop_filter_frag_rows)
 #   define oc_state_loop_filter_frag_rows oc_state_loop_filter_frag_rows_c
@@ -314,25 +328,28 @@ struct oc_fragment_plane{
 };
 
 
+typedef void (*oc_state_loop_filter_frag_rows_func)(
+ const oc_theora_state *_state,signed char _bv[256],int _refi,int _pli,
+ int _fragy0,int _fragy_end);
 
 /*The shared (encoder and decoder) functions that have accelerated variants.*/
 struct oc_base_opt_vtable{
   void (*frag_copy)(unsigned char *_dst,
    const unsigned char *_src,int _ystride);
+  void (*frag_copy_list)(unsigned char *_dst_frame,
+   const unsigned char *_src_frame,int _ystride,
+   const ptrdiff_t *_fragis,ptrdiff_t _nfragis,const ptrdiff_t *_frag_buf_offs);
   void (*frag_recon_intra)(unsigned char *_dst,int _ystride,
    const ogg_int16_t _residue[64]);
   void (*frag_recon_inter)(unsigned char *_dst,
    const unsigned char *_src,int _ystride,const ogg_int16_t _residue[64]);
   void (*frag_recon_inter2)(unsigned char *_dst,const unsigned char *_src1,
    const unsigned char *_src2,int _ystride,const ogg_int16_t _residue[64]);
-  void (*idct8x8)(ogg_int16_t _y[64],int _last_zzi);
+  void (*idct8x8)(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi);
   void (*state_frag_recon)(const oc_theora_state *_state,ptrdiff_t _fragi,
-   int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant);
-  void (*state_frag_copy_list)(const oc_theora_state *_state,
-   const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
-   int _dst_frame,int _src_frame,int _pli);
-  void (*state_loop_filter_frag_rows)(const oc_theora_state *_state,
-   int _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end);
+   int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant);
+  void (*loop_filter_init)(signed char _bv[256],int _flimit);
+  oc_state_loop_filter_frag_rows_func state_loop_filter_frag_rows;
   void (*restore_fpu)(void);
 };
 
@@ -463,7 +480,7 @@ int oc_state_mbi_for_pos(oc_theora_state *_state,int _mbx,int _mby);
 int oc_state_get_mv_offsets(const oc_theora_state *_state,int _offsets[2],
  int _pli,int _dx,int _dy);
 
-int oc_state_loop_filter_init(oc_theora_state *_state,int *_bv);
+void oc_loop_filter_init_c(signed char _bv[256],int _flimit);
 void oc_state_loop_filter(oc_theora_state *_state,int _frame);
 # if defined(OC_DUMP_IMAGES)
 int oc_state_dump_frame(const oc_theora_state *_state,int _frame,
@@ -473,20 +490,20 @@ int oc_state_dump_frame(const oc_theora_state *_state,int _frame,
 /*Default pure-C implementations of shared accelerated functions.*/
 void oc_frag_copy_c(unsigned char *_dst,
  const unsigned char *_src,int _src_ystride);
+void oc_frag_copy_list_c(unsigned char *_dst_frame,
+ const unsigned char *_src_frame,int _ystride,
+ const ptrdiff_t *_fragis,ptrdiff_t _nfragis,const ptrdiff_t *_frag_buf_offs);
 void oc_frag_recon_intra_c(unsigned char *_dst,int _dst_ystride,
  const ogg_int16_t _residue[64]);
 void oc_frag_recon_inter_c(unsigned char *_dst,
  const unsigned char *_src,int _ystride,const ogg_int16_t _residue[64]);
 void oc_frag_recon_inter2_c(unsigned char *_dst,const unsigned char *_src1,
  const unsigned char *_src2,int _ystride,const ogg_int16_t _residue[64]);
-void oc_idct8x8_c(ogg_int16_t _y[64],int _last_zzi);
+void oc_idct8x8_c(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi);
 void oc_state_frag_recon_c(const oc_theora_state *_state,ptrdiff_t _fragi,
- int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant);
-void oc_state_frag_copy_list_c(const oc_theora_state *_state,
- const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
- int _dst_frame,int _src_frame,int _pli);
+ int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant);
 void oc_state_loop_filter_frag_rows_c(const oc_theora_state *_state,
- int _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end);
+ signed char _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end);
 void oc_restore_fpu_c(void);
 
 /*We need a way to call a few encoder functions without introducing a link-time

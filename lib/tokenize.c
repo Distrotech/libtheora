@@ -754,6 +754,8 @@ int oc_enc_tokenize_ac(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
 int oc_enc_tokenize_ac_fast(oc_enc_ctx *_enc,int _pli,ptrdiff_t _fragi,
  ogg_int16_t *_qdct,const ogg_uint16_t *_dequant,const ogg_int16_t *_dct,
  int _zzi,oc_token_checkpoint **_stack,int _lambda,int _acmin){
+  /*Note that gcc will not always respect this alignment.
+    In this case it doesn't matter terribly much.*/
   OC_ALIGN16(ogg_int16_t  coef[64]);
   const unsigned char *dct_fzig_zag;
   ogg_uint16_t        *eob_run;

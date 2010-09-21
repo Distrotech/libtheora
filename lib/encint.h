@@ -31,6 +31,9 @@ typedef struct oc_enc_opt_vtable      oc_enc_opt_vtable;
 typedef struct oc_enc_opt_data        oc_enc_opt_data;
 typedef struct oc_mb_enc_info         oc_mb_enc_info;
 typedef struct oc_mode_scheme_chooser oc_mode_scheme_chooser;
+typedef struct oc_fr_state            oc_fr_state;
+typedef struct oc_qii_state           oc_qii_state;
+typedef struct oc_enc_pipeline_state  oc_enc_pipeline_state;
 typedef struct oc_mode_rd             oc_mode_rd;
 typedef struct oc_iir_filter          oc_iir_filter;
 typedef struct oc_frame_metrics       oc_frame_metrics;
@@ -384,6 +387,90 @@ void oc_mode_scheme_chooser_init(oc_mode_scheme_chooser *_chooser);
 
 
 
+/*State to track coded block flags and their bit cost.
+  We use opportunity cost to measure the bits required to code or skip the next
+   block, using the cheaper of the cost to code it fully or partially, so long
+   as both are possible.*/
+struct oc_fr_state{
+  /*The number of bits required for the coded block flags so far this frame.*/
+  ptrdiff_t  bits;
+  /*The length of the current run for the partial super block flag, not
+     including the current super block.*/
+  unsigned   sb_partial_count:16;
+  /*The length of the current run for the full super block flag, not
+     including the current super block.*/
+  unsigned   sb_full_count:16;
+  /*The length of the coded block flag run when the current super block
+     started.*/
+  unsigned   b_coded_count_prev:6;
+  /*The coded block flag when the current super block started.*/
+  signed int b_coded_prev:2;
+  /*The length of the current coded block flag run.*/
+  unsigned   b_coded_count:6;
+  /*The current coded block flag.*/
+  signed int b_coded:2;
+  /*The number of blocks processed in the current super block.*/
+  unsigned   b_count:5;
+  /*Whether or not it is cheaper to code the current super block partially,
+     even if it could still be coded fully.*/
+  unsigned   sb_prefer_partial:1;
+  /*Whether the last super block was coded partially.*/
+  signed int sb_partial:2;
+  /*The number of bits required for the flags for the current super block.*/
+  unsigned   sb_bits:6;
+  /*Whether the last non-partial super block was coded fully.*/
+  signed int sb_full:2;
+};
+
+
+
+struct oc_qii_state{
+  ptrdiff_t  bits;
+  unsigned   qi01_count:14;
+  signed int qi01:2;
+  unsigned   qi12_count:14;
+  signed int qi12:2;
+};
+
+
+
+/*Temporary encoder state for the analysis pipeline.*/
+struct oc_enc_pipeline_state{
+  /*DCT coefficient storage.
+    This is kept off the stack because a) gcc can't align things on the stack
+     reliably on ARM, and b) it avoids (unintentional) data hazards between
+     ARM and NEON code.*/
+  OC_ALIGN16(ogg_int16_t dct_data[128]);
+  OC_ALIGN16(signed char bounding_values[256]);
+  oc_fr_state         fr[3];
+  oc_qii_state        qs[3];
+  /*Skip SSD storage for the current MCU in each plane.*/
+  unsigned           *skip_ssd[3];
+  /*Coded/uncoded fragment lists for each plane for the current MCU.*/
+  ptrdiff_t          *coded_fragis[3];
+  ptrdiff_t          *uncoded_fragis[3];
+  ptrdiff_t           ncoded_fragis[3];
+  ptrdiff_t           nuncoded_fragis[3];
+  /*The starting fragment for the current MCU in each plane.*/
+  ptrdiff_t           froffset[3];
+  /*The starting row for the current MCU in each plane.*/
+  int                 fragy0[3];
+  /*The ending row for the current MCU in each plane.*/
+  int                 fragy_end[3];
+  /*The starting superblock for the current MCU in each plane.*/
+  unsigned            sbi0[3];
+  /*The ending superblock for the current MCU in each plane.*/
+  unsigned            sbi_end[3];
+  /*The number of tokens for zzi=1 for each color plane.*/
+  int                 ndct_tokens1[3];
+  /*The outstanding eob_run count for zzi=1 for each color plane.*/
+  int                 eob_run1[3];
+  /*Whether or not the loop filter is enabled.*/
+  int                 loop_filter;
+};
+
+
+
 /*Statistics used to estimate R-D cost of a block in a given coding mode.
   See modedec.h for more details.*/
 struct oc_mode_rd{
@@ -565,6 +652,8 @@ struct th_enc_ctx{
   size_t                   mv_bits[2];
   /*The mode scheme chooser for estimating mode coding costs.*/
   oc_mode_scheme_chooser   chooser;
+  /*Temporary encoder state for the analysis pipeline.*/
+  oc_enc_pipeline_state    pipe;
   /*The number of vertical super blocks in an MCU.*/
   int                      mcu_nvsbs;
   /*The SSD error for skipping each fragment in the current MCU.*/

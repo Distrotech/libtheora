@@ -24,9 +24,6 @@
 
 
 
-typedef struct oc_fr_state           oc_fr_state;
-typedef struct oc_qii_state          oc_qii_state;
-typedef struct oc_enc_pipeline_state oc_enc_pipeline_state;
 typedef struct oc_rd_metric          oc_rd_metric;
 typedef struct oc_mode_choice        oc_mode_choice;
 
@@ -220,43 +217,6 @@ static int oc_sb_run_bits(int _run_count){
 static int oc_block_run_bits(int _run_count){
   return OC_BLOCK_RUN_CODE_NBITS[_run_count-1];
 }
-
-
-
-/*State to track coded block flags and their bit cost.
-  We use opportunity cost to measure the bits required to code or skip the next
-   block, using the cheaper of the cost to code it fully or partially, so long
-   as both are possible.*/
-struct oc_fr_state{
-  /*The number of bits required for the coded block flags so far this frame.*/
-  ptrdiff_t  bits;
-  /*The length of the current run for the partial super block flag, not
-     including the current super block.*/
-  unsigned   sb_partial_count:16;
-  /*The length of the current run for the full super block flag, not
-     including the current super block.*/
-  unsigned   sb_full_count:16;
-  /*The length of the coded block flag run when the current super block
-     started.*/
-  unsigned   b_coded_count_prev:6;
-  /*The coded block flag when the current super block started.*/
-  signed int b_coded_prev:2;
-  /*The length of the current coded block flag run.*/
-  unsigned   b_coded_count:6;
-  /*The current coded block flag.*/
-  signed int b_coded:2;
-  /*The number of blocks processed in the current super block.*/
-  unsigned   b_count:5;
-  /*Whether or not it is cheaper to code the current super block partially,
-     even if it could still be coded fully.*/
-  unsigned   sb_prefer_partial:1;
-  /*Whether the last super block was coded partially.*/
-  signed int sb_partial:2;
-  /*The number of bits required for the flags for the current super block.*/
-  unsigned   sb_bits:6;
-  /*Whether the last non-partial super block was coded fully.*/
-  signed int sb_full:2;
-};
 
 
 
@@ -492,16 +452,6 @@ static int oc_fr_cost4(const oc_fr_state *_pre,const oc_fr_state *_post){
 
 
 
-struct oc_qii_state{
-  ptrdiff_t  bits;
-  unsigned   qi01_count:14;
-  signed int qi01:2;
-  unsigned   qi12_count:14;
-  signed int qi12:2;
-};
-
-
-
 static void oc_qii_state_init(oc_qii_state *_qs){
   _qs->bits=0;
   _qs->qi01_count=0;
@@ -555,41 +505,11 @@ static void oc_qii_state_advance(oc_qii_state *_qd,
 
 
 
-/*Temporary encoder state for the analysis pipeline.*/
-struct oc_enc_pipeline_state{
-  int                 bounding_values[256];
-  oc_fr_state         fr[3];
-  oc_qii_state        qs[3];
-  /*Skip SSD storage for the current MCU in each plane.*/
-  unsigned           *skip_ssd[3];
-  /*Coded/uncoded fragment lists for each plane for the current MCU.*/
-  ptrdiff_t          *coded_fragis[3];
-  ptrdiff_t          *uncoded_fragis[3];
-  ptrdiff_t           ncoded_fragis[3];
-  ptrdiff_t           nuncoded_fragis[3];
-  /*The starting fragment for the current MCU in each plane.*/
-  ptrdiff_t           froffset[3];
-  /*The starting row for the current MCU in each plane.*/
-  int                 fragy0[3];
-  /*The ending row for the current MCU in each plane.*/
-  int                 fragy_end[3];
-  /*The starting superblock for the current MCU in each plane.*/
-  unsigned            sbi0[3];
-  /*The ending superblock for the current MCU in each plane.*/
-  unsigned            sbi_end[3];
-  /*The number of tokens for zzi=1 for each color plane.*/
-  int                 ndct_tokens1[3];
-  /*The outstanding eob_run count for zzi=1 for each color plane.*/
-  int                 eob_run1[3];
-  /*Whether or not the loop filter is enabled.*/
-  int                 loop_filter;
-};
-
-
 static void oc_enc_pipeline_init(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe){
   ptrdiff_t *coded_fragis;
   unsigned   mcu_nvsbs;
   ptrdiff_t  mcu_nfrags;
+  int        flimit;
   int        hdec;
   int        vdec;
   int        pli;
@@ -649,8 +569,9 @@ static void oc_enc_pipeline_init(oc_enc_ctx *_enc,oc_enc_pipeline_state *_pipe){
     _pipe->eob_run1[pli]=0;
   }
   /*Initialize the bounding value array for the loop filter.*/
-  _pipe->loop_filter=!oc_state_loop_filter_init(&_enc->state,
-   _pipe->bounding_values);
+  flimit=_enc->state.loop_filter_limits[_enc->state.qis[0]];
+  _pipe->loop_filter=flimit!=0;
+  if(flimit!=0)oc_loop_filter_init(&_enc->state,_pipe->bounding_values,flimit);
 }
 
 /*Sets the current MCU stripe to super block row _sby.
@@ -692,10 +613,15 @@ static void oc_enc_pipeline_finish_mcu_plane(oc_enc_ctx *_enc,
   int refi;
   /*Copy over all the uncoded fragments from this plane and advance the uncoded
      fragment list.*/
-  _pipe->uncoded_fragis[_pli]-=_pipe->nuncoded_fragis[_pli];
-  oc_state_frag_copy_list(&_enc->state,_pipe->uncoded_fragis[_pli],
-   _pipe->nuncoded_fragis[_pli],OC_FRAME_SELF,OC_FRAME_PREV,_pli);
-  _pipe->nuncoded_fragis[_pli]=0;
+  if(_pipe->nuncoded_fragis[_pli]>0){
+    _pipe->uncoded_fragis[_pli]-=_pipe->nuncoded_fragis[_pli];
+    oc_frag_copy_list(&_enc->state,
+     _enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_SELF]],
+     _enc->state.ref_frame_data[_enc->state.ref_frame_idx[OC_FRAME_PREV]],
+     _enc->state.ref_ystride[_pli],_pipe->uncoded_fragis[_pli],
+     _pipe->nuncoded_fragis[_pli],_enc->state.frag_buf_offs);
+    _pipe->nuncoded_fragis[_pli]=0;
+  }
   /*Perform DC prediction.*/
   oc_enc_pred_dc_frag_rows(_enc,_pli,
    _pipe->fragy0[_pli],_pipe->fragy_end[_pli]);
@@ -741,8 +667,8 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
  oc_enc_pipeline_state *_pipe,int _pli,ptrdiff_t _fragi,
  unsigned _rd_scale,unsigned _rd_iscale,oc_rd_metric *_mo,
  oc_fr_state *_fr,oc_token_checkpoint **_stack){
-  OC_ALIGN16(ogg_int16_t  dct[64]);
-  OC_ALIGN16(ogg_int16_t  data[64]);
+  ogg_int16_t            *dct;
+  ogg_int16_t            *data;
   oc_qii_state            qs;
   const ogg_uint16_t     *dequant;
   ogg_uint16_t            dequant_dc;
@@ -773,6 +699,8 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
    +frag_offs;
   borderi=frags[_fragi].borderi;
   qii=frags[_fragi].qii;
+  data=_enc->pipe.dct_data;
+  dct=data+64;
   if(qii&~3){
 #if !defined(OC_COLLECT_METRICS)
     if(_enc->sp_level>=OC_SP_LEVEL_EARLY_SKIP){
@@ -872,7 +800,7 @@ static int oc_enc_block_transform_quantize(oc_enc_ctx *_enc,
   }
   else{
     data[0]=dc*dequant_dc;
-    oc_idct8x8(&_enc->state,data,nonzero+1);
+    oc_idct8x8(&_enc->state,data,data,nonzero+1);
   }
   if(nqis>1){
     oc_qii_state_advance(&qs,_pipe->qs+_pli,qii);
@@ -1675,7 +1603,6 @@ static void oc_enc_sb_transform_quantize_intra_chroma(oc_enc_ctx *_enc,
 
 /*Analysis stage for an INTRA frame.*/
 void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
-  oc_enc_pipeline_state   pipe;
   ogg_int64_t             activity_sum;
   ogg_int64_t             luma_sum;
   unsigned                activity_avg;
@@ -1698,7 +1625,7 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
   int                     pli;
   _enc->state.frame_type=OC_INTRA_FRAME;
   oc_enc_tokenize_start(_enc);
-  oc_enc_pipeline_init(_enc,&pipe);
+  oc_enc_pipeline_init(_enc,&_enc->pipe);
   oc_enc_mode_rd_init(_enc);
   activity_sum=luma_sum=0;
   activity_avg=_enc->activity_avg;
@@ -1725,10 +1652,10 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
     ptrdiff_t cfroffset;
     unsigned  sbi;
     unsigned  sbi_end;
-    notdone=oc_enc_pipeline_set_stripe(_enc,&pipe,stripe_sby);
-    sbi_end=pipe.sbi_end[0];
-    cfroffset=pipe.froffset[1];
-    for(sbi=pipe.sbi0[0];sbi<sbi_end;sbi++){
+    notdone=oc_enc_pipeline_set_stripe(_enc,&_enc->pipe,stripe_sby);
+    sbi_end=_enc->pipe.sbi_end[0];
+    cfroffset=_enc->pipe.froffset[1];
+    for(sbi=_enc->pipe.sbi0[0];sbi<sbi_end;sbi++){
       int quadi;
       /*Mode addressing is through Y plane, always 4 MB per SB.*/
       for(quadi=0;quadi<4;quadi++)if(sb_flags[sbi].quad_valid&1<<quadi){
@@ -1763,10 +1690,10 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
           oc_mcenc_search(_enc,mbi);
         }
         if(_enc->sp_level<OC_SP_LEVEL_FAST_ANALYSIS){
-          oc_analyze_intra_mb_luma(_enc,pipe.qs+0,mbi,rd_scale);
+          oc_analyze_intra_mb_luma(_enc,_enc->pipe.qs+0,mbi,rd_scale);
         }
         mb_modes[mbi]=OC_MODE_INTRA;
-        oc_enc_mb_transform_quantize_intra_luma(_enc,&pipe,
+        oc_enc_mb_transform_quantize_intra_luma(_enc,&_enc->pipe,
          mbi,rd_scale,rd_iscale);
         /*Propagate final MB mode and MVs to the chroma blocks.*/
         for(mapii=4;mapii<nmap_idxs;mapii++){
@@ -1786,12 +1713,12 @@ void oc_enc_analyze_intra(oc_enc_ctx *_enc,int _recode){
         }
       }
     }
-    oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,0,notstart,notdone);
+    oc_enc_pipeline_finish_mcu_plane(_enc,&_enc->pipe,0,notstart,notdone);
     /*Code chroma planes.*/
     for(pli=1;pli<3;pli++){
-      oc_enc_sb_transform_quantize_intra_chroma(_enc,&pipe,
-       pli,pipe.sbi0[pli],pipe.sbi_end[pli]);
-      oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,pli,notstart,notdone);
+      oc_enc_sb_transform_quantize_intra_chroma(_enc,&_enc->pipe,
+       pli,_enc->pipe.sbi0[pli],_enc->pipe.sbi_end[pli]);
+      oc_enc_pipeline_finish_mcu_plane(_enc,&_enc->pipe,pli,notstart,notdone);
     }
     notstart=1;
   }
@@ -2316,7 +2243,6 @@ static void oc_cost_inter4mv(oc_enc_ctx *_enc,oc_mode_choice *_modec,
 
 int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   oc_set_chroma_mvs_func  set_chroma_mvs;
-  oc_enc_pipeline_state   pipe;
   oc_qii_state            intra_luma_qs;
   oc_mv                   last_mv;
   oc_mv                   prior_mv;
@@ -2356,7 +2282,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   _enc->state.frame_type=OC_INTER_FRAME;
   oc_mode_scheme_chooser_reset(&_enc->chooser);
   oc_enc_tokenize_start(_enc);
-  oc_enc_pipeline_init(_enc,&pipe);
+  oc_enc_pipeline_init(_enc,&_enc->pipe);
   oc_enc_mode_rd_init(_enc);
   if(_allow_keyframe)oc_qii_state_init(&intra_luma_qs);
   _enc->mv_bits[0]=_enc->mv_bits[1]=0;
@@ -2391,10 +2317,10 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
   mcu_nvsbs=_enc->mcu_nvsbs;
   for(stripe_sby=0;notdone;stripe_sby+=mcu_nvsbs){
     ptrdiff_t cfroffset;
-    notdone=oc_enc_pipeline_set_stripe(_enc,&pipe,stripe_sby);
-    sbi_end=pipe.sbi_end[0];
-    cfroffset=pipe.froffset[1];
-    for(sbi=pipe.sbi0[0];sbi<sbi_end;sbi++){
+    notdone=oc_enc_pipeline_set_stripe(_enc,&_enc->pipe,stripe_sby);
+    sbi_end=_enc->pipe.sbi_end[0];
+    cfroffset=_enc->pipe.froffset[1];
+    for(sbi=_enc->pipe.sbi0[0];sbi<sbi_end;sbi++){
       int quadi;
       /*Mode addressing is through Y plane, always 4 MB per SB.*/
       for(quadi=0;quadi<4;quadi++)if(sb_flags[sbi].quad_valid&1<<quadi){
@@ -2448,7 +2374,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
         /*Estimate the cost of coding this MB in a keyframe.*/
         if(_allow_keyframe){
           oc_cost_intra(_enc,modes+OC_MODE_INTRA,mbi,
-           pipe.fr+0,&intra_luma_qs,intra_satd,OC_NOSKIP,rd_scale);
+           _enc->pipe.fr+0,&intra_luma_qs,intra_satd,OC_NOSKIP,rd_scale);
           intrabits+=modes[OC_MODE_INTRA].rate;
           for(bi=0;bi<4;bi++){
             oc_qii_state_advance(&intra_luma_qs,&intra_luma_qs,
@@ -2456,24 +2382,28 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           }
         }
         /*Estimate the cost in a delta frame for various modes.*/
-        oc_skip_cost(_enc,&pipe,mbi,rd_scale,skip_ssd);
+        oc_skip_cost(_enc,&_enc->pipe,mbi,rd_scale,skip_ssd);
         if(sp_level<OC_SP_LEVEL_NOMC){
           oc_cost_inter_nomv(_enc,modes+OC_MODE_INTER_NOMV,mbi,
-           OC_MODE_INTER_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_INTER_NOMV,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           oc_cost_intra(_enc,modes+OC_MODE_INTRA,mbi,
-           pipe.fr+0,pipe.qs+0,intra_satd,skip_ssd,rd_scale);
+           _enc->pipe.fr+0,_enc->pipe.qs+0,intra_satd,skip_ssd,rd_scale);
           mb_mv_bits_0=oc_cost_inter1mv(_enc,modes+OC_MODE_INTER_MV,mbi,
            OC_MODE_INTER_MV,embs[mbi].unref_mv[OC_FRAME_PREV],
-           pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           _enc->pipe.fr+0,_enc->pipe.qs+0,skip_ssd,rd_scale);
           oc_cost_inter(_enc,modes+OC_MODE_INTER_MV_LAST,mbi,
-           OC_MODE_INTER_MV_LAST,last_mv,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_INTER_MV_LAST,last_mv,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           oc_cost_inter(_enc,modes+OC_MODE_INTER_MV_LAST2,mbi,
-           OC_MODE_INTER_MV_LAST2,prior_mv,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_INTER_MV_LAST2,prior_mv,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           oc_cost_inter_nomv(_enc,modes+OC_MODE_GOLDEN_NOMV,mbi,
-           OC_MODE_GOLDEN_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_GOLDEN_NOMV,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           mb_gmv_bits_0=oc_cost_inter1mv(_enc,modes+OC_MODE_GOLDEN_MV,mbi,
            OC_MODE_GOLDEN_MV,embs[mbi].unref_mv[OC_FRAME_GOLD],
-           pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           _enc->pipe.fr+0,_enc->pipe.qs+0,skip_ssd,rd_scale);
           /*The explicit MV modes (2,6,7) have not yet gone through halfpel
              refinement.
             We choose the explicit MV mode that's already furthest ahead on
@@ -2483,7 +2413,8 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           inter_mv_pref=_enc->lambda*3;
           if(sp_level<OC_SP_LEVEL_FAST_ANALYSIS){
             oc_cost_inter4mv(_enc,modes+OC_MODE_INTER_MV_FOUR,mbi,
-             embs[mbi].block_mv,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+             embs[mbi].block_mv,_enc->pipe.fr+0,_enc->pipe.qs+0,
+             skip_ssd,rd_scale);
           }
           else{
             modes[OC_MODE_INTER_MV_FOUR].cost=UINT_MAX;
@@ -2495,7 +2426,8 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
               embs[mbi].refined|=0x80;
             }
             oc_cost_inter4mv(_enc,modes+OC_MODE_INTER_MV_FOUR,mbi,
-             embs[mbi].ref_mv,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+             embs[mbi].ref_mv,_enc->pipe.fr+0,_enc->pipe.qs+0,
+             skip_ssd,rd_scale);
           }
           else if(modes[OC_MODE_GOLDEN_MV].cost+inter_mv_pref<
            modes[OC_MODE_INTER_MV].cost){
@@ -2505,7 +2437,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
             }
             mb_gmv_bits_0=oc_cost_inter1mv(_enc,modes+OC_MODE_GOLDEN_MV,mbi,
              OC_MODE_GOLDEN_MV,embs[mbi].analysis_mv[0][OC_FRAME_GOLD],
-             pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+             _enc->pipe.fr+0,_enc->pipe.qs+0,skip_ssd,rd_scale);
           }
           if(!(embs[mbi].refined&0x04)){
             oc_mcenc_refine1mv(_enc,mbi,OC_FRAME_PREV);
@@ -2513,7 +2445,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           }
           mb_mv_bits_0=oc_cost_inter1mv(_enc,modes+OC_MODE_INTER_MV,mbi,
            OC_MODE_INTER_MV,embs[mbi].analysis_mv[0][OC_FRAME_PREV],
-           pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           _enc->pipe.fr+0,_enc->pipe.qs+0,skip_ssd,rd_scale);
           /*Finally, pick the mode with the cheapest estimated R-D cost.*/
           mb_mode=OC_MODE_INTER_NOMV;
           if(modes[OC_MODE_INTRA].cost<modes[OC_MODE_INTER_NOMV].cost){
@@ -2544,11 +2476,13 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
         }
         else{
           oc_cost_inter_nomv(_enc,modes+OC_MODE_INTER_NOMV,mbi,
-           OC_MODE_INTER_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_INTER_NOMV,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           oc_cost_intra(_enc,modes+OC_MODE_INTRA,mbi,
-           pipe.fr+0,pipe.qs+0,intra_satd,skip_ssd,rd_scale);
+           _enc->pipe.fr+0,_enc->pipe.qs+0,intra_satd,skip_ssd,rd_scale);
           oc_cost_inter_nomv(_enc,modes+OC_MODE_GOLDEN_NOMV,mbi,
-           OC_MODE_GOLDEN_NOMV,pipe.fr+0,pipe.qs+0,skip_ssd,rd_scale);
+           OC_MODE_GOLDEN_NOMV,_enc->pipe.fr+0,_enc->pipe.qs+0,
+           skip_ssd,rd_scale);
           mb_mode=OC_MODE_INTER_NOMV;
           if(modes[OC_MODE_INTRA].cost<modes[OC_MODE_INTER_NOMV].cost){
             mb_mode=OC_MODE_INTRA;
@@ -2589,7 +2523,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           fragi=sb_maps[mbi>>2][mbi&3][bi];
           frags[fragi].qii=modes[mb_mode].qii[bi];
         }
-        if(oc_enc_mb_transform_quantize_inter_luma(_enc,&pipe,mbi,
+        if(oc_enc_mb_transform_quantize_inter_luma(_enc,&_enc->pipe,mbi,
          modes[mb_mode].overhead>>OC_BIT_SCALE,rd_scale,rd_iscale)>0){
           int orig_mb_mode;
           orig_mb_mode=mb_mode;
@@ -2693,16 +2627,16 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
           mcu_rd_iscale[fragi-cfroffset]=(ogg_uint16_t)rd_iscale[4];
         }
       }
-      oc_fr_state_flush_sb(pipe.fr+0);
-      sb_flags[sbi].coded_fully=pipe.fr[0].sb_full;
-      sb_flags[sbi].coded_partially=pipe.fr[0].sb_partial;
+      oc_fr_state_flush_sb(_enc->pipe.fr+0);
+      sb_flags[sbi].coded_fully=_enc->pipe.fr[0].sb_full;
+      sb_flags[sbi].coded_partially=_enc->pipe.fr[0].sb_partial;
     }
-    oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,0,notstart,notdone);
+    oc_enc_pipeline_finish_mcu_plane(_enc,&_enc->pipe,0,notstart,notdone);
     /*Code chroma planes.*/
     for(pli=1;pli<3;pli++){
-      oc_enc_sb_transform_quantize_inter_chroma(_enc,&pipe,
-       pli,pipe.sbi0[pli],pipe.sbi_end[pli]);
-      oc_enc_pipeline_finish_mcu_plane(_enc,&pipe,pli,notstart,notdone);
+      oc_enc_sb_transform_quantize_inter_chroma(_enc,&_enc->pipe,
+       pli,_enc->pipe.sbi0[pli],_enc->pipe.sbi_end[pli]);
+      oc_enc_pipeline_finish_mcu_plane(_enc,&_enc->pipe,pli,notstart,notdone);
     }
     notstart=1;
   }
@@ -2724,7 +2658,7 @@ int oc_enc_analyze_inter(oc_enc_ctx *_enc,int _allow_keyframe,int _recode){
        inaccuracy is small.
       We don't need to add the luma plane coding flag costs, because they are
        already included in the MB rate estimates.*/
-    for(pli=1;pli<3;pli++)interbits+=pipe.fr[pli].bits<<OC_BIT_SCALE;
+    for(pli=1;pli<3;pli++)interbits+=_enc->pipe.fr[pli].bits<<OC_BIT_SCALE;
     if(interbits>intrabits)return 1;
   }
   _enc->ncoded_mbis=ncoded_mbis;

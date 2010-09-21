@@ -17,10 +17,14 @@
 
 #if !defined(_x86_vc_x86enc_H)
 # define _x86_vc_x86enc_H (1)
-# include "../encint.h"
 # include "x86int.h"
+# if defined(OC_X86_ASM)
+#  define oc_enc_accel_init oc_enc_accel_init_x86
+#  define OC_ENC_USE_VTABLE (1)
+# endif
+# include "../encint.h"
 
-void oc_enc_vtable_init_x86(oc_enc_ctx *_enc);
+void oc_enc_accel_init_x86(oc_enc_ctx *_enc);
 
 unsigned oc_enc_frag_sad_mmxext(const unsigned char *_src,
  const unsigned char *_ref,int _ystride);

@@ -38,14 +38,21 @@
 #  endif
 # endif
 
-/*Some assembly constructs require aligned operands.*/
-# if defined(OC_X86_ASM)
+/*Some assembly constructs require aligned operands.
+  The following macros are _only_ intended for structure member declarations.
+  Although they will sometimes work on stack variables, gcc will often silently
+   ignore them.
+  A separate set of macros could be made for manual stack alignment, but we
+   don't actually require it anywhere.*/
+# if defined(OC_X86_ASM)||defined(OC_ARM_ASM)
 #  if defined(__GNUC__)
 #   define OC_ALIGN8(expr) expr __attribute__((aligned(8)))
 #   define OC_ALIGN16(expr) expr __attribute__((aligned(16)))
 #  elif defined(_MSC_VER)
 #   define OC_ALIGN8(expr) __declspec (align(8)) expr
 #   define OC_ALIGN16(expr) __declspec (align(16)) expr
+#  else
+#   error "Alignment macros required for this platform."
 #  endif
 # endif
 # if !defined(OC_ALIGN8)

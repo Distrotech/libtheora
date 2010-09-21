@@ -726,11 +726,12 @@ static void oc_dec_mb_modes_unpack(oc_dec_ctx *_dec){
   frags=_dec->state.frags;
   for(mbi=0;mbi<nmbs;mbi++){
     if(mb_modes[mbi]!=OC_MODE_INVALID){
-      int bi;
       /*Check for a coded luma block in this macro block.*/
-      for(bi=0;bi<4&&!frags[mb_maps[mbi][0][bi]].coded;bi++);
-      /*We found one, decode a mode.*/
-      if(bi<4){
+      if(frags[mb_maps[mbi][0][0]].coded
+       ||frags[mb_maps[mbi][0][1]].coded
+       ||frags[mb_maps[mbi][0][2]].coded
+       ||frags[mb_maps[mbi][0][3]].coded){
+        /*We found one, decode a mode.*/
         mb_modes[mbi]=alphabet[oc_huff_token_decode(&_dec->opb,mode_tree)];
       }
       /*There were none: INTER_NOMV is forced.*/
@@ -1335,9 +1336,11 @@ static void oc_dec_pipeline_init(oc_dec_ctx *_dec,
  oc_dec_pipeline_state *_pipe){
   const ptrdiff_t *coded_fragis;
   const ptrdiff_t *uncoded_fragis;
+  int              flimit;
   int              pli;
   int              qii;
   int              qti;
+  int              zzi;
   /*If chroma is sub-sampled in the vertical direction, we have to decode two
      super block rows of Y' for each super block row of Cb and Cr.*/
   _pipe->mcu_nvfrags=4<<!(_dec->state.info.pixel_fmt&2);
@@ -1369,8 +1372,9 @@ static void oc_dec_pipeline_init(oc_dec_ctx *_dec,
   /*Set the previous DC predictor to 0 for all color planes and frame types.*/
   memset(_pipe->pred_last,0,sizeof(_pipe->pred_last));
   /*Initialize the bounding value array for the loop filter.*/
-  _pipe->loop_filter=!oc_state_loop_filter_init(&_dec->state,
-   _pipe->bounding_values);
+  flimit=_dec->state.loop_filter_limits[_dec->state.qis[0]];
+  _pipe->loop_filter=flimit!=0;
+  if(flimit!=0)oc_loop_filter_init(&_dec->state,_pipe->bounding_values,flimit);
   /*Initialize any buffers needed for post-processing.
     We also save the current post-processing level, to guard against the user
      changing it from a callback.*/
@@ -1383,6 +1387,8 @@ static void oc_dec_pipeline_init(oc_dec_ctx *_dec,
      _dec->state.ref_frame_bufs[_dec->state.ref_frame_idx[OC_FRAME_SELF]],
      sizeof(_dec->pp_frame_buf[0])*3);
   }
+  /*Clear down the DCT coefficient buffer for the first block.*/
+  for(zzi=0;zzi<64;zzi++)_pipe->dct_coeffs[zzi]=0;
 }
 
 /*Undo the DC prediction in a single plane of an MCU (one or two super block
@@ -1532,16 +1538,11 @@ static void oc_dec_frags_recon_mcu_plane(oc_dec_ctx *_dec,
   eob_runs=_pipe->eob_runs[_pli];
   for(qti=0;qti<2;qti++)dc_quant[qti]=_pipe->dequant[_pli][0][qti][0];
   for(fragii=0;fragii<ncoded_fragis;fragii++){
-    /*This array is made one element larger because the zig-zag index array
-       uses the final element as a dumping ground for out-of-range indices
-       to protect us from buffer overflow.*/
-    OC_ALIGN16(ogg_int16_t dct_coeffs[65]);
     const ogg_uint16_t *ac_quant;
     ptrdiff_t           fragi;
     int                 last_zzi;
     int                 zzi;
     fragi=coded_fragis[fragii];
-    for(zzi=0;zzi<64;zzi++)dct_coeffs[zzi]=0;
     qti=frags[fragi].mb_mode!=OC_MODE_INTRA;
     ac_quant=_pipe->dequant[_pli][frags[fragi].qii][qti];
     /*Decode the AC coefficients.*/
@@ -1578,18 +1579,19 @@ static void oc_dec_frags_recon_mcu_plane(oc_dec_ctx *_dec,
         eob_runs[zzi]=eob;
         ti[zzi]=lti;
         zzi+=rlen;
-        dct_coeffs[dct_fzig_zag[zzi]]=(ogg_int16_t)(coeff*(int)ac_quant[zzi]);
+        _pipe->dct_coeffs[dct_fzig_zag[zzi]]=
+         (ogg_int16_t)(coeff*(int)ac_quant[zzi]);
         zzi+=!eob;
       }
     }
     /*TODO: zzi should be exactly 64 here.
       If it's not, we should report some kind of warning.*/
     zzi=OC_MINI(zzi,64);
-    dct_coeffs[0]=(ogg_int16_t)frags[fragi].dc;
+    _pipe->dct_coeffs[0]=(ogg_int16_t)frags[fragi].dc;
     /*last_zzi is always initialized.
       If your compiler thinks otherwise, it is dumb.*/
     oc_state_frag_recon(&_dec->state,fragi,_pli,
-     dct_coeffs,last_zzi,dc_quant[qti]);
+     _pipe->dct_coeffs,last_zzi,dc_quant[qti]);
   }
   _pipe->coded_fragis[_pli]+=ncoded_fragis;
   /*Right now the reconstructed MCU has only the coded blocks in it.*/
@@ -1603,9 +1605,14 @@ static void oc_dec_frags_recon_mcu_plane(oc_dec_ctx *_dec,
      code, and the hard case (high bitrate, high resolution) is handled
      correctly.*/
   /*Copy the uncoded blocks from the previous reference frame.*/
-  _pipe->uncoded_fragis[_pli]-=_pipe->nuncoded_fragis[_pli];
-  oc_state_frag_copy_list(&_dec->state,_pipe->uncoded_fragis[_pli],
-   _pipe->nuncoded_fragis[_pli],OC_FRAME_SELF,OC_FRAME_PREV,_pli);
+  if(_pipe->nuncoded_fragis[_pli]>0){
+    _pipe->uncoded_fragis[_pli]-=_pipe->nuncoded_fragis[_pli];
+    oc_frag_copy_list(&_dec->state,
+     _dec->state.ref_frame_data[_dec->state.ref_frame_idx[OC_FRAME_SELF]],
+     _dec->state.ref_frame_data[_dec->state.ref_frame_idx[OC_FRAME_PREV]],
+     _dec->state.ref_ystride[_pli],_pipe->uncoded_fragis[_pli],
+     _pipe->nuncoded_fragis[_pli],_dec->state.frag_buf_offs);
+  }
 }
 
 /*Filter a horizontal block edge.*/

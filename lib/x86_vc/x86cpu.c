@@ -18,35 +18,59 @@
 
  ********************************************************************/
 
-#include "cpu.h"
+#include "x86cpu.h"
 
 #if !defined(OC_X86_ASM)
 ogg_uint32_t oc_cpu_flags_get(void){
   return 0;
 }
 #else
-# if defined(__amd64__)||defined(__x86_64__)
-/*On x86-64, gcc seems to be able to figure out how to save %rbx for us when
-   compiling with -fPIC.*/
+/*Why does MSVC need this complicated rigamarole?
+  At this point I honestly do not care.*/
+
+/*Visual C cpuid helper function.
+  For VS2005 we could as well use the _cpuid builtin, but that wouldn't work
+   for VS2003 users, so we do it in inline assembler.*/
+static void oc_cpuid_helper(ogg_uint32_t _cpu_info[4],ogg_uint32_t _op){
+  _asm{
+    mov eax,[_op]
+    mov esi,_cpu_info
+    cpuid
+    mov [esi+0],eax
+    mov [esi+4],ebx
+    mov [esi+8],ecx
+    mov [esi+12],edx
+  }
+}
+
 #  define cpuid(_op,_eax,_ebx,_ecx,_edx) \
-  __asm__ __volatile__( \
-   "cpuid\n\t" \
-   :[eax]"=a"(_eax),[ebx]"=b"(_ebx),[ecx]"=c"(_ecx),[edx]"=d"(_edx) \
-   :"a"(_op) \
-   :"cc" \
-  )
-# else
-/*On x86-32, not so much.*/
-#  define cpuid(_op,_eax,_ebx,_ecx,_edx) \
-  __asm__ __volatile__( \
-   "xchgl %%ebx,%[ebx]\n\t" \
-   "cpuid\n\t" \
-   "xchgl %%ebx,%[ebx]\n\t" \
-   :[eax]"=a"(_eax),[ebx]"=r"(_ebx),[ecx]"=c"(_ecx),[edx]"=d"(_edx) \
-   :"a"(_op) \
-   :"cc" \
-  )
-# endif
+  do{ \
+    ogg_uint32_t cpu_info[4]; \
+    oc_cpuid_helper(cpu_info,_op); \
+    (_eax)=cpu_info[0]; \
+    (_ebx)=cpu_info[1]; \
+    (_ecx)=cpu_info[2]; \
+    (_edx)=cpu_info[3]; \
+  }while(0)
+
+static void oc_detect_cpuid_helper(ogg_uint32_t *_eax,ogg_uint32_t *_ebx){
+  _asm{
+    pushfd
+    pushfd
+    pop eax
+    mov ebx,eax
+    xor eax,200000h
+    push eax
+    popfd
+    pushfd
+    pop eax
+    popfd
+    mov ecx,_eax
+    mov [ecx],eax
+    mov ecx,_ebx
+    mov [ecx],ebx
+  }
+}
 
 static ogg_uint32_t oc_parse_intel_flags(ogg_uint32_t _edx,ogg_uint32_t _ecx){
   ogg_uint32_t flags;
@@ -83,21 +107,7 @@ ogg_uint32_t oc_cpu_flags_get(void){
   ogg_uint32_t edx;
 # if !defined(__amd64__)&&!defined(__x86_64__)
   /*Not all x86-32 chips support cpuid, so we have to check.*/
-  __asm__ __volatile__(
-   "pushfl\n\t"
-   "pushfl\n\t"
-   "popl %[a]\n\t"
-   "movl %[a],%[b]\n\t"
-   "xorl $0x200000,%[a]\n\t"
-   "pushl %[a]\n\t"
-   "popfl\n\t"
-   "pushfl\n\t"
-   "popl %[a]\n\t"
-   "popfl\n\t"
-   :[a]"=r"(eax),[b]"=r"(ebx)
-   :
-   :"cc"
-  );
+  oc_detect_cpuid_helper(&eax,&ebx);
   /*No cpuid.*/
   if(eax==ebx)return 0;
 # endif

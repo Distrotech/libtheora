@@ -77,7 +77,24 @@ struct oc_dec_opt_vtable{
 
 
 struct oc_dec_pipeline_state{
-  int                 bounding_values[256];
+  /*Decoded DCT coefficients.
+    These are placed here instead of on the stack so that they can persist
+     between blocks, which makes clearing them back to zero much faster when
+     only a few non-zero coefficients were decoded.
+    It requires at least 65 elements because the zig-zag index array uses the
+     65th element as a dumping ground for out-of-range indices to protect us
+     from buffer overflow.
+    We make it fully twice as large so that the second half can serve as the
+     reconstruction buffer, which saves passing another parameter to all the
+     acceleration functios.
+    It also solves problems with 16-byte alignment for NEON on ARM.
+    gcc (as of 4.2.1) only seems to be able to give stack variables 8-byte
+     alignment, and silently produces incorrect results if you ask for 16.
+    Finally, keeping it off the stack means there's less likely to be a data
+     hazard beween the NEON co-processor and the regular ARM core, which avoids
+     unnecessary stalls.*/
+  OC_ALIGN16(ogg_int16_t dct_coeffs[128]);
+  OC_ALIGN16(signed char bounding_values[256]);
   ptrdiff_t           ti[3][64];
   ptrdiff_t           ebi[3][64];
   ptrdiff_t           eob_runs[3][64];
@@ -97,66 +114,66 @@ struct oc_dec_pipeline_state{
 
 struct th_dec_ctx{
   /*Shared encoder/decoder state.*/
-  oc_theora_state      state;
+  oc_theora_state        state;
   /*Whether or not packets are ready to be emitted.
     This takes on negative values while there are remaining header packets to
      be emitted, reaches 0 when the codec is ready for input, and goes to 1
      when a frame has been processed and a data packet is ready.*/
-  int                  packet_state;
+  int                    packet_state;
   /*Buffer in which to assemble packets.*/
-  oc_pack_buf          opb;
+  oc_pack_buf            opb;
   /*Huffman decode trees.*/
-  ogg_int16_t         *huff_tables[TH_NHUFFMAN_TABLES];
+  ogg_int16_t           *huff_tables[TH_NHUFFMAN_TABLES];
   /*The index of the first token in each plane for each coefficient.*/
-  ptrdiff_t            ti0[3][64];
+  ptrdiff_t              ti0[3][64];
   /*The number of outstanding EOB runs at the start of each coefficient in each
      plane.*/
-  ptrdiff_t            eob_runs[3][64];
+  ptrdiff_t              eob_runs[3][64];
   /*The DCT token lists.*/
-  unsigned char       *dct_tokens;
+  unsigned char         *dct_tokens;
   /*The extra bits associated with DCT tokens.*/
-  unsigned char       *extra_bits;
+  unsigned char         *extra_bits;
   /*The number of dct tokens unpacked so far.*/
-  int                  dct_tokens_count;
+  int                    dct_tokens_count;
   /*The out-of-loop post-processing level.*/
-  int                  pp_level;
+  int                    pp_level;
   /*The DC scale used for out-of-loop deblocking.*/
-  int                  pp_dc_scale[64];
+  int                    pp_dc_scale[64];
   /*The sharpen modifier used for out-of-loop deringing.*/
-  int                  pp_sharp_mod[64];
+  int                    pp_sharp_mod[64];
   /*The DC quantization index of each block.*/
-  unsigned char       *dc_qis;
+  unsigned char         *dc_qis;
   /*The variance of each block.*/
-  int                 *variances;
+  int                   *variances;
   /*The storage for the post-processed frame buffer.*/
-  unsigned char       *pp_frame_data;
+  unsigned char         *pp_frame_data;
   /*Whether or not the post-processsed frame buffer has space for chroma.*/
-  int                  pp_frame_state;
+  int                    pp_frame_state;
   /*The buffer used for the post-processed frame.
     Note that this is _not_ guaranteed to have the same strides and offsets as
      the reference frame buffers.*/
-  th_ycbcr_buffer      pp_frame_buf;
+  th_ycbcr_buffer        pp_frame_buf;
   /*The striped decode callback function.*/
-  th_stripe_callback   stripe_cb;
-  oc_dec_pipeline_state pipe;
+  th_stripe_callback     stripe_cb;
+  oc_dec_pipeline_state  pipe;
 # if defined(OC_DEC_USE_VTABLE)
   /*Table for decoder acceleration functions.*/
-  oc_dec_opt_vtable    opt_vtable;
+  oc_dec_opt_vtable      opt_vtable;
 # endif
 # if defined(HAVE_CAIRO)
   /*Output metrics for debugging.*/
-  int                  telemetry;
-  int                  telemetry_mbmode;
-  int                  telemetry_mv;
-  int                  telemetry_qi;
-  int                  telemetry_bits;
-  int                  telemetry_frame_bytes;
-  int                  telemetry_coding_bytes;
-  int                  telemetry_mode_bytes;
-  int                  telemetry_mv_bytes;
-  int                  telemetry_qi_bytes;
-  int                  telemetry_dc_bytes;
-  unsigned char       *telemetry_frame_data;
+  int                    telemetry;
+  int                    telemetry_mbmode;
+  int                    telemetry_mv;
+  int                    telemetry_qi;
+  int                    telemetry_bits;
+  int                    telemetry_frame_bytes;
+  int                    telemetry_coding_bytes;
+  int                    telemetry_mode_bytes;
+  int                    telemetry_mv_bytes;
+  int                    telemetry_qi_bytes;
+  int                    telemetry_dc_bytes;
+  unsigned char         *telemetry_frame_data;
 # endif
 };
 

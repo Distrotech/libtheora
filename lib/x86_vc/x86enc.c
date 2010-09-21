@@ -18,10 +18,10 @@
 
 #if defined(OC_X86_ASM)
 
-void oc_enc_vtable_init_x86(oc_enc_ctx *_enc){
+void oc_enc_accel_init_x86(oc_enc_ctx *_enc){
   ogg_uint32_t cpu_flags;
   cpu_flags=_enc->state.cpu_flags;
-  oc_enc_vtable_init_c(_enc);
+  oc_enc_accel_init_c(_enc);
   if(cpu_flags&OC_CPU_X86_MMX){
     _enc->opt_vtable.frag_sub=oc_enc_frag_sub_mmx;
     _enc->opt_vtable.frag_sub_128=oc_enc_frag_sub_128_mmx;

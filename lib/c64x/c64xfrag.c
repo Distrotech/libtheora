@@ -43,6 +43,40 @@ void oc_frag_copy_c64x(unsigned char *restrict _dst,
 #undef OC_ITER
 }
 
+void oc_frag_copy_list_c64x(unsigned char *_dst_frame,
+ const unsigned char *_src_frame,int _ystride,
+ const ptrdiff_t *_fragis,ptrdiff_t _nfragis,const ptrdiff_t *_frag_buf_offs){
+  ptrdiff_t fragii;
+  /*9 cycles per iteration.*/
+  for(fragii=0;fragii<_nfragis;fragii++){
+    const unsigned char *restrict src;
+    const unsigned char *restrict s2;
+    unsigned char       *restrict dst;
+    unsigned char       *restrict d2;
+    ptrdiff_t                     frag_buf_off;
+    frag_buf_off=_frag_buf_offs[_fragis[fragii]];
+    dst=_dst_frame+frag_buf_off;
+    src=_src_frame+frag_buf_off;
+    d2=dst+_ystride;
+    s2=src+_ystride;
+#define OC_ITER() \
+  do{ \
+    _amem8(dst)=_amem8_const(src); \
+    dst+=2*_ystride; \
+    src+=2*_ystride; \
+    _amem8(d2)=_amem8_const(s2); \
+    d2+=2*_ystride; \
+    s2+=2*_ystride; \
+  } \
+  while(0)
+    OC_ITER();
+    OC_ITER();
+    OC_ITER();
+    OC_ITER();
+#undef OC_ITER
+  }
+}
+
 /*34 cycles.*/
 void oc_frag_recon_intra_c64x(unsigned char *_dst,int _ystride,
  const ogg_int16_t _residue[64]){
@@ -130,7 +164,7 @@ void oc_frag_recon_inter2_c64x(unsigned char *_dst,
 }
 
 void oc_state_frag_recon_c64x(const oc_theora_state *_state,ptrdiff_t _fragi,
- int _pli,ogg_int16_t _dct_coeffs[64],int _last_zzi,ogg_uint16_t _dc_quant){
+ int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant){
   unsigned char *dst;
   ptrdiff_t      frag_buf_off;
   int            ystride;
@@ -138,25 +172,28 @@ void oc_state_frag_recon_c64x(const oc_theora_state *_state,ptrdiff_t _fragi,
   /*Apply the inverse transform.*/
   /*Special case only having a DC component.*/
   if(_last_zzi<2){
-    ogg_int16_t p;
+    int         p;
+    long long   ll;
     int         ci;
     /*We round this dequant product (and not any of the others) because there's
        no iDCT rounding.*/
-    p=(ogg_int16_t)(_dct_coeffs[0]*(ogg_int32_t)_dc_quant+15>>5);
-    /*LOOP VECTORIZES.*/
-    for(ci=0;ci<64;ci++)_dct_coeffs[ci]=p;
+    p=_dct_coeffs[0]*(ogg_int32_t)_dc_quant+15>>5;
+    ll=_itoll(_pack2(p,p),_pack2(p,p));
+    for(ci=0;ci<64;ci+=4)_amem8(_dct_coeffs+64+ci)=ll;
   }
   else{
     /*First, dequantize the DC coefficient.*/
     _dct_coeffs[0]=(ogg_int16_t)(_dct_coeffs[0]*(int)_dc_quant);
-    oc_idct8x8_c64x(_dct_coeffs,_last_zzi);
+    oc_idct8x8_c64x(_dct_coeffs+64,_dct_coeffs,_last_zzi);
   }
   /*Fill in the target buffer.*/
   frag_buf_off=_state->frag_buf_offs[_fragi];
   mb_mode=_state->frags[_fragi].mb_mode;
   ystride=_state->ref_ystride[_pli];
   dst=_state->ref_frame_data[_state->ref_frame_idx[OC_FRAME_SELF]]+frag_buf_off;
-  if(mb_mode==OC_MODE_INTRA)oc_frag_recon_intra_c64x(dst,ystride,_dct_coeffs);
+  if(mb_mode==OC_MODE_INTRA){
+    oc_frag_recon_intra_c64x(dst,ystride,_dct_coeffs+64);
+  }
   else{
     const unsigned char *ref;
     int                  mvoffsets[2];
@@ -166,51 +203,9 @@ void oc_state_frag_recon_c64x(const oc_theora_state *_state,ptrdiff_t _fragi,
     if(oc_state_get_mv_offsets(_state,mvoffsets,_pli,
      _state->frag_mvs[_fragi][0],_state->frag_mvs[_fragi][1])>1){
       oc_frag_recon_inter2_c64x(dst,ref+mvoffsets[0],ref+mvoffsets[1],
-          ystride,_dct_coeffs);
+       ystride,_dct_coeffs+64);
     }
-    else oc_frag_recon_inter_c64x(dst,ref+mvoffsets[0],ystride,_dct_coeffs);
-  }
-}
-
-void oc_state_frag_copy_list_c64x(const oc_theora_state *_state,
- const ptrdiff_t *_fragis,ptrdiff_t _nfragis,
- int _dst_frame,int _src_frame,int _pli){
-  const ptrdiff_t     *frag_buf_offs;
-  const unsigned char *src_frame_data;
-  unsigned char       *dst_frame_data;
-  ptrdiff_t            fragii;
-  int                  ystride;
-  dst_frame_data=_state->ref_frame_data[_state->ref_frame_idx[_dst_frame]];
-  src_frame_data=_state->ref_frame_data[_state->ref_frame_idx[_src_frame]];
-  ystride=_state->ref_ystride[_pli];
-  frag_buf_offs=_state->frag_buf_offs;
-  /*9 cycles per iteration.*/
-  for(fragii=0;fragii<_nfragis;fragii++){
-    const unsigned char *restrict src;
-    const unsigned char *restrict s2;
-    unsigned char       *restrict dst;
-    unsigned char       *restrict d2;
-    ptrdiff_t                     frag_buf_off;
-    frag_buf_off=frag_buf_offs[_fragis[fragii]];
-    dst=dst_frame_data+frag_buf_off;
-    src=src_frame_data+frag_buf_off;
-    d2=dst+ystride;
-    s2=src+ystride;
-#define OC_ITER() \
-  do{ \
-    _amem8(dst)=_amem8_const(src); \
-    dst+=2*ystride; \
-    src+=2*ystride; \
-    _amem8(d2)=_amem8_const(s2); \
-    d2+=2*ystride; \
-    s2+=2*ystride; \
-  } \
-  while(0)
-    OC_ITER();
-    OC_ITER();
-    OC_ITER();
-    OC_ITER();
-#undef OC_ITER
+    else oc_frag_recon_inter_c64x(dst,ref+mvoffsets[0],ystride,_dct_coeffs+64);
   }
 }
 
@@ -394,9 +389,16 @@ static void loop_filter_v(unsigned char * restrict _pix,int _ystride,int _ll){
   _amem8(_pix)=_itoll(p6,p2);
 }
 
+void oc_loop_filter_init_c64x(signed char _bv[256],int _flimit){
+  int ll;
+  ll=_flimit<<1;
+  ll=_pack2(ll,ll);
+  ll=~_spacku4(ll,ll);
+  *((int *)_bv)=ll;
+}
 
-void oc_state_loop_filter_frag_rows_c64x(const oc_theora_state *_state,int *_bv,
- int _refi,int _pli,int _fragy0,int _fragy_end){
+void oc_state_loop_filter_frag_rows_c64x(const oc_theora_state *_state,
+ signed char _bv[256],int _refi,int _pli,int _fragy0,int _fragy_end){
   const oc_fragment_plane *fplane;
   const oc_fragment       *frags;
   const ptrdiff_t         *frag_buf_offs;
@@ -413,14 +415,12 @@ void oc_state_loop_filter_frag_rows_c64x(const oc_theora_state *_state,int *_bv,
   fragi_top=fplane->froffset;
   fragi_bot=fragi_top+fplane->nfrags;
   fragi0=fragi_top+_fragy0*(ptrdiff_t)nhfrags;
-  fragi0_end=fragi0+(_fragy_end-_fragy0)*(ptrdiff_t)nhfrags;
+  fragi0_end=fragi_top+_fragy_end*(ptrdiff_t)nhfrags;
   ystride=_state->ref_ystride[_pli];
   frags=_state->frags;
   frag_buf_offs=_state->frag_buf_offs;
   ref_frame_data=_state->ref_frame_data[_refi];
-  ll=_state->loop_filter_limits[_state->qis[0]]<<1;
-  ll=_pack2(ll,ll);
-  ll=~_spacku4(ll,ll);
+  ll=*((int *)_bv);
   /*The following loops are constructed somewhat non-intuitively on purpose.
     The main idea is: if a block boundary has at least one coded fragment on
      it, the filter is applied to it.
