@@ -483,15 +483,15 @@ loop_filter_h_neon
 	VTRN.8	D2, D6	; D2 = UUQQMMIIEEAA6622 D6 = VVRRNNJJFFBB7733       1,1
 	VSUBL.U8	Q0, D0, D6	; Q0 = 00 - 33 in S16s              1,3
 	VSUBL.U8	Q8, D2, D4	; Q8 = 22 - 11 in S16s              1,3
-	; Stall
+	ADD	r12,r0, #8
 	VADD.S16	Q0, Q0, Q8	;                                   1,3
-	SUB	r12, r0, #1
-	; Stall
+	PLD	[r12]
 	VADD.S16	Q0, Q0, Q8	;                                   1,3
-	; Stall x2
+	PLD	[r12,r1]
 	VADD.S16	Q0, Q0, Q8	; Q0 = [0-3]+3*[2-1]                1,3
-	; Stall x2
+	PLD	[r12,r1, LSL #1]
 	VRSHR.S16	Q0, Q0, #3	; Q0 = f = ([0-3]+3*[2-1]+4)>>3     1,4
+	ADD	r12,r12,r1, LSL #2
 	;  We want to do
 	; f =             CLAMP(MIN(-2L-f,0), f, MAX(2L-f,0))
 	;   = ((f >= 0) ? MIN( f ,MAX(2L- f ,0)) : MAX(  f , MIN(-2L- f ,0)))
@@ -502,20 +502,22 @@ loop_filter_h_neon
 	; for a negation.
 	; Stall x3
 	VABS.S16	Q9, Q0		; Q9 = |f| in U16s                  1,4
+	PLD	[r12,-r1]
 	VSHR.S16	Q0, Q0, #15	; Q0 = -1 or 0 according to sign    1,3
-	; Stall x2
+	PLD	[r12]
 	VQSUB.U16	Q10,Q15,Q9	; Q10= MAX(2L-|f|,0) in U16s        1,4
+	PLD	[r12,r1]
 	VMOVL.U8	Q1, D2	   ; Q2 = __UU__QQ__MM__II__EE__AA__66__22  2,3
-	; Stall x2
+	PLD	[r12,r1,LSL #1]
 	VMIN.U16	Q9, Q10,Q9	; Q9 = MIN(|f|,MAX(2L-|f|))         1,4
+	ADD	r12,r12,r1, LSL #2
 	; Now we need to correct for the sign of f.
 	; For negative elements of Q0, we want to subtract the appropriate
 	; element of Q9. For positive elements we want to add them. No NEON
 	; instruction exists to do this, so we need to negate the negative
 	; elements, and we can then just add them. a-b = a-(1+!b) = a-1+!b
-	; Stall x3
 	VADD.S16	Q9, Q9, Q0	;				    1,3
-	; Stall x2
+	PLD	[r12,-r1]
 	VEOR.S16	Q9, Q9, Q0	; Q9 = real value of f              1,3
 	; Bah. No VRSBW.U8
 	; Stall (just 1 as Q9 not needed to second pipeline stage. I think.)
@@ -523,6 +525,7 @@ loop_filter_h_neon
 	VSUB.S16	Q1, Q1, Q9 ; Q2 = xxUUxxQQxxMMxxIIxxEExxAAxx66xx22  1,3
 	VQMOVUN.S16	D4, Q2		; D4 = TTPPLLHHDD995511		    1,1
 	VQMOVUN.S16	D2, Q1		; D2 = UUQQMMIIEEAA6622		    1,1
+	SUB	r12,r0, #1
 	VTRN.8	D4, D2		; D4 = QQPPIIHHAA992211	D2 = MMLLEEDD6655   1,1
 	VST1.16	{D4[0]}, [r12], r1
 	VST1.16	{D2[0]}, [r12], r1
@@ -545,17 +548,16 @@ loop_filter_v_neon
 	VLD1.64	{D0}, [r12@64], r1		; D0 = SSOOKKGGCC884400     2,1
 	VLD1.64	{D2}, [r12@64], r1		; D2 = TTPPLLHHDD995511     2,1
 	VLD1.64	{D4}, [r12@64], r1		; D4 = UUQQMMIIEEAA6622     2,1
-	VLD1.64	{D6}, [r12@64], r1		; D6 = VVRRNNJJFFBB7733     2,1
+	VLD1.64	{D6}, [r12@64]			; D6 = VVRRNNJJFFBB7733     2,1
 	VSUBL.U8	Q8, D4, D2	; Q8 = 22 - 11 in S16s              1,3
 	VSUBL.U8	Q0, D0, D6	; Q0 = 00 - 33 in S16s              1,3
-	; Stall
+	ADD	r12, #8
 	VADD.S16	Q0, Q0, Q8	;                                   1,3
-	SUB	r12, r0, r1
-	; Stall
+	PLD	[r12]
 	VADD.S16	Q0, Q0, Q8	;                                   1,3
-	; Stall x2
+	PLD	[r12,r1]
 	VADD.S16	Q0, Q0, Q8	; Q0 = [0-3]+3*[2-1]                1,3
-	; Stall x2
+	SUB	r12, r0, r1
 	VRSHR.S16	Q0, Q0, #3	; Q0 = f = ([0-3]+3*[2-1]+4)>>3     1,4
 	;  We want to do
 	; f =             CLAMP(MIN(-2L-f,0), f, MAX(2L-f,0))
