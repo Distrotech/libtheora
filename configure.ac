@@ -434,11 +434,12 @@ fi
 
 dnl check for SDL
 HAVE_SDL=no
-
-AM_PATH_SDL(,[
-  HAVE_SDL=yes
-  SDL_LIBS=`$SDL_CONFIG --libs`
-],AC_MSG_WARN([*** Unable to find SDL -- Not compiling example players ***]))
+if test "x$HAVE_PKG_CONFIG" = "xyes"
+then
+  PKG_CHECK_MODULES(SDL, sdl, HAVE_SDL=yes, [
+    HAVE_SDL=no
+    AC_MSG_WARN([*** Unable to find SDL -- Not compiling example players ***])])
+fi
 
 dnl check for OSS
 HAVE_OSS=no
