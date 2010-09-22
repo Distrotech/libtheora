@@ -276,3 +276,6 @@ armloop-gnu.S: armopts-gnu.S
 # convert ARM asm to GNU as format
 %-gnu.S: $(srcdir)/arm/%.s
 	$(srcdir)/arm/arm2gnu.pl < $< > $@
+# Special case for armopts.s, because it is built by configure
+armopts-gnu.S: arm/armopts.s
+	$(srcdir)/arm/arm2gnu.pl < $< > $@
