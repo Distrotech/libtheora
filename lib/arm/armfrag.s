@@ -444,6 +444,13 @@ ofrinter2_v6_lp
 	EXPORT	oc_frag_recon_inter_neon
 	EXPORT	oc_frag_recon_inter2_neon
 
+; The pre-loading here was an experiment.
+; The result was disappointing, but it _was_ slightly faster, so it might as
+;  well be committed.
+; This value gives an 0.5% speed-up at 720p on a Cortex A8.
+; Must be 2**n-1 for n>0.
+OC_FRAG_PRELOAD_DIST_NEON	*	3
+
 oc_frag_copy_list_neon
 	; r0 = _dst_frame
 	; r1 = _src_frame
@@ -452,10 +459,10 @@ oc_frag_copy_list_neon
 	; <> = _nfragis
 	; <> = _frag_buf_offs
 	LDR	r12,[r13]		; r12 = _nfragis
-	STMFD	r13!,{r4-r6,r14}
-	SUBS	r12, r12, #1
-	LDRGE	r6, [r3],#4		; r6 = _fragis[fragii]
-	LDRGE	r14,[r13,#4*5]		; r14 = _frag_buf_offs
+	STMFD	r13!,{r4-r7,r14}
+	CMP	r12, #1
+	LDRGE	r6, [r3]		; r6 = _fragis[fragii]
+	LDRGE	r14,[r13,#4*6]		; r14 = _frag_buf_offs
 	BLT	ofcl_neon_end
 	; Stall (2 on Xscale)
 	LDR	r6, [r14,r6, LSL #2]	; r6 = _frag_buf_offs[_fragis[fragii]]
@@ -464,27 +471,83 @@ ofcl_neon_lp
 	ADD	r4, r1, r6
 	VLD1.64	{D0}, [r4@64], r2
 	VLD1.64	{D1}, [r4@64], r2
+	TST	r12, #OC_FRAG_PRELOAD_DIST_NEON
 	VLD1.64	{D2}, [r4@64], r2
 	VLD1.64	{D3}, [r4@64], r2
-	ADD	r5, r6, r0
-	VLD1.64	{D4}, [r4], r2
-	SUBS	r12, r12, #1
+	BEQ	ofcl_neon_preload
+	VLD1.64	{D4}, [r4@64], r2
 	VLD1.64	{D5}, [r4@64], r2
+	ADD	r5, r0, r6
 	VLD1.64	{D6}, [r4@64], r2
-	VLD1.64	{D7}, [r4@64], r2
+	VLD1.64	{D7}, [r4@64]
+	SUBS	r12, r12, #1
 	VST1.64	{D0}, [r5@64], r2
-	LDRGE	r6, [r3],#4		; r6 = _fragis[fragii]
 	VST1.64	{D1}, [r5@64], r2
+	LDRGT	r6, [r3,#4]!		; r6 = _fragis[fragii]
 	VST1.64	{D2}, [r5@64], r2
 	VST1.64	{D3}, [r5@64], r2
+	LDRGT	r6, [r14,r6, LSL #2]	; r6 = _frag_buf_offs[_fragis[fragii]]
 	VST1.64	{D4}, [r5@64], r2
-	LDRGE	r6, [r14,r6, LSL #2]	; r5 = _frag_buf_offs[_fragis[fragii]]
+	VST1.64	{D5}, [r5@64], r2
+	VST1.64	{D6}, [r5@64], r2
+	VST1.64	{D7}, [r5@64]
+	BGT	ofcl_neon_lp
+ofcl_neon_end
+	LDMFD	r13!,{r4-r7,PC}
+
+ofcl_neon_preload
+	ADD	r5, r0, r6
+	VLD1.64	{D4}, [r4@64], r2
+	LDR	r6, [r3,#OC_FRAG_PRELOAD_DIST_NEON*4]	; r6 = _fragis[fragii]
+	VLD1.64	{D5}, [r4@64], r2
+	LDR	r6, [r14,r6, LSL #2]	; r6 = _frag_buf_offs[_fragis[fragii]]
+	VLD1.64	{D6}, [r4@64], r2
+	ADD	r7, r1, r6
+	VLD1.64	{D7}, [r4@64], r2
+	PLD	[r7]
+	VST1.64	{D0}, [r5@64], r2
+	PLD	[r7, r2]
+	VST1.64	{D1}, [r5@64], r2
+	PLD	[r7, r2,LSL #1]
+	VST1.64	{D2}, [r5@64], r2
+	ADD	r7, r7, r2, LSL #2
+	VST1.64	{D3}, [r5@64], r2
+	PLD	[r7, -r2]
+	VST1.64	{D4}, [r5@64], r2
+	PLD	[r7]
+	VST1.64	{D5}, [r5@64], r2
+	LDR	r6, [r3,#4]!		; r6 = _fragis[fragii]
+	VST1.64	{D6}, [r5@64], r2
+	LDR	r6, [r14,r6, LSL #2]	; r6 = _frag_buf_offs[_fragis[fragii]]
+	VST1.64	{D7}, [r5@64], r2
+	ADD	r4, r1, r6
+	VLD1.64	{D0}, [r4@64], r2
+	PLD	[r7, r2]
+	VLD1.64	{D1}, [r4@64], r2
+	PLD	[r7, r2,LSL #1]
+	VLD1.64	{D2}, [r4@64], r2
+	ADD	r7, r7, r2, LSL #2
+	VLD1.64	{D3}, [r4@64], r2
+	PLD	[r7, -r2]
+	VLD1.64	{D4}, [r4@64], r2
+	VLD1.64	{D5}, [r4@64], r2
+	ADD	r5, r0, r6
+	VLD1.64	{D6}, [r4@64], r2
+	VLD1.64	{D7}, [r4@64], r2
+	SUBS	r12, r12, #2
+	VST1.64	{D0}, [r5@64], r2
+	VST1.64	{D1}, [r5@64], r2
+	LDRGT	r6, [r3,#4]!		; r6 = _fragis[fragii]
+	VST1.64	{D2}, [r5@64], r2
+	VST1.64	{D3}, [r5@64], r2
+	LDRGT	r6, [r14,r6, LSL #2]	; r6 = _frag_buf_offs[_fragis[fragii]]
+	VST1.64	{D4}, [r5@64], r2
 	VST1.64	{D5}, [r5@64], r2
 	VST1.64	{D6}, [r5@64], r2
 	VST1.64	{D7}, [r5@64], r2
-	BGE	ofcl_neon_lp
-ofcl_neon_end
-	LDMFD	r13!,{r4-r6,PC}
+	BGT	ofcl_neon_lp
+; This should be impossible to reach.
+	LDMFD	r13!,{r4-r7,PC}
 
 oc_frag_recon_intra_neon
 	; r0 =       unsigned char *_dst
