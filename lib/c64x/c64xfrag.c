@@ -201,7 +201,7 @@ void oc_state_frag_recon_c64x(const oc_theora_state *_state,ptrdiff_t _fragi,
      _state->ref_frame_data[_state->ref_frame_idx[OC_FRAME_FOR_MODE(mb_mode)]]
      +frag_buf_off;
     if(oc_state_get_mv_offsets(_state,mvoffsets,_pli,
-     _state->frag_mvs[_fragi][0],_state->frag_mvs[_fragi][1])>1){
+     _state->frag_mvs[_fragi])>1){
       oc_frag_recon_inter2_c64x(dst,ref+mvoffsets[0],ref+mvoffsets[1],
        ystride,_dct_coeffs+64);
     }

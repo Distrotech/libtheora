@@ -621,11 +621,15 @@ static void oc_enc_mb_modes_pack(oc_enc_ctx *_enc){
   }
 }
 
-static void oc_enc_mv_pack(oc_enc_ctx *_enc,int _mv_scheme,int _dx,int _dy){
+static void oc_enc_mv_pack(oc_enc_ctx *_enc,int _mv_scheme,oc_mv _mv){
+  int dx;
+  int dy;
+  dx=OC_MV_X(_mv);
+  dy=OC_MV_Y(_mv);
   oggpackB_write(&_enc->opb,
-   OC_MV_CODES[_mv_scheme][_dx+31],OC_MV_BITS[_mv_scheme][_dx+31]);
+   OC_MV_CODES[_mv_scheme][dx+31],OC_MV_BITS[_mv_scheme][dx+31]);
   oggpackB_write(&_enc->opb,
-   OC_MV_CODES[_mv_scheme][_dy+31],OC_MV_BITS[_mv_scheme][_dy+31]);
+   OC_MV_CODES[_mv_scheme][dy+31],OC_MV_BITS[_mv_scheme][dy+31]);
 }
 
 static void oc_enc_mvs_pack(oc_enc_ctx *_enc){
@@ -648,7 +652,7 @@ static void oc_enc_mvs_pack(oc_enc_ctx *_enc){
   mb_modes=_enc->state.mb_modes;
   mb_maps=(const oc_mb_map *)_enc->state.mb_maps;
   frags=_enc->state.frags;
-  frag_mvs=(const oc_mv *)_enc->state.frag_mvs;
+  frag_mvs=_enc->state.frag_mvs;
   for(mbii=0;mbii<ncoded_mbis;mbii++){
     ptrdiff_t fragi;
     unsigned  mbi;
@@ -660,8 +664,7 @@ static void oc_enc_mvs_pack(oc_enc_ctx *_enc){
         for(bi=0;;bi++){
           fragi=mb_maps[mbi][0][bi];
           if(frags[fragi].coded){
-            oc_enc_mv_pack(_enc,mv_scheme,
-             frag_mvs[fragi][0],frag_mvs[fragi][1]);
+            oc_enc_mv_pack(_enc,mv_scheme,frag_mvs[fragi]);
             /*Only code a single MV for this macro block.*/
             break;
           }
@@ -671,8 +674,7 @@ static void oc_enc_mvs_pack(oc_enc_ctx *_enc){
         for(bi=0;bi<4;bi++){
           fragi=mb_maps[mbi][0][bi];
           if(frags[fragi].coded){
-            oc_enc_mv_pack(_enc,mv_scheme,
-             frag_mvs[fragi][0],frag_mvs[fragi][1]);
+            oc_enc_mv_pack(_enc,mv_scheme,frag_mvs[fragi]);
             /*Keep coding all the MVs for this macro block.*/
           }
         }

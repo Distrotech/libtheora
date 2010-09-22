@@ -795,9 +795,12 @@ static const ogg_int16_t OC_CLC_MV_COMP_TREE[65]={
 };
 
 
-static void oc_mv_unpack(oc_pack_buf *_opb,const ogg_int16_t *_tree,oc_mv _mv){
-  _mv[0]=(signed char)(oc_huff_token_decode(_opb,_tree)-32);
-  _mv[1]=(signed char)(oc_huff_token_decode(_opb,_tree)-32);
+static oc_mv oc_mv_unpack(oc_pack_buf *_opb,const ogg_int16_t *_tree){
+  int dx;
+  int dy;
+  dx=oc_huff_token_decode(_opb,_tree)-32;
+  dy=oc_huff_token_decode(_opb,_tree)-32;
+  return OC_MV(dx,dy);
 }
 
 /*Unpacks the list of motion vectors for INTER frames, and propagtes the macro
@@ -811,7 +814,8 @@ static void oc_dec_mv_unpack_and_frag_modes_fill(oc_dec_ctx *_dec){
   oc_mv                  *frag_mvs;
   const unsigned char    *map_idxs;
   int                     map_nidxs;
-  oc_mv                   last_mv[2];
+  oc_mv                   last_mv;
+  oc_mv                   prior_mv;
   oc_mv                   cbmvs[4];
   size_t                  nmbs;
   size_t                  mbi;
@@ -821,7 +825,7 @@ static void oc_dec_mv_unpack_and_frag_modes_fill(oc_dec_ctx *_dec){
   mv_comp_tree=val?OC_CLC_MV_COMP_TREE:OC_VLC_MV_COMP_TREE;
   map_idxs=OC_MB_MAP_IDXS[_dec->state.info.pixel_fmt];
   map_nidxs=OC_MB_MAP_NIDXS[_dec->state.info.pixel_fmt];
-  memset(last_mv,0,sizeof(last_mv));
+  prior_mv=last_mv=0;
   frags=_dec->state.frags;
   frag_mvs=_dec->state.frag_mvs;
   mb_maps=(const oc_mb_map *)_dec->state.mb_maps;
@@ -858,41 +862,40 @@ static void oc_dec_mv_unpack_and_frag_modes_fill(oc_dec_ctx *_dec){
               codedi++;
               fragi=mb_maps[mbi][0][bi];
               frags[fragi].mb_mode=mb_mode;
-              oc_mv_unpack(&_dec->opb,mv_comp_tree,lbmvs[bi]);
-              memcpy(frag_mvs[fragi],lbmvs[bi],sizeof(lbmvs[bi]));
+              lbmvs[bi]=oc_mv_unpack(&_dec->opb,mv_comp_tree);
+              frag_mvs[fragi]=lbmvs[bi];
             }
-            else lbmvs[bi][0]=lbmvs[bi][1]=0;
+            else lbmvs[bi]=0;
           }
           if(codedi>0){
-            memcpy(last_mv[1],last_mv[0],sizeof(last_mv[1]));
-            memcpy(last_mv[0],lbmvs[coded[codedi-1]],sizeof(last_mv[0]));
+            prior_mv=last_mv;
+            last_mv=lbmvs[coded[codedi-1]];
           }
           if(codedi<ncoded){
-            (*set_chroma_mvs)(cbmvs,(const oc_mv *)lbmvs);
+            (*set_chroma_mvs)(cbmvs,lbmvs);
             for(;codedi<ncoded;codedi++){
               mapi=coded[codedi];
               bi=mapi&3;
               fragi=mb_maps[mbi][mapi>>2][bi];
               frags[fragi].mb_mode=mb_mode;
-              memcpy(frag_mvs[fragi],cbmvs[bi],sizeof(cbmvs[bi]));
+              frag_mvs[fragi]=cbmvs[bi];
             }
           }
         }break;
         case OC_MODE_INTER_MV:{
-          memcpy(last_mv[1],last_mv[0],sizeof(last_mv[1]));
-          oc_mv_unpack(&_dec->opb,mv_comp_tree,mbmv);
-          memcpy(last_mv[0],mbmv,sizeof(last_mv[0]));
+          prior_mv=last_mv;
+          last_mv=mbmv=oc_mv_unpack(&_dec->opb,mv_comp_tree);
         }break;
-        case OC_MODE_INTER_MV_LAST:memcpy(mbmv,last_mv[0],sizeof(mbmv));break;
+        case OC_MODE_INTER_MV_LAST:mbmv=last_mv;break;
         case OC_MODE_INTER_MV_LAST2:{
-          memcpy(mbmv,last_mv[1],sizeof(mbmv));
-          memcpy(last_mv[1],last_mv[0],sizeof(last_mv[1]));
-          memcpy(last_mv[0],mbmv,sizeof(last_mv[0]));
+          mbmv=prior_mv;
+          prior_mv=last_mv;
+          last_mv=mbmv;
         }break;
         case OC_MODE_GOLDEN_MV:{
-          oc_mv_unpack(&_dec->opb,mv_comp_tree,mbmv);
+          mbmv=oc_mv_unpack(&_dec->opb,mv_comp_tree);
         }break;
-        default:memset(mbmv,0,sizeof(mbmv));break;
+        default:mbmv=0;break;
       }
       /*4MV mode fills in the fragments itself.
         For all other modes we can use this common code.*/
@@ -901,7 +904,7 @@ static void oc_dec_mv_unpack_and_frag_modes_fill(oc_dec_ctx *_dec){
           mapi=coded[codedi];
           fragi=mb_maps[mbi][mapi>>2][mapi&3];
           frags[fragi].mb_mode=mb_mode;
-          memcpy(frag_mvs[fragi],mbmv,sizeof(mbmv));
+          frag_mvs[fragi]=mbmv;
         }
       }
     }
@@ -2442,12 +2445,14 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
           }
         }
         else{
-          const signed char *frag_mv;
-          ptrdiff_t          fragi;
+          ptrdiff_t fragi;
+          int       frag_mvx;
+          int       frag_mvy;
           for(bi=0;bi<4;bi++){
             fragi=mb_maps[mbi][0][bi];
             if(fragi>=0&&frags[fragi].coded){
-              frag_mv=frag_mvs[fragi];
+              frag_mvx=OC_MV_X(frag_mvs[fragi]);
+              frag_mvy=OC_MV_Y(frag_mvs[fragi]);
               break;
             }
           }
@@ -2478,13 +2483,13 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                   cairo_stroke(c);
                 }
                 if(_dec->telemetry_mv&0x04){
-                  cairo_move_to(c,x+8+frag_mv[0],y+8-frag_mv[1]);
+                  cairo_move_to(c,x+8+frag_mvx,y+8-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.66,y+8-frag_mv[1]*.66);
+                  cairo_line_to(c,x+8+frag_mvx*.66,y+8-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.33,y+8-frag_mv[1]*.33);
+                  cairo_line_to(c,x+8+frag_mvx*.33,y+8-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+8,y+8);
@@ -2501,13 +2506,13 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                   cairo_stroke(c);
                 }
                 if(_dec->telemetry_mv&0x08){
-                  cairo_move_to(c,x+8+frag_mv[0],y+8-frag_mv[1]);
+                  cairo_move_to(c,x+8+frag_mvx,y+8-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.66,y+8-frag_mv[1]*.66);
+                  cairo_line_to(c,x+8+frag_mvx*.66,y+8-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.33,y+8-frag_mv[1]*.33);
+                  cairo_line_to(c,x+8+frag_mvx*.33,y+8-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+8,y+8);
@@ -2527,13 +2532,13 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                   cairo_stroke(c);
                 }
                 if(_dec->telemetry_mv&0x10){
-                  cairo_move_to(c,x+8+frag_mv[0],y+8-frag_mv[1]);
+                  cairo_move_to(c,x+8+frag_mvx,y+8-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.66,y+8-frag_mv[1]*.66);
+                  cairo_line_to(c,x+8+frag_mvx*.66,y+8-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.33,y+8-frag_mv[1]*.33);
+                  cairo_line_to(c,x+8+frag_mvx*.33,y+8-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+8,y+8);
@@ -2556,13 +2561,13 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                   cairo_stroke(c);
                 }
                 if(_dec->telemetry_mv&0x40){
-                  cairo_move_to(c,x+8+frag_mv[0],y+8-frag_mv[1]);
+                  cairo_move_to(c,x+8+frag_mvx,y+8-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.66,y+8-frag_mv[1]*.66);
+                  cairo_line_to(c,x+8+frag_mvx*.66,y+8-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+8+frag_mv[0]*.33,y+8-frag_mv[1]*.33);
+                  cairo_line_to(c,x+8+frag_mvx*.33,y+8-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+8,y+8);
@@ -2581,14 +2586,15 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                 /*4mv is odd, coded in raster order.*/
                 fragi=mb_maps[mbi][0][0];
                 if(frags[fragi].coded&&_dec->telemetry_mv&0x80){
-                  frag_mv=frag_mvs[fragi];
-                  cairo_move_to(c,x+4+frag_mv[0],y+12-frag_mv[1]);
+                  frag_mvx=OC_MV_X(frag_mvs[fragi]);
+                  frag_mvx=OC_MV_Y(frag_mvs[fragi]);
+                  cairo_move_to(c,x+4+frag_mvx,y+12-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+4+frag_mv[0]*.66,y+12-frag_mv[1]*.66);
+                  cairo_line_to(c,x+4+frag_mvx*.66,y+12-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+4+frag_mv[0]*.33,y+12-frag_mv[1]*.33);
+                  cairo_line_to(c,x+4+frag_mvx*.33,y+12-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+4,y+12);
@@ -2596,14 +2602,15 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                 }
                 fragi=mb_maps[mbi][0][1];
                 if(frags[fragi].coded&&_dec->telemetry_mv&0x80){
-                  frag_mv=frag_mvs[fragi];
-                  cairo_move_to(c,x+12+frag_mv[0],y+12-frag_mv[1]);
+                  frag_mvx=OC_MV_X(frag_mvs[fragi]);
+                  frag_mvx=OC_MV_Y(frag_mvs[fragi]);
+                  cairo_move_to(c,x+12+frag_mvx,y+12-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+12+frag_mv[0]*.66,y+12-frag_mv[1]*.66);
+                  cairo_line_to(c,x+12+frag_mvx*.66,y+12-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+12+frag_mv[0]*.33,y+12-frag_mv[1]*.33);
+                  cairo_line_to(c,x+12+frag_mvx*.33,y+12-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+12,y+12);
@@ -2611,14 +2618,15 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                 }
                 fragi=mb_maps[mbi][0][2];
                 if(frags[fragi].coded&&_dec->telemetry_mv&0x80){
-                  frag_mv=frag_mvs[fragi];
-                  cairo_move_to(c,x+4+frag_mv[0],y+4-frag_mv[1]);
+                  frag_mvx=OC_MV_X(frag_mvs[fragi]);
+                  frag_mvx=OC_MV_Y(frag_mvs[fragi]);
+                  cairo_move_to(c,x+4+frag_mvx,y+4-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+4+frag_mv[0]*.66,y+4-frag_mv[1]*.66);
+                  cairo_line_to(c,x+4+frag_mvx*.66,y+4-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+4+frag_mv[0]*.33,y+4-frag_mv[1]*.33);
+                  cairo_line_to(c,x+4+frag_mvx*.33,y+4-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+4,y+4);
@@ -2626,14 +2634,15 @@ int th_decode_ycbcr_out(th_dec_ctx *_dec,th_ycbcr_buffer _ycbcr){
                 }
                 fragi=mb_maps[mbi][0][3];
                 if(frags[fragi].coded&&_dec->telemetry_mv&0x80){
-                  frag_mv=frag_mvs[fragi];
-                  cairo_move_to(c,x+12+frag_mv[0],y+4-frag_mv[1]);
+                  frag_mvx=OC_MV_X(frag_mvs[fragi]);
+                  frag_mvx=OC_MV_Y(frag_mvs[fragi]);
+                  cairo_move_to(c,x+12+frag_mvx,y+4-frag_mvy);
                   cairo_set_source_rgba(c,1.,1.,1.,.9);
                   cairo_set_line_width(c,3.);
-                  cairo_line_to(c,x+12+frag_mv[0]*.66,y+4-frag_mv[1]*.66);
+                  cairo_line_to(c,x+12+frag_mvx*.66,y+4-frag_mvy*.66);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,2.);
-                  cairo_line_to(c,x+12+frag_mv[0]*.33,y+4-frag_mv[1]*.33);
+                  cairo_line_to(c,x+12+frag_mvx*.33,y+4-frag_mvy*.33);
                   cairo_stroke_preserve(c);
                   cairo_set_line_width(c,1.);
                   cairo_line_to(c,x+12,y+4);

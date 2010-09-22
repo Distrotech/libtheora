@@ -89,8 +89,10 @@ static const int OC_SQUARE_SITES[11][8]={
 
 
 static void oc_mcenc_find_candidates(oc_enc_ctx *_enc,oc_mcenc_ctx *_mcenc,
- int _accum[2],int _mbi,int _frame){
+ oc_mv _accum,int _mbi,int _frame){
   oc_mb_enc_info *embs;
+  int             accum_x;
+  int             accum_y;
   int             a[3][2];
   int             ncandidates;
   unsigned        nmbi;
@@ -102,20 +104,24 @@ static void oc_mcenc_find_candidates(oc_enc_ctx *_enc,oc_mcenc_ctx *_mcenc,
     /*Fill in the first part of set A: the vectors from adjacent blocks.*/
     for(i=0;i<embs[_mbi].ncneighbors;i++){
       nmbi=embs[_mbi].cneighbors[i];
-      _mcenc->candidates[ncandidates][0]=embs[nmbi].analysis_mv[0][_frame][0];
-      _mcenc->candidates[ncandidates][1]=embs[nmbi].analysis_mv[0][_frame][1];
+      _mcenc->candidates[ncandidates][0]=
+       OC_MV_X(embs[nmbi].analysis_mv[0][_frame]);
+      _mcenc->candidates[ncandidates][1]=
+       OC_MV_Y(embs[nmbi].analysis_mv[0][_frame]);
       ncandidates++;
     }
   }
+  accum_x=OC_MV_X(_accum);
+  accum_y=OC_MV_Y(_accum);
   /*Add a few additional vectors to set A: the vectors used in the previous
      frames and the (0,0) vector.*/
-  _mcenc->candidates[ncandidates][0]=OC_CLAMPI(-31,_accum[0],31);
-  _mcenc->candidates[ncandidates][1]=OC_CLAMPI(-31,_accum[1],31);
+  _mcenc->candidates[ncandidates][0]=OC_CLAMPI(-31,accum_x,31);
+  _mcenc->candidates[ncandidates][1]=OC_CLAMPI(-31,accum_y,31);
   ncandidates++;
   _mcenc->candidates[ncandidates][0]=OC_CLAMPI(-31,
-   embs[_mbi].analysis_mv[1][_frame][0]+_accum[0],31);
+   OC_MV_X(embs[_mbi].analysis_mv[1][_frame])+accum_x,31);
   _mcenc->candidates[ncandidates][1]=OC_CLAMPI(-31,
-   embs[_mbi].analysis_mv[1][_frame][1]+_accum[1],31);
+   OC_MV_Y(embs[_mbi].analysis_mv[1][_frame])+accum_y,31);
   ncandidates++;
   _mcenc->candidates[ncandidates][0]=0;
   _mcenc->candidates[ncandidates][1]=0;
@@ -137,11 +143,11 @@ static void oc_mcenc_find_candidates(oc_enc_ctx *_enc,oc_mcenc_ctx *_mcenc,
   nmbi=_mbi;
   for(i=0;;i++){
     _mcenc->candidates[ncandidates][0]=OC_CLAMPI(-31,
-     2*embs[_mbi].analysis_mv[1][_frame][0]
-     -embs[_mbi].analysis_mv[2][_frame][0]+_accum[0],31);
+     2*OC_MV_X(embs[_mbi].analysis_mv[1][_frame])
+     -OC_MV_X(embs[_mbi].analysis_mv[2][_frame])+accum_x,31);
     _mcenc->candidates[ncandidates][1]=OC_CLAMPI(-31,
-     2*embs[_mbi].analysis_mv[1][_frame][1]
-     -embs[_mbi].analysis_mv[2][_frame][1]+_accum[1],31);
+     2*OC_MV_Y(embs[_mbi].analysis_mv[1][_frame])
+     -OC_MV_Y(embs[_mbi].analysis_mv[2][_frame])+accum_y,31);
     ncandidates++;
     if(i>=embs[_mbi].npneighbors)break;
     nmbi=embs[_mbi].pneighbors[i];
@@ -252,7 +258,7 @@ static unsigned oc_mcenc_ysatd_check_bcandidate_fullpel(const oc_enc_ctx *_enc,
                 either OC_FRAME_PREV or OC_FRAME_GOLD.
   _frame_full: The frame to perform the 1px search on, one of OC_FRAME_PREV,
                 OC_FRAME_GOLD, OC_FRAME_PREV_ORIG, or OC_FRAME_GOLD_ORIG.*/
-void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame,
+void oc_mcenc_search_frame(oc_enc_ctx *_enc,oc_mv _accum,int _mbi,int _frame,
  int _frame_full){
   /*Note: Traditionally this search is done using a rate-distortion objective
      function of the form D+lambda*R.
@@ -488,57 +494,49 @@ void oc_mcenc_search_frame(oc_enc_ctx *_enc,int _accum[2],int _mbi,int _frame,
   candy=best_vec[1];
   embs[_mbi].satd[_frame]=oc_mcenc_ysatd_check_mbcandidate_fullpel(_enc,
    frag_buf_offs,fragis,candx,candy,src,satd_ref,ystride);
-  embs[_mbi].analysis_mv[0][_frame][0]=(signed char)(candx<<1);
-  embs[_mbi].analysis_mv[0][_frame][1]=(signed char)(candy<<1);
+  embs[_mbi].analysis_mv[0][_frame]=OC_MV(candx<<1,candy<<1);
   if(_frame==OC_FRAME_PREV){
     for(bi=0;bi<4;bi++){
       candx=best_block_vec[bi][0];
       candy=best_block_vec[bi][1];
       embs[_mbi].block_satd[bi]=oc_mcenc_ysatd_check_bcandidate_fullpel(_enc,
        frag_buf_offs[fragis[bi]],candx,candy,src,satd_ref,ystride);
-      embs[_mbi].block_mv[bi][0]=(signed char)(candx<<1);
-      embs[_mbi].block_mv[bi][1]=(signed char)(candy<<1);
+      embs[_mbi].block_mv[bi]=OC_MV(candx<<1,candy<<1);
     }
   }
 }
 
 void oc_mcenc_search(oc_enc_ctx *_enc,int _mbi){
-  oc_mv2         *mvs;
-  int             accum_p[2];
-  int             accum_g[2];
+  oc_mv2 *mvs;
+  oc_mv   accum_p;
+  oc_mv   accum_g;
+  oc_mv   mv2_p;
   mvs=_enc->mb_info[_mbi].analysis_mv;
-  if(_enc->prevframe_dropped){
-    accum_p[0]=mvs[0][OC_FRAME_PREV][0];
-    accum_p[1]=mvs[0][OC_FRAME_PREV][1];
-  }
-  else accum_p[1]=accum_p[0]=0;
-  accum_g[0]=mvs[2][OC_FRAME_GOLD][0];
-  accum_g[1]=mvs[2][OC_FRAME_GOLD][1];
-  mvs[0][OC_FRAME_PREV][0]-=mvs[2][OC_FRAME_PREV][0];
-  mvs[0][OC_FRAME_PREV][1]-=mvs[2][OC_FRAME_PREV][1];
+  if(_enc->prevframe_dropped)accum_p=mvs[0][OC_FRAME_PREV];
+  else accum_p=0;
+  accum_g=mvs[2][OC_FRAME_GOLD];
   /*Move the motion vector predictors back a frame.*/
-  memmove(mvs+1,mvs,2*sizeof(*mvs));
+  mv2_p=mvs[2][OC_FRAME_PREV];
+  mvs[2][OC_FRAME_GOLD]=mvs[1][OC_FRAME_GOLD];
+  mvs[2][OC_FRAME_PREV]=mvs[1][OC_FRAME_PREV];
+  mvs[1][OC_FRAME_GOLD]=mvs[0][OC_FRAME_GOLD];
+  mvs[1][OC_FRAME_PREV]=OC_MV_SUB(mvs[0][OC_FRAME_PREV],mv2_p);
   /*Search the last frame.*/
   oc_mcenc_search_frame(_enc,accum_p,_mbi,OC_FRAME_PREV,OC_FRAME_PREV_ORIG);
-  mvs[2][OC_FRAME_PREV][0]=accum_p[0];
-  mvs[2][OC_FRAME_PREV][1]=accum_p[1];
+  mvs[2][OC_FRAME_PREV]=accum_p;
   /*GOLDEN MVs are different from PREV MVs in that they're each absolute
      offsets from some frame in the past rather than relative offsets from the
      frame before.
     For predictor calculation to make sense, we need them to be in the same
      form as PREV MVs.*/
-  mvs[1][OC_FRAME_GOLD][0]-=mvs[2][OC_FRAME_GOLD][0];
-  mvs[1][OC_FRAME_GOLD][1]-=mvs[2][OC_FRAME_GOLD][1];
-  mvs[2][OC_FRAME_GOLD][0]-=accum_g[0];
-  mvs[2][OC_FRAME_GOLD][1]-=accum_g[1];
+  mvs[1][OC_FRAME_GOLD]=OC_MV_SUB(mvs[1][OC_FRAME_GOLD],mvs[2][OC_FRAME_GOLD]);
+  mvs[2][OC_FRAME_GOLD]=OC_MV_SUB(mvs[2][OC_FRAME_GOLD],accum_g);
   /*Search the golden frame.*/
   oc_mcenc_search_frame(_enc,accum_g,_mbi,OC_FRAME_GOLD,OC_FRAME_GOLD_ORIG);
   /*Put GOLDEN MVs back into absolute offset form.
     The newest MV is already an absolute offset.*/
-  mvs[2][OC_FRAME_GOLD][0]+=accum_g[0];
-  mvs[2][OC_FRAME_GOLD][1]+=accum_g[1];
-  mvs[1][OC_FRAME_GOLD][0]+=mvs[2][OC_FRAME_GOLD][0];
-  mvs[1][OC_FRAME_GOLD][1]+=mvs[2][OC_FRAME_GOLD][1];
+  mvs[2][OC_FRAME_GOLD]=OC_MV_ADD(mvs[2][OC_FRAME_GOLD],accum_g);
+  mvs[1][OC_FRAME_GOLD]=OC_MV_ADD(mvs[1][OC_FRAME_GOLD],mvs[2][OC_FRAME_GOLD]);
 }
 
 #if 0
@@ -655,12 +653,11 @@ void oc_mcenc_refine1mv(oc_enc_ctx *_enc,int _mbi,int _frame){
   oc_mb_enc_info *embs;
   int             vec[2];
   embs=_enc->mb_info;
-  vec[0]=OC_DIV2(embs[_mbi].analysis_mv[0][_frame][0]);
-  vec[1]=OC_DIV2(embs[_mbi].analysis_mv[0][_frame][1]);
+  vec[0]=OC_DIV2(OC_MV_X(embs[_mbi].analysis_mv[0][_frame]));
+  vec[1]=OC_DIV2(OC_MV_Y(embs[_mbi].analysis_mv[0][_frame]));
   embs[_mbi].satd[_frame]=oc_mcenc_ysatd_halfpel_mbrefine(_enc,
    _mbi,vec,embs[_mbi].satd[_frame],_frame);
-  embs[_mbi].analysis_mv[0][_frame][0]=(signed char)vec[0];
-  embs[_mbi].analysis_mv[0][_frame][1]=(signed char)vec[1];
+  embs[_mbi].analysis_mv[0][_frame]=OC_MV(vec[0],vec[1]);
 }
 
 #if 0
@@ -771,11 +768,10 @@ void oc_mcenc_refine4mv(oc_enc_ctx *_enc,int _mbi){
     ptrdiff_t frag_offs;
     int       vec[2];
     frag_offs=frag_buf_offs[fragis[bi]];
-    vec[0]=OC_DIV2(embs[_mbi].block_mv[bi][0]);
-    vec[1]=OC_DIV2(embs[_mbi].block_mv[bi][1]);
+    vec[0]=OC_DIV2(OC_MV_X(embs[_mbi].block_mv[bi]));
+    vec[1]=OC_DIV2(OC_MV_Y(embs[_mbi].block_mv[bi]));
     embs[_mbi].block_satd[bi]=oc_mcenc_ysatd_halfpel_brefine(_enc,vec,
      src+frag_offs,ref+frag_offs,ystride,offset_y,embs[_mbi].block_satd[bi]);
-    embs[_mbi].ref_mv[bi][0]=(signed char)vec[0];
-    embs[_mbi].ref_mv[bi][1]=(signed char)vec[1];
+    embs[_mbi].ref_mv[bi]=OC_MV(vec[0],vec[1]);
   }
 }

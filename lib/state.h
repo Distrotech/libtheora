@@ -31,7 +31,7 @@ typedef ptrdiff_t       oc_mb_map_plane[4];
 /*A map from a macro block to fragment numbers.*/
 typedef oc_mb_map_plane oc_mb_map[3];
 /*A motion vector.*/
-typedef signed char     oc_mv[2];
+typedef ogg_int16_t     oc_mv;
 
 typedef struct oc_sb_flags              oc_sb_flags;
 typedef struct oc_border_info           oc_border_info;
@@ -224,6 +224,18 @@ typedef struct oc_theora_state          oc_theora_state;
 # define OC_PACKET_SETUP_HDR   (-1)
 /*No more packets to emit/read.*/
 # define OC_PACKET_DONE        (INT_MAX)
+
+
+
+#define OC_MV(_x,_y)         ((oc_mv)((_x)&0xFF|(_y)<<8))
+#define OC_MV_X(_mv)         ((signed char)(_mv))
+#define OC_MV_Y(_mv)         ((_mv)>>8)
+#define OC_MV_ADD(_mv1,_mv2) \
+  OC_MV(OC_MV_X(_mv1)+OC_MV_X(_mv2), \
+   OC_MV_Y(_mv1)+OC_MV_Y(_mv2))
+#define OC_MV_SUB(_mv1,_mv2) \
+  OC_MV(OC_MV_X(_mv1)-OC_MV_X(_mv2), \
+   OC_MV_Y(_mv1)-OC_MV_Y(_mv2))
 
 
 
@@ -478,7 +490,7 @@ void oc_state_fill_buffer_ptrs(oc_theora_state *_state,int _buf_idx,
  th_ycbcr_buffer _img);
 int oc_state_mbi_for_pos(oc_theora_state *_state,int _mbx,int _mby);
 int oc_state_get_mv_offsets(const oc_theora_state *_state,int _offsets[2],
- int _pli,int _dx,int _dy);
+ int _pli,oc_mv _mv);
 
 void oc_loop_filter_init_c(signed char _bv[256],int _flimit);
 void oc_state_loop_filter(oc_theora_state *_state,int _frame);
