@@ -68,7 +68,10 @@ void oc_frag_recon_inter_arm(unsigned char *_dst,const unsigned char *_src,
  int _ystride,const ogg_int16_t *_residue);
 void oc_frag_recon_inter2_arm(unsigned char *_dst,const unsigned char *_src1,
  const unsigned char *_src2,int _ystride,const ogg_int16_t *_residue);
+void oc_idct8x8_1_arm(ogg_int16_t _y[64],ogg_uint16_t _dc);
 void oc_idct8x8_arm(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi);
+void oc_state_frag_recon_arm(const oc_theora_state *_state,ptrdiff_t _fragi,
+ int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant);
 void oc_loop_filter_frag_rows_arm(unsigned char *_ref_frame_data,
  int _ystride,signed char *_bv,const oc_fragment *_frags,ptrdiff_t _fragi0,
  ptrdiff_t _fragi0_end,ptrdiff_t _fragi_top,ptrdiff_t _fragi_bot,
@@ -86,7 +89,10 @@ void oc_frag_recon_inter_v6(unsigned char *_dst,const unsigned char *_src,
  int _ystride,const ogg_int16_t *_residue);
 void oc_frag_recon_inter2_v6(unsigned char *_dst,const unsigned char *_src1,
  const unsigned char *_src2,int _ystride,const ogg_int16_t *_residue);
+void oc_idct8x8_1_v6(ogg_int16_t _y[64],ogg_uint16_t _dc);
 void oc_idct8x8_v6(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi);
+void oc_state_frag_recon_v6(const oc_theora_state *_state,ptrdiff_t _fragi,
+ int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant);
 void oc_loop_filter_init_v6(signed char *_bv,int _flimit);
 void oc_loop_filter_frag_rows_v6(unsigned char *_ref_frame_data,
  int _ystride,signed char *_bv,const oc_fragment *_frags,ptrdiff_t _fragi0,
@@ -103,7 +109,10 @@ void oc_frag_recon_inter_neon(unsigned char *_dst,const unsigned char *_src,
  int _ystride,const ogg_int16_t *_residue);
 void oc_frag_recon_inter2_neon(unsigned char *_dst,const unsigned char *_src1,
  const unsigned char *_src2,int _ystride,const ogg_int16_t *_residue);
+void oc_idct8x8_1_neon(ogg_int16_t _y[64],ogg_uint16_t _dc);
 void oc_idct8x8_neon(ogg_int16_t _y[64],ogg_int16_t _x[64],int _last_zzi);
+void oc_state_frag_recon_neon(const oc_theora_state *_state,ptrdiff_t _fragi,
+ int _pli,ogg_int16_t _dct_coeffs[128],int _last_zzi,ogg_uint16_t _dc_quant);
 void oc_loop_filter_init_neon(signed char *_bv,int _flimit);
 void oc_loop_filter_frag_rows_neon(unsigned char *_ref_frame_data,
  int _ystride,signed char *_bv,const oc_fragment *_frags,ptrdiff_t _fragi0,

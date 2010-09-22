@@ -18,7 +18,25 @@
 
 	GET	armopts.s
 
+	EXPORT	oc_idct8x8_1_arm
 	EXPORT	oc_idct8x8_arm
+
+oc_idct8x8_1_arm
+	; r0 = ogg_int16_t  *_y
+	; r1 = ogg_uint16_t  _dc
+	ORR	r1, r1, r1, LSL #16
+	MOV	r2, r1
+	MOV	r3, r1
+	MOV	r12,r1
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	STMIA	r0!,{r1,r2,r3,r12}
+	MOV	PC, r14
 
 oc_idct8x8_arm
 	; r0 = ogg_int16_t *_y
@@ -719,7 +737,31 @@ idct8core_down_arm
 	LDMFD	r13!,{r1,PC}
 
  [ OC_ARM_ASM_MEDIA
+	EXPORT	oc_idct8x8_1_v6
 	EXPORT	oc_idct8x8_v6
+
+oc_idct8x8_1_v6
+	; r0 = ogg_int16_t  *_y
+	; r1 = ogg_uint16_t  _dc
+	ORR	r2, r1, r1, LSL #16
+	ORR	r3, r1, r1, LSL #16
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	STRD	r2, [r0], #8
+	MOV	PC, r14
 
 oc_idct8x8_v6
 	; r0 = ogg_int16_t *_y
@@ -1448,6 +1490,7 @@ idct8_8core_down_stage3_5_v6
  ]
 
  [ OC_ARM_ASM_NEON
+	EXPORT	oc_idct8x8_1_neon
 	EXPORT	oc_idct8x8_neon
 
 	ALIGN 16
@@ -1460,6 +1503,17 @@ OC_IDCT_CONSTS_NEON
 	DCW	36410 ; 471D (C5S3)
 	DCW	25080 ; 30FC (C6S2)
 	DCW	12785 ; 31F1 (C7S1)
+
+oc_idct8x8_1_neon
+	; r0 = ogg_int16_t  *_y
+	; r1 = ogg_uint16_t  _dc
+	VDUP.S16	Q0, r1
+	VMOV		Q1, Q0
+	VST1.64		{D0, D1, D2, D3}, [r0@128]!
+	VST1.64		{D0, D1, D2, D3}, [r0@128]!
+	VST1.64		{D0, D1, D2, D3}, [r0@128]!
+	VST1.64		{D0, D1, D2, D3}, [r0@128]
+	MOV	PC, r14
 
 oc_idct8x8_neon
 	; r0 = ogg_int16_t *_y
