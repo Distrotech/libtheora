@@ -134,8 +134,12 @@ int oc_ilog64(ogg_int64_t _v);
 # define OC_STATIC_ILOG_64(_v) (OC_STATIC_ILOG6((ogg_int64_t)(_v)))
 
 #define OC_Q57(_v) ((ogg_int64_t)(_v)<<57)
+#define OC_Q10(_v) ((_v)<<10)
 
 ogg_int64_t oc_bexp64(ogg_int64_t _z);
 ogg_int64_t oc_blog64(ogg_int64_t _w);
+
+ogg_uint32_t oc_bexp32_q10(int _z);
+int oc_blog32_q10(ogg_uint32_t _w);
 
 #endif

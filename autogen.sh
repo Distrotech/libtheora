@@ -127,4 +127,4 @@ $AUTOMAKE --add-missing $AUTOMAKE_FLAGS || exit 1
 autoconf || exit 1
 
 cd $olddir
-$srcdir/configure --enable-maintainer-mode "$@" && /bin/echo
+$srcdir/configure "$@" && /bin/echo

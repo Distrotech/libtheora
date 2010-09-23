@@ -190,7 +190,8 @@ void oc_enc_calc_lambda(oc_enc_ctx *_enc,int _qti){
     This may need to be revised if the R-D cost estimation or qii flag
      optimization strategies change.*/
   nqis=1;
-  if(lq<(OC_Q57(56)>>3)&&!_enc->vp3_compatible){
+  if(lq<(OC_Q57(56)>>3)&&!_enc->vp3_compatible&&
+   _enc->sp_level<OC_SP_LEVEL_FAST_ANALYSIS){
     qi1=oc_enc_find_qi_for_target(_enc,_qti,OC_MAXI(qi-1,0),0,
      lq+(OC_Q57(7)+5)/10);
     if(qi1!=qi)_enc->state.qis[nqis++]=qi1;

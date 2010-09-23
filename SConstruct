@@ -129,37 +129,47 @@ if build_player_example and not conf.CheckSDL():
 if conf.CheckHost_x86_32():
   env.Append(CPPDEFINES='OC_X86_ASM')
   decoder_sources += """
+        x86/x86cpu.c
         x86/mmxidct.c
         x86/mmxfrag.c
         x86/mmxstate.c
+        x86/sse2idct.c
         x86/x86state.c
   """
   encoder_sources += """
-	x86/mmxencfrag.c
-	x86/mmxfdct.c
-	x86/x86enc.c
-	x86/mmxfrag.c
-	x86/mmxidct.c
-	x86/mmxstate.c
-	x86/x86state.c
+        x86/x86cpu.c
+        x86/mmxencfrag.c
+        x86/mmxfdct.c
+        x86/x86enc.c
+        x86/x86enquant.c
+        x86/sse2encfrag.c
+        x86/mmxfrag.c
+        x86/mmxidct.c
+        x86/mmxstate.c
+        x86/x86state.c
   """
 elif conf.CheckHost_x86_64():
   env.Append(CPPDEFINES=['OC_X86_ASM', 'OC_X86_64_ASM'])
   decoder_sources += """
+        x86/x86cpu.c
         x86/mmxidct.c
         x86/mmxfrag.c
         x86/mmxstate.c
+        x86/sse2idct.c
         x86/x86state.c
   """
   encoder_sources += """
-	x86/mmxencfrag.c
-	x86/mmxfdct.c
-	x86/x86enc.c
-	x86/sse2fdct.c
-	x86/mmxfrag.c
-	x86/mmxidct.c
-	x86/mmxstate.c
-	x86/x86state.c
+        x86/x86cpu.c
+        x86/mmxencfrag.c
+        x86/mmxfdct.c
+        x86/x86enc.c
+        x86/x86enquant.c
+        x86/sse2fdct.c
+        x86/mmxfrag.c
+        x86/mmxidct.c
+        x86/mmxstate.c
+        x86/x86state.c
+        x86/sse2encfrag.c
   """
 
 env = conf.Finish()
@@ -200,6 +210,7 @@ dump_psnr.Program('examples/dump_psnr', path('examples', dump_psnr_Sources))
 if have_vorbis:
   encex = dump_video.Clone()
   encex.ParseConfig('pkg-config --cflags --libs vorbisenc vorbis')
+  encex.Append(LIBS=['m'])
   encex_Sources = Split("""
 	encoder_example.c
 	../lib/libtheoraenc.a 
@@ -214,6 +225,7 @@ if have_vorbis:
 	../lib/libtheoradec.a
     """)
     plyex.ParseConfig('sdl-config --cflags --libs')
+    plyex.Append(LIBS=['m'])
     plyex.Program('examples/player_example', path('examples', plyex_Sources))
 
 png2theora = env.Clone()
@@ -222,4 +234,6 @@ png2theora_Sources = Split("""png2theora.c
 	../lib/libtheoradec.a
 """)
 png2theora.ParseConfig('pkg-config --cflags --libs libpng')
+png2theora.Append(LIBS=['m'])
 png2theora.Program('examples/png2theora', path('examples', png2theora_Sources))
+
