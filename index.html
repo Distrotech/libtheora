@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Libtheora by Distrotech</title>
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>Libtheora</h1>
+          <h2>Mirror of git://git.xiph.org/mirrors/theora.git</h2>
+        </header>
+
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/Distrotech/libtheora/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/Distrotech/libtheora/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/Distrotech/libtheora" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
+          <hr><pre><code>         The Xiph.org Foundation's libtheora 1.2
+</code></pre>
+
+<hr><p>*** What is Theora?</p>
+
+<p>Theora is Xiph.Org's first publicly released video codec, intended
+for use within the Foundation's Ogg multimedia streaming system.
+Theora is derived directly from On2's VP3 codec, adds new features
+while allow it a longer useful lifetime as an competitive codec.</p>
+
+<p>The 1.0 release decoder supported all the new features, but the
+encoder is nearly identical to the VP3 code.</p>
+
+<p>The 1.1 release featured a completely rewritten encoder, offering
+better performance and compression, and making more complete use
+of the format's feature set.</p>
+
+<p>The 1.2 release features significant additional improvements in
+compression and performance. Files produced by newer encoders can
+be decoded by earlier releases.</p>
+
+<p>*** Where is Theora?</p>
+
+<p>Theora's main site is <a href="http://www.theora.org">www.theora.org</a>.  Theora and related libraries
+can be gotten from <a href="http://www.theora.org">www.theora.org</a> or the main Xiph.Org site at
+<a href="http://www.xiph.org">www.xiph.org</a>.  Development source is kept in an open subversion
+repository, see <a href="http://theora.org/svn/">http://theora.org/svn/</a> for instructions.</p>
+
+<hr><h2>
+<a name="getting-started-with-the-code" class="anchor" href="#getting-started-with-the-code"><span class="octicon octicon-link"></span></a>Getting started with the code</h2>
+
+<p>*** What do I need to build the source?</p>
+
+<p>Requirements summary:</p>
+
+<p>For libtheora:</p>
+
+<pre><code>  libogg 1.1 or newer.
+</code></pre>
+
+<p>For example encoder:</p>
+
+<pre><code>  as above,
+
+  libvorbis and libvorbisenc 1.0.1 or newer.
+  (libvorbis 1.3.1 or newer for 5.1 audio)
+</code></pre>
+
+<p>For creating a source distribution package:</p>
+
+<pre><code>  as above,
+
+  Doxygen to build the API documentation,
+  pdflatex and fig2dev to build the format specification
+    (transfig package in Ubuntu).
+</code></pre>
+
+<p>For the player only:</p>
+
+<pre><code>  as above,
+
+  SDL (Simple Direct media Layer) libraries and headers,
+  OSS audio driver and development headers.
+</code></pre>
+
+<p>The provided build system is the GNU automake/autoconf system, and
+the main library, libtheora, should already build smoothly on any
+system.  Failure of libtheora to build on a GNU-enabled system is
+considered a bug; please report problems to <a href="mailto:theora-dev@xiph.org">theora-dev@xiph.org</a>.</p>
+
+<p>Windows build support is included in the win32 directory.</p>
+
+<p>Project files for Apple XCode are included in the macosx directory.</p>
+
+<p>There is also a more limited scons build.</p>
+
+<p>*** How do I use the sample encoder?</p>
+
+<p>The sample encoder takes raw video in YUV4MPEG2 format, as used by
+lavtools, mjpeg-tools and other packages. The encoder expects audio,
+if any, in a separate wave WAV file. Try 'encoder_example -h' for a
+complete list of options.</p>
+
+<p>An easy way to get raw video and audio files is to use MPlayer as an
+export utility.  The options " -ao pcm -vo yuv4mpeg " will export a
+wav file named audiodump.wav and a YUV video file in the correct
+format for encoder_example as stream.yuv.  Be careful when exporting
+video alone; MPlayer may drop frames to 'keep up' with the audio
+timer.  The example encoder can't properly synchronize input audio and
+video file that aren't in sync to begin with.</p>
+
+<p>The encoder will also take video or audio on stdin if '-' is specified
+as the input file name.</p>
+
+<p>There is also a 'png2theora' example which accepts a set of image
+files in that format.</p>
+
+<p>*** How do I use the sample player?</p>
+
+<p>The sample player takes an Ogg file on standard in; the file may be
+audio alone, video alone or video with audio.</p>
+
+<p>*** What other tools are available?</p>
+
+<p>The programs in the examples directory are intended as tutorial source
+for developers using the library. As such they sacrifice features and
+robustness in the interests of comprehension and should not be
+considered serious applications.</p>
+
+<p>If you're wanting to just use theora, consider the programs linked
+from <a href="http://www.theora.org/">http://www.theora.org/</a>. There is playback support in a number
+of common free players, and plugins for major media frameworks.
+Jan Gerber's ffmpeg2theora is an excellent encoding front end.</p>
+
+<hr><h2>
+<a name="troubleshooting-the-build-process" class="anchor" href="#troubleshooting-the-build-process"><span class="octicon octicon-link"></span></a>Troubleshooting the build process</h2>
+
+<p>*** Compile error, such as:</p>
+
+<p>encoder_internal.h:664: parse error before `ogg_uint16_t'</p>
+
+<p>This means you have version of libogg prior to 1.1. A <em>complete</em> new Ogg
+install, libs and headers is needed.</p>
+
+<p>Also be sure that there aren't multiple copies of Ogg installed in
+/usr and /usr/local; an older one might be first on the search path
+for libs and headers.</p>
+
+<p>*** Link error, such as:</p>
+
+<p>undefined reference to `oggpackB_stream'</p>
+
+<p>See above; you need libogg 1.1 or later.</p>
+
+<p>*** Link error, such as:</p>
+
+<p>undefined reference to `vorbis_granule_time'</p>
+
+<p>You need libvorbis and libvorbisenc from the 1.0.1 release or later.</p>
+
+<p>*** Link error, such as:</p>
+
+<p>/usr/lib/libSDL.a(SDL_esdaudio.lo): In function <code>ESD_OpenAudio':
+SDL_esdaudio.lo(.text+0x25d): undefined reference to</code>esd_play_stream'</p>
+
+<p>Be sure to use an SDL that's built to work with OSS.  If you use an
+SDL that is also built with ESD and/or ALSA support, it will try to
+suck in all those extra libraries at link time too.  That will only
+work if the extra libraries are also installed.</p>
+
+<p>*** Link warning, such as:</p>
+
+<p>libtool: link: warning: library <code>/usr/lib/libogg.la' was moved.
+libtool: link: warning: library</code>/usr/lib/libogg.la' was moved.</p>
+
+<p>Re-run theora/autogen.sh after an Ogg or Vorbis rebuild/reinstall</p>
+        </section>
+
+        <footer>
+          Libtheora is maintained by <a href="https://github.com/Distrotech">Distrotech</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="http://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
+
+        
+      </div>
+    </div>
+  </body>
+</html>
