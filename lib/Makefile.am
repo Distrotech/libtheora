@@ -258,7 +258,7 @@ libtheoraenc_la_LDFLAGS = \
   -version-info @THENC_LIB_CURRENT@:@THENC_LIB_REVISION@:@THENC_LIB_AGE@ \
   @THEORAENC_LDFLAGS@ $(OGG_LIBS) \
   -no-undefined
-libtheoraenc_la_LIBADD = libtheoradec.la
+libtheoraenc_la_LIBADD = libtheoradec.la -logg
 
 libtheora_la_SOURCES = \
 	$(decoder_sources) \
