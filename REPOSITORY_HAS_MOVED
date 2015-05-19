@@ -1,0 +1,11 @@
+== THIS REPOSITORY IS NO LONGER ACTIVE ==
+
+Development work has moved to https://git.xiph.org/theora.git
+
+Please checkout that repository for the latest changes:
+
+  git clone https://git.xiph.org/theora.git
+
+This version of the code remains for historical reference.
+It is up to date as far as unreleased 1.2 code at the end
+of 2014.
